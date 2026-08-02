@@ -39,13 +39,24 @@ What's still true, and still worth building on:
 - Aider died from **scope creep and abandoned stewardship**, not from a technical flaw (see
   Risks). The single most-repeated complaint mined from its own issue tracker isn't a missing
   feature — it's "where is Paul?" (#4613) and "what is the intended future of Aider?" (#4648,
-  closed not-planned by the maintainer). A PHP agent that ships slower but doesn't die is a real
-  differentiator against a python original that's ten weeks dark.
+  closed not-planned by the maintainer). A PHP agent that is still being maintained a year from now
+  beats a 48k-star original that is ten weeks dark. Note this is about
+  *stewardship*, not velocity — Jeremy's objection to an earlier draft of this
+  line was that "ships slower" is not the trade being made. He is not capacity
+  constrained; the discipline is in scope, not in pace.
 
-**The honest thesis, one sentence:** Paider bets that a narrowly-scoped, cost-routed, actively
-maintained PHP coding agent beats both a stalled 48k-star original and a 38-star PHP entrant
-that's coupled to a SaaS pitch and built on pre-1.0 foundations — not because PHP needed an
-agent, but because nobody has yet shipped one that won't rot.
+**The honest thesis, one sentence:** Paider bets that a narrowly-scoped, cost-routed,
+Laravel-native PHP coding agent beats both a stalled 48k-star original and a 38-star PHP entrant
+coupled to a SaaS pitch — not because PHP needed an agent, but because an agent that lives
+*inside* a Laravel app knows things an external one has to be told, and because nobody has yet
+shipped one that won't rot.
+
+**Model routing is a named feature, not a config detail.** Eleven presets ship in
+`config/presets.php`, every model ID and price verified live: eight single-provider stacks, a
+`balanced` default (Opus 5 to think, `qwen3.7-flash` to do — 95.3% cheaper than all-Opus), and
+two open-weight stacks (`open` on kimi-k3, `open-frugal` on minimax-m3 at $0.30/$1.20 for a 1M
+context orchestrator) for developers who will not send their code to a US frontier lab. That
+last constituency is real and entirely unserved in PHP.
 
 ---
 

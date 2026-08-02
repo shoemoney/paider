@@ -97,6 +97,38 @@ return [
     ],
 
     /*
+    | OPEN-WEIGHT STACK. No US frontier lab in the loop -- for people who want
+    | models they could in principle self-host, or who simply will not send code
+    | to Anthropic/OpenAI. A real constituency, and nobody in the PHP space
+    | ships a preset for them.
+    |
+    | ⚠️ VERIFY BEFORE ADVERTISING AS "OPEN SOURCE". Moonshot open-weighted
+    | Kimi K2 and MiniMax open-weighted M1/M2, but whether K3 and M3
+    | specifically have published weights is UNVERIFIED as of 2026-08-02.
+    | Qwen3 is broadly open-weight. If K3/M3 turn out to be closed, rename this
+    | preset or drop to kimi-k2.7-code / minimax-m2 which are known-open.
+    */
+    'open' => [
+        'orchestrator' => 'moonshotai/kimi-k3',           //  $3.00 /  $15.00   1.05M ctx
+        'coder'        => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
+        'research'     => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
+        'fast'         => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13
+    ],
+
+    /*
+    | Same idea, an order of magnitude cheaper on the thinking tier. minimax-m3
+    | is $0.30/$1.20 at 1M ctx -- one twentieth of kimi-k3 -- so the whole stack
+    | runs for pennies. Worth benchmarking m3 against k3 on real planning work
+    | before deciding which is the default open orchestrator.
+    */
+    'open-frugal' => [
+        'orchestrator' => 'minimax/minimax-m3',           //  $0.30 /   $1.20   1.05M ctx
+        'coder'        => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
+        'research'     => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
+        'fast'         => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13
+    ],
+
+    /*
     | THE DEFAULT. Mixing providers per tier is the entire point, and this is
     | the split Jeremy actually runs: Opus 5 to think, qwen3.7-flash to do.
     |
