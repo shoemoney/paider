@@ -1,0 +1,68 @@
+# PHP extension manifest
+
+The shipped binary compiles a **chosen** extension set. This file is the whole list, and adding
+to it requires a reason written down here.
+
+Why this is a document and not an afterthought: on the author's dev machine, 76 loaded
+extensions cost **94ms of a 143ms** PHP startup. A tool that inherits a user's ini inherits that
+tax. Pinning the set is most of the reason
+[FrankenPHP](https://frankenphp.dev/docs/embed/) was chosen over `composer global require`.
+
+## v0.1 — required, eight
+
+| extension | why | who needs it |
+|---|---|---|
+| `mbstring` | UTF-8 handling throughout | 9 packages, incl. `illuminate/console` |
+| `tokenizer` | Blade / view compilation | 5 packages, incl. `illuminate/view` |
+| `ctype` | validation | `illuminate/support` |
+| `fileinfo` | file-type detection when reading files | `league/flysystem-local` |
+| `iconv` | encoding conversion | `symfony/polyfill-mbstring` |
+| `curl` | LLM HTTP, and `curl_multi` for concurrency | Paider |
+| `openssl` | TLS, and AES-256-GCM for stored credentials | Paider |
+| `zlib` | gzipped HTTP responses | Paider |
+
+Free — compiled into PHP core, not separate extensions: `json`, `filter`, `pcre`, `date`,
+`spl`, `reflection`, `hash`, `random`.
+
+## Deliberately excluded
+
+**Dev-only, never shipped.** `dom`, `libxml`, `simplexml`, `xml`, `xmlwriter`, `phar`. Every one
+arrives via `paratest`, `phpunit`, `phar-io/manifest` or `pint` — test and lint tooling that has
+no business in a user's binary.
+
+**`pdo_mysql`, `pdo_pgsql` — cut.** They were listed to let the agent introspect the *user's*
+database schema. Laravel already writes its schema down as migration files, which the agent can
+read as plain text: no database credentials to handle, works offline, no extension, no
+connection to configure. The simpler path is also the safer one.
+
+**`swoole` — not needed.** PHP 8.5 ships native Fibers, and `curl_multi` did 6 concurrent
+requests in 71ms with zero extensions. An agent is I/O-bound; that is enough. Revisit only if
+profiling says otherwise.
+
+**`pcntl`, `posix` — cut.** They were listed for "subprocess control", which was wrong:
+`proc_open`, `exec` and `stream_isatty()` are all in `ext-standard` and need no extension. The
+only real use is trapping SIGINT for a graceful Ctrl+C — and the better answer there is
+**atomic writes** (write a temp file, rename), which makes interruption harmless without any
+signal handling and also survives crashes and power loss. Cutting them keeps the build matrix
+single-profile; both are Unix-only and would have forced a separate Windows build.
+
+*(Note on testing this: `php -n` does not prove an extension is unnecessary. It disables the ini
+file, but Homebrew compiles `pcntl` and `posix` into the binary, so they survive `-n` and the
+probe reports them as core. Check the extension's origin, not its presence.)*
+
+**`opcache` — unmeasured.** Plausibly worth it in the embedded binary, since it caches compiled
+scripts. Measure before adding; it did nothing for bare-interpreter startup in testing.
+
+## Opt-in, per milestone
+
+| extension | milestone | why |
+|---|---|---|
+| `pdo_sqlite` | v0.2 | credential store and session state. **PDO, not `sqlite3`** — Eloquent talks PDO, and the two are different APIs. |
+| `redis` | v0.3 | response cache, rate-limit parking (a TTL key is exactly the right primitive), kanban task state |
+| — | — | nothing else is planned |
+
+## The rule
+
+An extension enters this file when a milestone needs it, not when it might be handy. Every entry
+is bytes in the binary, time at boot, and a platform-support question. The set staying small is a
+feature, and it is the one that is easiest to lose by accident.
