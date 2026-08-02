@@ -491,3 +491,43 @@ the aggregator as one provider among several rather than the substrate.
 see §5), Qwen and Kimi plans issue real API keys against these endpoints. So a user holding
 those plans can actually spend them from Paider. Worth confirming per-plan whether it is
 flat-rate or prepaid credit before documenting anything about it.
+
+---
+
+## Qwen Coding Plan — verified 2026-08-02, and it changes the default
+
+Reported to be "virtually unlimited". It is not.
+
+| | |
+|---|---|
+| Price | **$50/month** |
+| Quota | 6,000 req / 5h · 45,000 / week · **90,000 / month** |
+| Exhaustion | calls **fail** — no fallback to pay-as-you-go |
+| Cost of a task | their docs: simple ~5–10 requests, complex **30+** |
+
+Three findings that affect Paider directly:
+
+**1. `qwen3.7-flash` is not on the plan.** The allowlist is exact-string and the docs warn
+"do not infer version compatibility." Included: `qwen3-coder-next`, `qwen3-coder-plus`,
+`qwen3.7-plus`, `qwen3.6-plus`, `qwen3.5-plus`, `qwen3-max-2026-01-23`, plus third-party
+`kimi-k2.5`, `glm-5`, `MiniMax-M2.5`, `glm-4.7`.
+
+So the `balanced` default — Opus 5 to think, `qwen3.7-flash` to do — **cannot run on a Coding
+Plan**. A plan holder needs a different preset. That is a real gap: add a `qwen-plan` preset
+built only from allowlisted models, and have `paider config provider` warn when a selected model
+is not on the user's plan.
+
+**2. Wrong key silently bills pay-as-you-go.** Plan keys are prefixed `sk-sp-` and require a
+base URL containing `coding.dashscope`. Using the general Model Studio key and URL works fine
+and charges separately. **Paider should detect an `sk-sp-` key against a non-coding base URL and
+refuse, loudly.** Cheap to implement, saves a real bill, and no other tool does it.
+
+**3. ToS constraint.** "API keys are for interactive coding tools (not scripts or batch calls)
+and for personal use only. Account sharing may result in suspension." Paider is an interactive
+coding tool, so it qualifies — but nothing in the docs may encourage batch or unattended use of
+a Coding Plan key, and the account-rotation hypothesis in §5 is explicitly off the table for
+this provider.
+
+**Correction to the earlier subscription picture:** Qwen plan keys are real API keys, so they
+are spendable from Paider — but only within a request quota, only for allowlisted models, and
+only through the plan-specific endpoint. "Subscriptions just work" was too simple.
