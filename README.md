@@ -28,6 +28,11 @@ ends of the protocol at once. Shipped as a package, Paider turns your own models
 and domain logic into tools the agent can call — defined in the framework's idiom, not
 hand-rolled JSON schemas. No Python or Go CLI can do that for a Laravel developer.
 
+The full version of this — any MCP client driving Paider's tools — is v1.0, gated on the MCP PHP
+SDK maturing past pre-1.0. But the shape ships in v0.1 already: pointed at a Laravel repo, Paider
+gets one extra tool, `ArtisanTool`, that reads `route:list` as structured data instead of shell
+text. Small on purpose — see [`PLAN.md`](PLAN.md) — but real, not just promised.
+
 **2. You can see exactly where the money went.**
 
 Four tiers, named for what they are *for*:
@@ -142,17 +147,26 @@ Two channels, because there are exactly two users:
 
 ```bash
 composer require paider/paider          # inside your Laravel app — this is the thesis
-curl -fsSL paider.dev/install | sh      # standalone binary, no PHP required
+curl -fsSL paider.dev/install | sh      # planned: standalone binary, no PHP required
 ```
 
 The package is non-negotiable: an agent that turns *your* models and jobs into tools has to be a
 dependency of your app, and a compiled binary cannot be one.
 
-The binary is [FrankenPHP](https://github.com/php/frankenphp) embed (11,263★, Go, built on
-Caddy), which produces a self-executable with PHP inside and
+The binary is planned to be a [FrankenPHP](https://github.com/php/frankenphp) embed (11,263★, Go,
+built on Caddy), which produces a self-executable with PHP inside and
 [supports CLI](https://frankenphp.dev/docs/embed/) — `./my-app php-cli bin/console` — not just
 HTTP. It selects extensions from `composer.json`, so the shipped tool never inherits a user's dev
 ini. That matters: 76 extensions on the author's machine cost 94ms of a 143ms startup.
+
+**Not settled yet, on purpose.** CLI embedding is younger than the star count suggests — it landed
+via FrankenPHP PR [#1561](https://github.com/php/frankenphp/pull/1561) /
+[#1632](https://github.com/php/frankenphp/pull/1632), with the clean fix deferred to a future PHP
+version, and a maintainer estimated **20–30MB for the CLI binary alone**, before this app and
+Caddy are even added. Binary size and cold start of a FrankenPHP-embedded CLI have not been
+measured — see the "Unverified" note in [`PLAN.md`](PLAN.md). The `curl | sh` line above is the
+intended shape of the install, not a claim that it starts fast or ships small; if it starts slower
+than the 95.9ms Laravel Zero baseline above, the whole rationale for it weakens.
 
 **No PHAR.** It needs PHP installed but is not a composer dependency, so it serves neither user
 better than the two above. A third channel is maintenance forever for an audience of nobody.

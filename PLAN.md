@@ -74,9 +74,11 @@ Every one of these is a plausible, tempting feature. None of them ship in v1.0.
 - **No auto-PR / GitHub-API integration.** Paider edits your working tree and commits locally.
   Opening PRs, managing CI, or talking to GitHub's API is out of scope indefinitely.
 - **No support for every LLM provider on day one.** Only the presets already defined in
-  `config/presets.php` (anthropic, openai, google, kimi, deepseek, xai, qwen, glm, balanced) plus
-  a generic OpenRouter/OpenAI-compatible escape hatch. Provider requests get a `--base-url`
-  override, not a bespoke integration.
+  `config/presets.php` — eleven of them: anthropic, openai, google, kimi, deepseek, xai, qwen,
+  glm, `open`, `open-frugal`, balanced (the last two, both open-weight stacks, were added after
+  this list was first written and are synced back here now) — plus a generic
+  OpenRouter/OpenAI-compatible escape hatch. Provider requests get a `--base-url` override, not a
+  bespoke integration.
 - **No native Windows support.** WSL only — Maestro made the same call for the same reason
   (POSIX shell tool execution). State it, don't apologize for it.
 - **No multi-subscription rotation.** Explicitly parked in `DECISIONS.md` §5: a Claude Max seat
@@ -123,18 +125,28 @@ Commands:
 Tools available to the agent loop in v0.1 (all native PHP, no MCP dependency yet — see
 Architecture):
 
-- Read file, write file (whole-file replace), patch file (unified diff apply)
+- Read file (`.gitignore`-aware, deny-list-guarded — see Architecture), write file (whole-file
+  replace), patch file (unified diff apply, stamp-checked against the file at `/add` time, `php
+  -l` checked after write — see Architecture)
 - Run shell command — always behind an approval gate (allow-once / allow-session / deny), same
   three-state UX Maestro already validated
 - `git diff`, `git add`, `git commit`
+- **`ArtisanTool`** — present only when `artisan` exists at the repo root. One hardcoded call,
+  `php artisan route:list --json`, exposed to the agent as a typed tool result (route, method,
+  action) rather than raw shell text. This is the v0.1 proof of the Laravel-host thesis — see
+  "Sequencing: the Laravel-host proof can't wait for v1.0" below.
 
-**Explicitly deferred past v0.1:** MCP client/server support, non-interactive `--yes` mode,
-repo-map/search tooling, automatic test-runner feedback loop. All real, all v0.2.
+**Explicitly deferred past v0.1:** MCP client/server support (Paider consuming or exposing tools
+over the actual protocol), non-interactive `--yes` mode, repo-map/search tooling, automatic
+test-runner feedback loop, and any *general* Artisan/job/model passthrough beyond the one
+hardcoded `ArtisanTool` call above. All real, all v0.2+.
 
 **Definition of done for v0.1:** Jeremy runs `composer global require` from a fresh machine,
 points `paider` at a real repo, has it make a multi-file edit via the default `balanced` preset
 (Opus 5 orchestrator, `qwen3.7-flash` coder), approves the diff, and commits — end to end, no
-manual model wiring, no crash on a malformed diff from the coder tier.
+manual model wiring, no crash on a malformed diff from the coder tier, no silent apply against a
+file that moved since `/add`, and no `.env` sent to a provider by accident. Pointed at a Laravel
+repo, `ArtisanTool` is available and the agent can use it unprompted.
 
 ---
 
@@ -162,11 +174,12 @@ app/
     OpenAiCompatibleClient.php     # covers openai, kimi, deepseek, xai, qwen, glm, google via OpenRouter/base-url override
   Tools/
     Contracts/Tool.php
-    ReadFileTool.php
+    ReadFileTool.php          # .gitignore + deny-list guard before any content leaves the process
     WriteFileTool.php
-    PatchFileTool.php
+    PatchFileTool.php         # stamp check + php -l gate before the diff is shown for approval
     ShellTool.php             # wraps approval gate
     GitTool.php
+    ArtisanTool.php           # v0.1 Laravel-host proof: one hardcoded call, see below
   Approval/
     Gate.php                  # allow-once / allow-session / deny, Termwind-rendered prompt
   Rendering/
@@ -212,6 +225,13 @@ intentionally not configurable per-operation in v0.1 (that's a config-surface tr
 feature): `plan` → orchestrator, `edit` → coder, `search`/`summarize` → research, `commit-msg`
 → fast.
 
+**`sk-sp-` guard, in v0.1.** Before any provider call goes out, the client construction path
+checks the resolved key against the resolved base URL: if the key matches `sk-sp-*` (a Qwen
+Coding Plan key, see "Qwen Coding Plan" below) and the base URL does not contain
+`coding.dashscope`, refuse loudly instead of sending the request. A wrong-but-valid Model Studio
+base URL silently bills pay-as-you-go against a plan key — a real surprise bill, cheap to catch
+with one string check, no reason to wait for v0.2.
+
 **structured_outputs=false mitigation, concretely.** The default coder is `qwen/qwen3.7-flash`,
 which reports `structured_outputs=false` (per `config/presets.php`'s own comment and
 DECISIONS.md §4). `PatchFileTool` therefore never trusts a JSON tool-call payload for diff
@@ -221,26 +241,118 @@ here's why" message before escalating to the orchestrator tier to author the pat
 needs a real test fixture set (malformed hunks, missing context lines, mixed line endings) before
 v0.1 ships, not after a corrupted file is the bug report.
 
+**Diff-apply staleness — the failure the parse-retry above doesn't cover.** Aider's own
+post-mortem ([#3895](https://github.com/Aider-AI/aider/issues/3895)) names *context/state
+mismatch* — a syntactically valid diff whose context lines no longer match because the file
+changed after the model read it — as the largest failure bucket, bigger than parse failure.
+Concretely: `/add <file>` stamps the file with a content hash at the moment it enters context,
+held in `Session.php` alongside the chat history. Before `PatchFileTool` (or `WriteFileTool`)
+writes, it re-hashes the file on disk; if the hash has moved since the stamp, it refuses to apply
+and surfaces a conflict to the user (file changed since `/add` — re-add it or discard the pending
+edit) instead of writing over an edit the model never saw. **Multi-file apply is all-or-nothing**,
+for free: every file in one apply pass writes to its temp path first (the same atomic
+write-then-rename primitive already chosen for interrupt safety, see EXTENSIONS.md), and the
+renames only happen once every temp write and every stamp check in the batch has succeeded — one
+bad file fails the whole apply, nothing partially lands.
+
+**`php -l` after apply, before approval.** One more layer on the same risk: once a patch or
+whole-file write lands on disk (post-stamp-check, pre-approval), Paider shells `php -l` against
+every touched `.php` file. A syntax error is treated exactly like a parse failure upstream — the
+write is reverted (via the undo stack below) and the coder tier gets one retry with the lint error
+before escalating to the orchestrator. This is a one-liner that directly targets the
+`structured_outputs=false` risk on the default coder (`qwen3.7-flash`): it catches the case where
+the diff parsed cleanly but produced invalid PHP, which the parser alone can't see.
+
+**`/undo`, designed.** It undoes the single most recently *applied* file write (whole-file or
+patch) — not a turn, not a commit. `Session.php` keeps an in-memory stack of `{path, previous
+bytes | null}` entries, pushed immediately before each atomic write (`null` previous means the
+file didn't exist and `/undo` deletes it). `/undo` pops one entry and atomically restores it;
+repeated `/undo` walks back further, one applied write at a time. It is **not git-backed** — v0.1
+has no persistence layer yet (`pdo_sqlite` is v0.2, see EXTENSIONS.md), and inventing one just for
+undo would be a config-surface trap for a command whose job is "get me back to before that last
+edit." It is also **deliberately disconnected from `paider commit`**: undo only ever touches the
+uncommitted working tree; once `commit` runs, those changes are git history and get rolled back
+with ordinary git tooling (`git revert` / `git reset`), not `/undo`. If the working tree has moved
+out from under the undo stack (the user hand-edited a file between an apply and an `/undo`), it
+refuses and surfaces a conflict — the same stamp-mismatch path as diff-apply staleness above,
+since both are "the file changed under us."
+
+**Secrets read-guard.** Nothing currently stops `ReadFileTool` from handing `.env` or a private
+key to a provider as context. Before returning file content, `ReadFileTool` checks the path
+against two things: `git check-ignore <path>` (git is already a hard dependency via `GitTool`, so
+this is zero new code and zero new extensions — no reason to hand-roll a `.gitignore` parser) and
+a small hardcoded deny-list for the things people forget to `.gitignore` in the first place
+(`.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `*.p12`, `.aws/credentials`). A match refuses by
+default and routes through the same Approval Gate as `ShellTool` — allow-once if the user really
+means to send it, not a silent send.
+
+**`ArtisanTool` — the v0.1 Laravel-host proof.** See "Sequencing" below for why this exists in
+v0.1 at all rather than waiting for MCP server mode. It is intentionally the smallest possible
+version of the claim: registered only when `artisan` exists at the repo root, it exposes exactly
+one call — `php artisan route:list --json`, parsed into a typed tool result — not a general
+Artisan passthrough (`ShellTool` already covers "run anything," approval-gated) and not job
+dispatch or model introspection (both mutate state or need schema access this proof doesn't). The
+point is narrow on purpose: prove the agent's tool surface can speak a Laravel-native concept
+instead of only generic files and shell text, in v0.1, not in a v1.0 that hasn't shipped yet.
+
 **Rendering/UX:** Termwind for diff coloring, tool-approval prompts, and the chat transcript —
 already in the ecosystem's toolbox (2,492★, "Tailwind for terminal"), no reason to hand-roll
 ANSI. **Testing:** Pest, already scaffolded, tagline literally targets this use case ("for PHP
 developers and AI agents"). **Errors:** Collision, Laravel Zero default, keep it.
 
-**Distribution.** `box.json` already exists — v0.1 ships as a PHAR via Box, installed through
-`composer global require` (proven install path, matches Maestro exactly, zero reason to diverge
-from what already works for this exact audience). Per DECISIONS.md §3, a shipped PHAR must not
-inherit a dev machine's 76-extension ini (94ms of the 143ms measured overhead) — pin the
-extension list in the Box build config. `static-php-cli`/FrankenPHP static-binary distribution is
-a v0.2+ upgrade for users who don't want PHP installed at all, not a v0.1 requirement.
+**Distribution.** ⚠️ **Superseded — see "Distribution and concurrency" below: PHAR is cut.** Left
+here, unmarked-until-now, exactly per this project's convention of keeping wrong turns visible
+rather than silently deleting them. Original text, for the record: "`box.json` already exists —
+v0.1 ships as a PHAR via Box, installed through `composer global require` (proven install path,
+matches Maestro exactly, zero reason to diverge from what already works for this exact audience).
+Per DECISIONS.md §3, a shipped PHAR must not inherit a dev machine's 76-extension ini (94ms of the
+143ms measured overhead) — pin the extension list in the Box build config. `static-php-cli`
+/FrankenPHP static-binary distribution is a v0.2+ upgrade for users who don't want PHP installed
+at all, not a v0.1 requirement." That is no longer the plan — PHAR needs PHP installed but isn't a
+composer dependency, so it loses to both channels decided later in this document.
+
+---
+
+## Sequencing: the Laravel-host proof can't wait for v1.0
+
+As originally milestoned, v0.1 was a standalone CLI — "Maestro, done more carefully" — while the
+README called the Laravel-host angle "the thesis" and MCP *server* mode (the mechanism that would
+actually make it true) sat in v1.0. That means through the entire v0.1–v0.2 window, exactly when
+early adopters form an opinion of what Paider is, the stated differentiator would not exist yet.
+That's backwards: a reader who tries v0.1 and finds a competent-but-generic CLI, then reads a
+README calling it "the thesis," reasonably concludes the README is marketing ahead of the product
+— which is the same credibility problem this project is explicitly trying not to have with the
+"first PHP coding agent" claim (see Thesis).
+
+The fix is not to build MCP server mode early — the SDK-maturity reasoning for parking that at
+v1.0 (see Architecture) still holds, and pulling it forward would reintroduce the exact
+pre-1.0-dependency risk it was sequenced to avoid. The fix is to ship a **token-sized proof of the
+shape**, not the mechanism: `ArtisanTool` (see Architecture), one hardcoded call exposing a real
+Laravel-host artifact (`route:list`) as a typed tool rather than generic shell text. It costs one
+small file and doesn't touch MCP, the SDK, or the package-vs-binary distribution question at all
+— Paider is still installed and run exactly as v0.1 already specifies (`composer global require`,
+pointed at a repo). It proves the narrower, load-bearing half of the claim — *the tool surface can
+speak Laravel's own idiom* — while the fuller claim (*any client can drive those tools over MCP*)
+stays exactly where it was, in v1.0, now visibly building on a working v0.1 example instead of
+starting from zero.
+
+This displaces nothing from Non-goals: it is not a plugin marketplace, not multi-repo, not a new
+provider, and it is explicitly *not* general Artisan/job/model access (that stays v0.2+, gated the
+same way the rest of the tool surface is). One file, one hardcoded call, shipped now instead of
+promised later.
 
 ---
 
 ## Milestones
 
 **v0.1 — "it works on my repo"**
-Definition of done: see v0.1 scope above. Ships as a PHAR, installable via
-`composer global require`, README includes an honest comparison table against Maestro (not a
-"first ever" claim). Single-provider sessions only, interactive-only, five native tools.
+Definition of done: see v0.1 scope above. Installable via `composer global require` (see
+"Distribution and concurrency" — PHAR is cut, this line was left stale above on purpose, don't
+copy it), README includes an honest comparison table against Maestro (not a "first ever" claim).
+Single-provider sessions only, interactive-only, six native tools (the usual five plus
+`ArtisanTool` when run against a Laravel repo — see "Sequencing" above) — this is also where the
+`sk-sp-` key/base-URL guard and the diff-apply staleness, `php -l`, `/undo`, and secrets-guard
+designs above ship, not v0.2.
 
 **v0.2 — "it doesn't need me watching it"**
 - MCP client support via `modelcontextprotocol/php-sdk` (consume external tool servers)
@@ -257,15 +369,20 @@ Definition of done: see v0.1 scope above. Ships as a PHAR, installable via
   commit without a human in the loop, bounded by a retry cap and a tool allow-list.
 
 **v1.0 — "safe to depend on"**
-- MCP **server** mode: Paider exposes its own read/write/patch/shell/git tools to external MCP
-  clients (Claude Code, others) — dogfoods `php-sdk` in both directions
+- MCP **server** mode: generalizes v0.1's single hardcoded `ArtisanTool` into the real thing —
+  Paider exposes its own read/write/patch/shell/git/Artisan tools, and arbitrary host-app jobs and
+  models, to external MCP clients (Claude Code, others) over the actual protocol — dogfoods
+  `php-sdk` in both directions
 - Published semver policy and an explicit, versioned non-goals doc shipped alongside the release
   (the direct antidote to aider's death: state what will never be added, in writing, so scope
   requests have a citable "no")
 - Measured, published diff-apply success rate on the default coder tier (qwen3.7-flash) across a
   fixture corpus — turns the structured_outputs risk from a comment in a config file into a
   tracked number with a regression gate in CI
-- `static-php-cli`/FrankenPHP static binary as an alternate install path alongside the PHAR
+- `static-php-cli`/FrankenPHP static binary hardened into a real release artifact (it's already
+  one of the two decided channels — see "Distribution and concurrency" — this bullet originally
+  said "alongside the PHAR," which no longer exists; left corrected rather than silently rewritten
+  elsewhere)
 - Definition of done: Paider has shipped at least one release per quarter for a year with no
   unaddressed critical (data-loss-class) bug open longer than two weeks — the "didn't die"
   criterion, since that's the actual differentiator being bet on.
@@ -294,7 +411,9 @@ can do for a Laravel developer:
 
 An external agent has to be *told* about your app. An agent living inside it already knows. That
 is the argument for building here rather than reaching for Go, and it is worth validating early
-because the entire thesis leans on it.
+because the entire thesis leans on it — which is exactly why it doesn't wait for the full MCP
+server in v1.0. `ArtisanTool` ships in v0.1 as the token-sized proof of this exact claim; see
+"Sequencing" above.
 
 ### 2. aigate as the provider/credential layer
 
@@ -351,9 +470,11 @@ Ranked by (likelihood × how bad it is if it happens), not by how interesting it
 3. **`structured_outputs=false` on the default coder produces malformed diffs that corrupt
    files.** `qwen/qwen3.7-flash` reports this explicitly; it's the cheapest tier by ~77x on
    output tokens and the one running in the tightest loop, so it's also the one most exposed.
-   *Mitigation:* strict diff parser + bounded retry + escalation path (see Architecture); a
-   fixture-based test suite covering malformed hunks *before* v0.1 ships, not discovered from a
-   bug report; published success-rate metric by v1.0 (see Milestones).
+   *Mitigation:* strict diff parser + bounded retry + escalation path, a content-hash stamp check
+   against the file the diff was actually written against, and a `php -l` gate after apply and
+   before approval (see Architecture — all three ship in v0.1, not after); a fixture-based test
+   suite covering malformed hunks *before* v0.1 ships, not discovered from a bug report; published
+   success-rate metric by v1.0 (see Milestones).
 
 4. **Dependency rot inherited from an ecosystem that's already showing cracks.**
    `prism-php/prism` stale 4.5+ months with 114 open issues, `php-mcp/server` stale a full year,
@@ -546,16 +667,30 @@ it already does. **Fix: ship a token-sized proof of the Laravel-host angle in v0
 hardcoded tool exposing a host-app job is enough — or stop calling the package "the thesis" until
 it is true.
 
+**Resolved 2026-08-02:** shipped the first option. `ArtisanTool` (one hardcoded `route:list` call)
+added to v0.1 scope and Architecture; see the new "Sequencing" section above and the updated v0.1
+Milestone entry.
+
 **2. PHAR contradiction is live in this file.** The Architecture and Milestones sections still say
 "v0.1 ships as a PHAR"; the Distribution section says "PHAR is cut". Both are present, unmarked.
 A reader top-to-bottom cannot tell which is current. **The earlier text is superseded** — see
 "Distribution and concurrency". Left visible per this project's convention rather than deleted.
 
+**Resolved 2026-08-02:** the Architecture and Milestones passages are now explicitly labelled
+superseded, pointing at "Distribution and concurrency," with the original wording kept intact
+underneath rather than deleted.
+
 **3. Factual error, corrected.** "PHP 8.5 ships native Fibers" was wrong — Fibers landed in
 **8.1**, and `composer.json` pins `^8.2`, so they are available at our floor already.
 
+**Resolved** — already correct in the "Concurrency: Fibers, not Swoole" section above; this entry
+is the record of the correction, not an open item.
+
 **4. Non-goals lists 9 presets; `config/presets.php` has 11.** `open` and `open-frugal` were added
 later and never synced back.
+
+**Resolved 2026-08-02:** Non-goals now lists all eleven, with `open`/`open-frugal` called out as
+the two added late.
 
 **5. The cost ledger is not a moat.** It is arithmetic on data we already hold — a competitor
 copies it with four config keys and a `GROUP BY tier`. It remains a genuinely good feature and a
@@ -570,19 +705,36 @@ after the model read it. Our `PatchFileTool` mitigation only covers **parse** fa
 **Fix: stamp files with a hash or mtime at `/add` time and refuse to apply against a moved stamp**,
 surfacing a conflict instead of a silent corrupt write.
 
+**Resolved 2026-08-02:** designed in Architecture ("Diff-apply staleness") — hash stamp at `/add`,
+re-check before write, conflict surfaced, and all-or-nothing multi-file apply spelled out using
+the existing atomic-write primitive.
+
 **7. Other v0.1 gaps.** Partial multi-file apply is undefined (atomic writes already give
 all-or-nothing nearly free — state it). `/undo` is in the command list with zero design. No
 syntax check: `php -l` after apply, before showing the diff, is a one-liner and directly targets
 the `structured_outputs=false` risk. **Secrets:** nothing stops `ReadFileTool` sending `.env` or
 private keys to a provider — a `.gitignore`-aware read guard is needed before v0.1, not after.
 
+**Resolved 2026-08-02:** all four designed in Architecture — multi-file all-or-nothing stated
+alongside the staleness fix, `/undo` given a real spec (in-memory session stack, not git-backed,
+explicitly decoupled from `paider commit`), `php -l` gate added to the apply pipeline, and a
+`git check-ignore` + deny-list read guard added to `ReadFileTool`.
+
 **8. FrankenPHP CLI embed is younger than it looks.** CLI embedding landed via PR #1561/#1632 with
 the clean fix punted to a future PHP version; a maintainer estimated 20–30MB for the CLI binary
 *before* the app and Caddy. PLAN.md hedges this correctly as unverified — **README does not**, and
 already advertises `curl -fsSL paider.dev/install | sh` as settled. That is the live over-claim.
+
+**Resolved 2026-08-02:** README's Distribution section now carries the same unverified-size/
+cold-start caveat PLAN.md already had, plus the PR #1561/#1632 and 20–30MB detail, instead of
+presenting the curl install as settled.
 
 **On the Qwen Coding Plan:** breakeven is ~59 sessions/month against the $0.85 default, so the
 plan suits an audience that already pays for it rather than the one the cheap default attracts.
 Worse, **every allowlisted model is in the family Jeremy already rejected by hand** — "not smart
 enough to orchestrate, not fast enough to code." A `qwen-plan` preset is v0.2 and must say so
 honestly. The `sk-sp-` wrong-base-URL guard, however, is cheap and should ship now.
+
+**Resolved 2026-08-02:** the `sk-sp-` guard moved into v0.1 scope and Architecture (Tier
+router/provider construction). The `qwen-plan` preset itself stays v0.2, unchanged, and is not
+what shipped here.
