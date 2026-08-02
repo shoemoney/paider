@@ -35,7 +35,7 @@ database schema. Laravel already writes its schema down as migration files, whic
 read as plain text: no database credentials to handle, works offline, no extension, no
 connection to configure. The simpler path is also the safer one.
 
-**`swoole` — not needed.** PHP 8.5 ships native Fibers, and `curl_multi` did 6 concurrent
+**`swoole` — not needed.** PHP has shipped native Fibers since 8.1, and `curl_multi` did 6 concurrent
 requests in 71ms with zero extensions. An agent is I/O-bound; that is enough. Revisit only if
 profiling says otherwise.
 

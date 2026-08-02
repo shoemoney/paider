@@ -457,7 +457,7 @@ sub-agents, racing providers on failover, several MCP servers at once.
 - **Octane is the wrong pattern.** It is a long-running HTTP server; a CLI is one process, one task.
 - **Swoole is not needed and costs the distribution story.** It is an extension, so every user
   installs it, which contradicts the single-binary goal.
-- **PHP 8.5 ships native Fibers**, and `curl_multi` is built in — measured 6 concurrent HTTP
+- **PHP has shipped native Fibers since 8.1**, and `curl_multi` is built in — measured 6 concurrent HTTP
   requests in 71ms with zero extensions. Amp v3 and ReactPHP sit on Fibers if a real scheduler
   is wanted.
 
@@ -531,3 +531,58 @@ this provider.
 **Correction to the earlier subscription picture:** Qwen plan keys are real API keys, so they
 are spendable from Paider — but only within a request quota, only for allowlisted models, and
 only through the plan-specific endpoint. "Subscriptions just work" was too simple.
+
+---
+
+## Fable's review — accepted findings, 2026-08-02
+
+An adversarial read of these docs. The load-bearing criticisms, accepted:
+
+**1. Sequencing risk, ranked above generic scope creep.** PLAN.md's v0.1 builds a standalone CLI —
+which is "Maestro, done more carefully". The README calls the Laravel-host package "the thesis",
+but MCP *server* mode is scheduled for **v1.0**. So through the entire v0.1–v0.2 window, when
+early adopters form an opinion, the actual differentiator does not exist while the README claims
+it already does. **Fix: ship a token-sized proof of the Laravel-host angle in v0.1** — one
+hardcoded tool exposing a host-app job is enough — or stop calling the package "the thesis" until
+it is true.
+
+**2. PHAR contradiction is live in this file.** The Architecture and Milestones sections still say
+"v0.1 ships as a PHAR"; the Distribution section says "PHAR is cut". Both are present, unmarked.
+A reader top-to-bottom cannot tell which is current. **The earlier text is superseded** — see
+"Distribution and concurrency". Left visible per this project's convention rather than deleted.
+
+**3. Factual error, corrected.** "PHP 8.5 ships native Fibers" was wrong — Fibers landed in
+**8.1**, and `composer.json` pins `^8.2`, so they are available at our floor already.
+
+**4. Non-goals lists 9 presets; `config/presets.php` has 11.** `open` and `open-frugal` were added
+later and never synced back.
+
+**5. The cost ledger is not a moat.** It is arithmetic on data we already hold — a competitor
+copies it with four config keys and a `GROUP BY tier`. It remains a genuinely good feature and a
+falsifiability mechanism. **Stop calling it a moat.** The only real moats here are the
+Laravel-host integration (structurally hard for a Python/Go tool to copy) and outlasting Maestro,
+which is unverifiable until it is already true.
+
+**6. Diff-apply: the dominant failure mode is undesigned.** From aider's own post-mortem
+([#3895](https://github.com/Aider-AI/aider/issues/3895)), the largest bucket is *context/state
+mismatch* — a syntactically valid diff whose context no longer matches because the file changed
+after the model read it. Our `PatchFileTool` mitigation only covers **parse** failure.
+**Fix: stamp files with a hash or mtime at `/add` time and refuse to apply against a moved stamp**,
+surfacing a conflict instead of a silent corrupt write.
+
+**7. Other v0.1 gaps.** Partial multi-file apply is undefined (atomic writes already give
+all-or-nothing nearly free — state it). `/undo` is in the command list with zero design. No
+syntax check: `php -l` after apply, before showing the diff, is a one-liner and directly targets
+the `structured_outputs=false` risk. **Secrets:** nothing stops `ReadFileTool` sending `.env` or
+private keys to a provider — a `.gitignore`-aware read guard is needed before v0.1, not after.
+
+**8. FrankenPHP CLI embed is younger than it looks.** CLI embedding landed via PR #1561/#1632 with
+the clean fix punted to a future PHP version; a maintainer estimated 20–30MB for the CLI binary
+*before* the app and Caddy. PLAN.md hedges this correctly as unverified — **README does not**, and
+already advertises `curl -fsSL paider.dev/install | sh` as settled. That is the live over-claim.
+
+**On the Qwen Coding Plan:** breakeven is ~59 sessions/month against the $0.85 default, so the
+plan suits an audience that already pays for it rather than the one the cheap default attracts.
+Worse, **every allowlisted model is in the family Jeremy already rejected by hand** — "not smart
+enough to orchestrate, not fast enough to code." A `qwen-plan` preset is v0.2 and must say so
+honestly. The `sk-sp-` wrong-base-URL guard, however, is cheap and should ship now.
