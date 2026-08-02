@@ -57,6 +57,11 @@ return [
     // 13c/Mtok more on input.
     'kimi' => [
         'orchestrator' => 'moonshotai/kimi-k3',           //  $3.00 /  $15.00  1.05M ctx
+        // Direct API (api.moonshot.ai/v1) also offers kimi-k2.7-code-HIGHSPEED,
+        // which Moonshot recommends "when you need higher output speed" -- exactly
+        // the coder tier, where latency compounds inside a loop. It is NOT listed
+        // on OpenRouter, so it is reachable only via the direct endpoint. Prefer it
+        // when the user has a Moonshot key rather than an aggregator key.
         'coder'        => 'moonshotai/kimi-k2.7-code',    //  $0.73 /   $3.50   262k ctx
         'research'     => 'moonshotai/kimi-k2',      //  $0.57 /   $2.30
         'fast'         => 'moonshotai/kimi-k2',           //  $0.57 /   $2.30

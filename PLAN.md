@@ -462,3 +462,32 @@ sub-agents, racing providers on failover, several MCP servers at once.
   is wanted.
 
 Revisit Swoole only if profiling demands it, which for an I/O-bound agent is unlikely.
+
+
+---
+
+## Provider layer — simpler than expected (verified 2026-08-02)
+
+Every provider that matters speaks **OpenAI-compatible HTTP**, so v0.1 needs one client and a
+base URL, not a driver per vendor:
+
+| provider | endpoint | notes |
+|---|---|---|
+| Moonshot / Kimi | `https://api.moonshot.ai/v1` | OpenAI-compatible |
+| Alibaba / Qwen | `.../compatible-mode/v1` | **and** an Anthropic-compatible endpoint at `.../apps/anthropic`; regions incl. US-Virginia |
+| Anthropic | `https://api.anthropic.com` | its own shape |
+| OpenRouter | `https://openrouter.ai/api/v1` | aggregator over all of the above |
+
+That collapses most of the provider abstraction into configuration. Good news for a solo
+maintainer, and it means adding a vendor is usually a preset entry rather than code.
+
+**But do not build OpenRouter-only.** `kimi-k2.7-code-highspeed` — the variant Moonshot
+recommends *"when you need higher output speed"*, which is precisely what the coder tier wants —
+is **not listed on OpenRouter** and is reachable only through the direct endpoint. Aggregators
+lag, omit variants, and add a hop. Direct provider endpoints have to be a first-class path, with
+the aggregator as one provider among several rather than the substrate.
+
+**Subscriptions, corrected:** unlike Claude Max seats (which cannot be spent through the API —
+see §5), Qwen and Kimi plans issue real API keys against these endpoints. So a user holding
+those plans can actually spend them from Paider. Worth confirming per-plan whether it is
+flat-rate or prepaid credit before documenting anything about it.
