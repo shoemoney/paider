@@ -102,11 +102,9 @@ return [
     | to Anthropic/OpenAI. A real constituency, and nobody in the PHP space
     | ships a preset for them.
     |
-    | ⚠️ VERIFY BEFORE ADVERTISING AS "OPEN SOURCE". Moonshot open-weighted
-    | Kimi K2 and MiniMax open-weighted M1/M2, but whether K3 and M3
-    | specifically have published weights is UNVERIFIED as of 2026-08-02.
-    | Qwen3 is broadly open-weight. If K3/M3 turn out to be closed, rename this
-    | preset or drop to kimi-k2.7-code / minimax-m2 which are known-open.
+    | Weights: Kimi K3 has released weights (confirmed by Jeremy 2026-08-02),
+    | as did K2 before it. Qwen3 is broadly open-weight. So this stack is
+    | genuinely self-hostable end to end -- which is the whole point of it.
     */
     'open' => [
         'orchestrator' => 'moonshotai/kimi-k3',           //  $3.00 /  $15.00   1.05M ctx
@@ -120,6 +118,11 @@ return [
     | is $0.30/$1.20 at 1M ctx -- one twentieth of kimi-k3 -- so the whole stack
     | runs for pennies. Worth benchmarking m3 against k3 on real planning work
     | before deciding which is the default open orchestrator.
+    |
+    | ⚠️ M3 weights UNVERIFIED. MiniMax open-weighted M1 and M2; whether M3 has
+    | published weights was not checked. If it has not, this preset is "cheap",
+    | not "open" -- rename it or fall back to minimax-m2 ($0.26/$1.02, known
+    | open) before calling it self-hostable anywhere public.
     */
     'open-frugal' => [
         'orchestrator' => 'minimax/minimax-m3',           //  $0.30 /   $1.20   1.05M ctx
