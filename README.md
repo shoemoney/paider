@@ -88,6 +88,8 @@ those. If Paider ever needs a real reactive TUI, that is the moment to reconside
 
 ## Read the thinking
 
+- **[STORAGE.md](STORAGE.md)** — one SQLite file, no services. Why not Redis.
+- **[EXTENSIONS.md](EXTENSIONS.md)** — the nine extensions that ship, and what was cut.
 - **[PLAN.md](PLAN.md)** — thesis, non-goals, v0.1 scope, architecture, milestones, risks.
 - **[DECISIONS.md](DECISIONS.md)** — how we got here, measured, with the wrong turns left in:
   recommending the wrong repo, picking a model off a spec sheet that a practitioner knew was a

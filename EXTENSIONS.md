@@ -50,6 +50,13 @@ single-profile; both are Unix-only and would have forced a separate Windows buil
 file, but Homebrew compiles `pcntl` and `posix` into the binary, so they survive `-n` and the
 probe reports them as core. Check the extension's origin, not its presence.)*
 
+**`redis` — unplanned.** Previously pencilled in for v0.3 (cache, rate-limit parking, kanban).
+Cut: it is a daemon the user must install and keep running, against a tool whose whole
+distribution pitch is "one binary, nothing to set up", and its durability is worse than an
+fsync'd file for data like conversation history. The workload is single-user and single-process,
+which is precisely where Redis has no advantage. Reconsider only with a written concurrency
+justification. Same reasoning excludes libSQL/Turso. See [STORAGE.md](STORAGE.md).
+
 **`opcache` — unmeasured.** Plausibly worth it in the embedded binary, since it caches compiled
 scripts. Measure before adding; it did nothing for bare-interpreter startup in testing.
 
@@ -57,9 +64,9 @@ scripts. Measure before adding; it did nothing for bare-interpreter startup in t
 
 | extension | milestone | why |
 |---|---|---|
-| `pdo_sqlite` | v0.2 | credential store and session state. **PDO, not `sqlite3`** — Eloquent talks PDO, and the two are different APIs. |
-| `redis` | v0.3 | response cache, rate-limit parking (a TTL key is exactly the right primitive), kanban task state |
-| — | — | nothing else is planned |
+| `pdo_sqlite` | v0.2 | the entire state layer — sessions, memory, credentials, cache, cost ledger, task board. See [STORAGE.md](STORAGE.md). **PDO, not `sqlite3`**: Eloquent talks PDO and the two are different APIs. |
+
+Nothing else is planned. That is the point.
 
 ## The rule
 
