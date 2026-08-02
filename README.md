@@ -151,7 +151,7 @@ Two channels, because there are exactly two users:
 
 ```bash
 composer require paider/paider          # inside your Laravel app — this is the thesis
-curl -fsSL paider.dev/install | sh      # planned: standalone binary, no PHP required
+curl -fsSL paider.dev/install | sh      # planned: standalone binary, not built yet
 ```
 
 The package is non-negotiable: an agent that turns *your* models and jobs into tools has to be a
@@ -163,14 +163,47 @@ built on Caddy), which produces a self-executable with PHP inside and
 HTTP. It selects extensions from `composer.json`, so the shipped tool never inherits a user's dev
 ini. That matters: 76 extensions on the author's machine cost 94ms of a 143ms startup.
 
-**Not settled yet, on purpose.** CLI embedding is younger than the star count suggests — it landed
-via FrankenPHP PR [#1561](https://github.com/php/frankenphp/pull/1561) /
-[#1632](https://github.com/php/frankenphp/pull/1632), with the clean fix deferred to a future PHP
-version, and a maintainer estimated **20–30MB for the CLI binary alone**, before this app and
-Caddy are even added. Binary size and cold start of a FrankenPHP-embedded CLI have not been
-measured — see the "Unverified" note in [`PLAN.md`](PLAN.md). The `curl | sh` line above is the
-intended shape of the install, not a claim that it starts fast or ships small; if it starts slower
-than the 95.9ms Laravel Zero baseline above, the whole rationale for it weakens.
+### 📏 Measured 2026-08-02 — cold start is fine, size is the open risk
+
+Real numbers now exist for the off-the-shelf `frankenphp-mac-arm64` binary — FrankenPHP
+**v1.12.6**, embedding **PHP 8.5.9**, Caddy **v2.11.4** — on arm64/Apple Silicon macOS.
+hyperfine, 3 warmup + 30 timed runs, no shell (`-N`):
+
+<details>
+<summary>Full hyperfine table</summary>
+
+| command | mean | std dev |
+|---|---|---|
+| `php -n application --version` (lean-ini system PHP) | 90.3ms | ±2.9ms |
+| **`frankenphp php-cli application --version`** | **111.3ms** | **±1.7ms** |
+| `php application --version` (real Homebrew ini, 73 extensions) | 189.6ms | ±4.2ms |
+| `php -n` hello-world | 47.5ms | ±0.5ms |
+| `frankenphp php-cli` hello-world | 58.3ms | ±0.8ms |
+
+</details>
+
+- **Cold start does not threaten the decision.** FrankenPHP is ~23% slower than a hypothetical
+  lean-ini system PHP (111.3 vs 90.3ms) but ~1.7x *faster* than the PHP a real user actually has
+  installed (111.3 vs 189.6ms) — a real Homebrew install dynamically loads 73 extensions from
+  disk on every invocation; the static binary has them compiled in and pays nothing for it at
+  runtime. Fixed FrankenPHP runtime overhead is a constant ~11ms (58.3 − 47.5ms on hello-world);
+  the rest is Paider's own bootstrap, ~53ms under both runtimes. The 95.9ms lean-ini baseline
+  above reproduces (90.3ms measured today).
+- **Size is the real risk.** ⚠️ The off-the-shelf static binary is **176MB** (177,902,104 bytes),
+  carrying **77 compiled-in extensions** — all 9 Paider needs, plus 68 nobody asked for
+  (`imagick`, `ldap`, `amqp`, `gd`, `intl`, `redis`, `mysqli`, and more — see
+  [`EXTENSIONS.md`](EXTENSIONS.md)). Add Paider's own payload (33MB on disk / 7.4MB gzipped) and
+  a naive embed today ships **~184MB** — a hard sell for `curl | sh` next to competing agents'
+  ~40MB Go binaries.
+- **The maintainer's 20–30MB estimate is still unverified**, not disproven. It describes a
+  *trimmed custom static build* (`static-builder.Dockerfile` or native `static-php-cli`), not the
+  binary the releases page ships today. Docker was not available on this machine to test it —
+  that build is the next thing to verify, not the current reality.
+
+Functional check under the static binary, for the record: `application list` renders correctly,
+`pdo_sqlite` round-trips an in-memory DB (see [`STORAGE.md`](STORAGE.md)), `stream_isatty()`
+behaves correctly under a non-TTY pipe, and `PHP_VERSION` reports 8.5.9 — comfortably above the
+`^8.4` floor. Full writeup: [`DECISIONS.md` §8](DECISIONS.md).
 
 **No PHAR.** It needs PHP installed but is not a composer dependency, so it serves neither user
 better than the two above. A third channel is maintenance forever for an audience of nobody.

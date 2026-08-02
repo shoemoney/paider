@@ -164,3 +164,63 @@ Park it. Revisit only if a user asks for it.
 - **cecli model aliases.** Small, factual, verifiable, and permitted as a direct PR.
 
 Both are independent of Paider, and hardening the SDK Paider stands on is the same work.
+
+## 8. FrankenPHP measured — 2026-08-02
+
+§3 and §6 flagged FrankenPHP's binary size and cold start as **unverified** — a maintainer's
+20–30MB estimate, never checked. That changed today: the off-the-shelf `frankenphp-mac-arm64`
+binary was downloaded and measured directly, arm64/Apple Silicon, macOS Darwin 27.0.0.
+
+**Binary tested:** FrankenPHP **v1.12.6**, embedding **PHP 8.5.9**, Caddy **v2.11.4**.
+
+### 📦 Size: 176MB, not 20–30MB
+
+| | |
+|---|---|
+| Static binary, off the shelf | **176MB** (177,902,104 bytes) |
+| Extensions compiled in | **77** — all 9 Paider requires, plus 68 unwanted (`imagick`, `ldap`, `amqp`, `memcached`, `parallel`, `pgsql`, `pdo_pgsql`, `mysqli`, `pdo_mysql`, `soap`, `tidy`, `xsl`, `gd`, `intl`, `redis`, `ssh2`, `protobuf`, `xlswriter`, and more) |
+| Paider's own payload, `--no-dev --classmap-authoritative` | 33MB on disk, 7.4MB gzipped |
+| Realistic naive-embed total | **~184MB** |
+
+The maintainer's 20–30MB figure describes a **trimmed custom static build**
+(`static-builder.Dockerfile`, or a native `static-php-cli` toolchain), not what `curl`ing the
+release gives you. Docker is not installed on this machine, so that trimmed build **remains
+unverified** — 176MB is what a naive embed actually is today, and the docs must not blur the two
+numbers.
+
+### ⏱️ Cold start: the decision is confirmed, not weakened
+
+hyperfine, 3 warmup + 30 timed runs, no shell (`-N`):
+
+| command | mean | std dev |
+|---|---|---|
+| `php -n application --version` (lean-ini system PHP 8.5.8) | 90.3ms | ±2.9ms |
+| `frankenphp php-cli application --version` | 111.3ms | ±1.7ms |
+| `php application --version` (real Homebrew ini, 73 extensions loaded) | 189.6ms | ±4.2ms |
+| `php -n` hello-world | 47.5ms | ±0.5ms |
+| `frankenphp php-cli` hello-world | 58.3ms | ±0.8ms |
+
+- FrankenPHP is **~23% slower** than a hypothetical lean-ini system PHP (111.3 vs 90.3ms) — the
+  honest downside.
+- FrankenPHP is **~1.7x faster** than the PHP a real user actually has installed (111.3 vs
+  189.6ms): Homebrew PHP dynamically loads 73 extensions from disk on every invocation; the
+  static binary has them compiled in and pays nothing for it at runtime.
+- Fixed FrankenPHP runtime overhead is a **constant ~11ms** (58.3 − 47.5ms on hello-world);
+  everything past that is Paider's own bootstrap (~53ms), identical under both runtimes.
+- The 95.9ms Laravel Zero lean-ini baseline from §3 **reproduces** (90.3ms measured today).
+
+Functional verification under the static binary: `application list` runs correctly and renders
+the full command list, `pdo_sqlite` round-trips an in-memory DB (create/insert/select), and
+`stream_isatty()` returns correctly (`bool(false)`) under a non-TTY pipe. `PHP_VERSION` reports
+8.5.9, comfortably above Paider's `^8.4` floor.
+
+### The decision, restated
+
+Composer package + FrankenPHP embed binary, no PHAR, no Docker-as-distribution ("Distribution and
+concurrency" in PLAN.md) is **CONFIRMED on cold start** — it was the assumed risk and measurement
+shows it isn't one — and **CONDITIONAL on the trimmed-build size**. If a trimmed static build
+cannot land meaningfully under 176MB, the size argument against `curl | sh` gets harder, not
+easier, to answer. That build is the next thing to verify — see PLAN.md's Open questions.
+
+*(Housekeeping, unrelated to the measurement above: `composer.lock` is stale against
+`composer.json` — composer warns on install. The `^8.4` floor bump was never re-locked.)*

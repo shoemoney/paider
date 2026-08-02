@@ -68,6 +68,20 @@ scripts. Measure before adding; it did nothing for bare-interpreter startup in t
 
 Nothing else is planned. That is the point.
 
+## 📦 The stock FrankenPHP binary carries 77 — measured 2026-08-02
+
+Downloaded and inspected directly: `frankenphp-mac-arm64` (FrankenPHP v1.12.6, PHP 8.5.9, Caddy
+v2.11.4) compiles in **77 extensions**. All 9 this file requires are present. The other **68**
+are not wanted anywhere in this document: `imagick`, `ldap`, `amqp`, `memcached`, `parallel`,
+`pgsql`, `pdo_pgsql`, `mysqli`, `pdo_mysql`, `soap`, `tidy`, `xsl`, `gd`, `intl`, `redis`, `ssh2`,
+`protobuf`, `xlswriter`, and more.
+
+That bloat is why the off-the-shelf binary is **176MB**. Trimming those 68 down to the 9 above is
+exactly what a custom static build (`static-builder.Dockerfile` or native `static-php-cli`) is
+for — see [`DECISIONS.md` §8](DECISIONS.md) and [`README.md`](README.md#distribution). That
+trimmed build is not yet built or verified; the "chosen set" in this file stays the target
+regardless of which build tool gets there.
+
 ## The rule
 
 An extension enters this file when a milestone needs it, not when it might be handy. Every entry

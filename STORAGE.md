@@ -8,6 +8,11 @@ through `pdo_sqlite` — the ninth and, unless something forces it, final extens
 ~/.paider/paider.db      # user-scoped: credentials, global preferences
 ```
 
+**Confirmed under the FrankenPHP embed binary** (measured 2026-08-02 — see
+[`DECISIONS.md` §8](DECISIONS.md)): an in-memory `pdo_sqlite` create/insert/select round-trip
+works correctly under the static binary, not just under system PHP. The binary is otherwise
+unrelated to this design — see [`README.md`](README.md#distribution) for the size caveat.
+
 ## What lives there
 
 | concern | shape | notes |

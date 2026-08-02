@@ -542,6 +542,13 @@ Things that need Jeremy's call, not a default guess:
    already in `config/presets.php`? Cheap to build, genuinely useful, but it's a second surface
    to maintain forever — same "does this need to exist" filter as everything else in this plan.
 
+7. **🔨 Verify a trimmed FrankenPHP static build.** The stock binary is 176MB (measured
+   2026-08-02, DECISIONS.md §8); the maintainer's 20–30MB figure describes a custom trimmed
+   build (`static-builder.Dockerfile`, or a native `static-php-cli` toolchain), not what
+   `curl`ing the release gives you. Needs Docker/colima or `static-php-cli`, neither installed
+   here yet. This is the risk the whole distribution argument now rests on — cold start already
+   cleared.
+
 
 ---
 
@@ -565,10 +572,14 @@ It builds the extension set from `composer.json`, which is the fix for the measu
 76 extensions on a dev box cost 94ms of a 143ms startup, and a shipped tool must never inherit
 that. `static-php-cli` (1,917★) is the fallback if FrankenPHP proves awkward.
 
-**Unverified:** binary size and cold-start of a FrankenPHP-embedded CLI. Embedding a PHP runtime
-is tens of megabytes, and startup must be measured against the 95.9ms Laravel Zero baseline
-before this is promised anywhere public. If the binary starts slower than the scaffold, the
-whole rationale weakens.
+**Measured 2026-08-02** (supersedes "Unverified" above): the off-the-shelf `frankenphp-mac-arm64`
+binary (v1.12.6, PHP 8.5.9, Caddy v2.11.4) cold-starts at 111.3ms ±1.7ms against the 95.9ms
+Laravel Zero baseline — 23% slower than lean-ini system PHP, but 1.7x *faster* than the PHP a real
+user has installed, since a real Homebrew PHP dynamically loads its extensions from disk on every
+run. **Cold start does not weaken the rationale.** Binary size does: the stock binary is 176MB,
+carrying 77 compiled-in extensions when only 9 are wanted (see EXTENSIONS.md). The maintainer's
+20–30MB figure is for a trimmed custom static build, not this binary, and remains unverified — no
+Docker on this machine to test it. Full numbers and the restated decision: DECISIONS.md §8.
 
 ### Concurrency: Fibers, not Swoole
 
@@ -728,6 +739,13 @@ already advertises `curl -fsSL paider.dev/install | sh` as settled. That is the 
 **Resolved 2026-08-02:** README's Distribution section now carries the same unverified-size/
 cold-start caveat PLAN.md already had, plus the PR #1561/#1632 and 20–30MB detail, instead of
 presenting the curl install as settled.
+
+**Resolved (measured) 2026-08-02:** the caveat above is no longer a hedge — the binary was
+downloaded and benchmarked. Cold start is confirmed fine (111.3ms vs. the 95.9ms baseline, and
+1.7x faster than a real user's Homebrew PHP). Size is confirmed as the real risk: 176MB stock,
+77 extensions compiled in against 9 wanted. The 20–30MB trimmed-build figure is still unverified,
+now precisely because it names a *different* build (`static-builder.Dockerfile`/`static-php-cli`)
+than the one measured. See DECISIONS.md §8 and the new Open question below.
 
 **On the Qwen Coding Plan:** breakeven is ~59 sessions/month against the $0.85 default, so the
 plan suits an audience that already pays for it rather than the one the cheap default attracts.
