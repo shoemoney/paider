@@ -115,50 +115,34 @@ qwen3.7-flash is $0.03/$0.13 per Mtok with **1M context** and tool support.
 claude-3-5-haiku-**20241022** (October 2024), while its `gemini` alias is current. Default
 model is `gpt-4o`. Shipping current, opinionated tiers is itself a differentiator.
 
-## 5. Multi-subscription rotation — quite possibly the actual product
+## 5. Build capacity, and a product hypothesis that came out of it
 
-**This is the differentiator, more than PHP and more than startup time.**
+**What Jeremy actually meant:** he holds **3x Claude Max, 1x OpenAI Max, 1x Kimi** and is not
+short of capacity to *build* this — *"I'm not alone"* on having a stack of seats to work with.
+Development throughput is not the constraint here. Scope and maintenance are.
 
-Jeremy runs **3x Claude Max, 1x OpenAI Max, 1x Kimi** — *"I'm not alone."* And he isn't:
-developers stack multiple subscriptions specifically because a single seat's rate limit stops
-them mid-session. It is a normal, widespread, expensive workaround.
+*(Logged because this was initially misread as a product requirement. It was not. The idea
+below is a hypothesis that fell out of the misreading, kept because it may still be worth
+something — but it is not a stated goal.)*
 
-**Every agent CLI assumes one API key.** aider, cecli, and the rest take `--model` and a key
-and have no concept of "I hold five seats, use whichever isn't throttled right now." A
-developer with three Max subs currently juggles them by hand — separate terminals, separate
-configs, or just waiting out the limit.
+### Hypothesis, unvalidated: multi-subscription rotation
 
-On a subscription the scarce resource is **the rate limit, not the bill**, which inverts the
-usual design. Cost optimisation is irrelevant; *availability* optimisation is everything. And
-`aigate` already implements exactly that: AES-256-GCM key registry, TTL-parks a 429'd account
-and retries the next healthy one, with a live usage dashboard.
+Every agent CLI — aider, cecli, the rest — takes one `--model` and one key, with no concept of
+"I hold several seats, use whichever isn't throttled." Developers who stack subscriptions to
+dodge rate limits currently juggle them by hand. On a subscription the scarce resource is the
+rate limit rather than the bill, which inverts the usual design: availability optimisation, not
+cost optimisation. `aigate` already implements precisely that — AES-256-GCM key registry,
+TTL-parks a 429'd account, retries the next healthy one.
 
-So the pitch is not "an agent CLI in PHP." It is **"the agent CLI that knows you own five
-subscriptions"** — and PHP is where it gets built because that ecosystem has no agent CLI at
-all and the incumbents there are stale.
+**Blocking fact if this is ever pursued:** a Claude Max seat cannot be spent through the API.
+Since 2026-06-15 headless `claude -p` bills a separate metered credit pool, not the
+subscription — established by Jeremy's own benchmarking at
+<https://gist.github.com/shoemoney/d8d707f7fa518a3a6a933e3cecf5f924>. So rotation would work
+for API-key providers and *not* for the Anthropic seats, which is the opposite of useful for
+the person who has three of them. Do not advertise "use all your subscriptions" and quietly
+drain metered credit.
 
-### The constraint that shapes it
-
-**But a Max seat cannot be spent through the API.** Since 2026-06-15, headless `claude -p`
-bills a separate metered credit pool, not the subscription — a fact established by Jeremy's own
-benchmarking, published at
-<https://gist.github.com/shoemoney/d8d707f7fa518a3a6a933e3cecf5f924>.
-
-So rotation across *Claude* seats specifically has to be resolved before it is promised:
-
-1. **API keys, per-token** — trivial to build, but the subscriptions sit unused, which defeats
-   the point.
-2. **Drive the `claude` binary as a subprocess** — the coprocess work above already proves a
-   warm session is ~37% faster in wall clock than repeated `--resume`, so the mechanism is
-   understood. It still draws the metered pool rather than the seat.
-3. **Rotate the providers where seats *are* spendable** (OpenAI, Kimi, and any API-key
-   provider) and be explicit in the docs about the Anthropic exception.
-
-Option 3 is honest and shippable today; 1 and 2 are additive. What must not happen is
-advertising "use all your subscriptions" and quietly billing people's metered credit.
-
-**Verify the current terms before building on any of this** — that billing change is barely a
-year old and the vendors are still moving.
+Park it. Revisit only if a user asks for it.
 
 ## 6. What is deliberately NOT being done
 
