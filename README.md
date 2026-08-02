@@ -1,7 +1,7 @@
 # Paider
 
 A PHP-native AI coding agent. Built on [Laravel Zero](https://laravel-zero.com),
-[Termwind](https://github.com/nunomaduro/termwind), [Laravel Prompts](https://laravel.com/docs/prompts)
+[Laravel Prompts](https://laravel.com/docs/prompts), [Termwind](https://github.com/nunomaduro/termwind)
 and the official [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk).
 
 **Status: pre-alpha.** Nothing works yet. This repository currently contains a plan, a decision
@@ -111,9 +111,13 @@ against, and it is why [`PLAN.md`](PLAN.md) has a Non-goals section longer than 
 
 The fashionable agent CLIs render with [Ink](https://github.com/vadimdemedes/ink), React for the
 terminal. It is good, and it is not obviously better than what PHP already has for this shape of
-program. Symfony Console is twenty years mature, Laravel Prompts covers interactive input
-properly, Termwind does Tailwind-style layout, and Collision renders errors better than most
-things in any language.
+program. Symfony Console is twenty years mature; `laravel/prompts` does streaming output
+(`stream()`, `task()->partial()`) *and* every interactive input, with non-TTY fallback built in;
+Termwind does Tailwind-style layout for static output; and Collision renders errors better than
+most things in any language.
+
+One honest caveat: `laravel/prompts` does not support native Windows PHP — WSL only. That is an
+open question for the standalone binary, tracked in [PLAN.md](PLAN.md).
 
 Where Ink genuinely wins is a full-screen alternate-buffer app with many live reactive panes.
 A coding agent is mostly streaming text, a spinner, a diff and a confirm — and PHP is fine at

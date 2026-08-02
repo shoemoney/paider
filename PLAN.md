@@ -738,3 +738,76 @@ honestly. The `sk-sp-` wrong-base-URL guard, however, is cheap and should ship n
 **Resolved 2026-08-02:** the `sk-sp-` guard moved into v0.1 scope and Architecture (Tier
 router/provider construction). The `qwen-plan` preset itself stays v0.2, unchanged, and is not
 what shipped here.
+
+---
+
+## Console/TUI library research — 2026-08-02, and it corrects three decisions
+
+Researched on the `research` tier (haiku), which is the routing thesis doing its own job.
+
+### Correction 1: Termwind cannot stream. laravel/prompts is the UI layer.
+
+`nunomaduro/termwind` (2,492★, pushed 2026-07-22) has **no streaming, partial-redraw or
+live-update mechanism** — it renders once. The README and PLAN have been naming it as the TUI
+layer, which is wrong for a tool whose main output is a streaming LLM response.
+
+**`laravel/prompts` (721★, pushed 2026-08-02 — today) is the actual answer**, and it is better
+than expected:
+
+- `stream()` — append chunk-by-chunk, then `close()`
+- `task()` with `$logger->partial($chunk)` / `commitPartial()` — spinner plus a scrolling log
+- every input type needed: `confirm`, `select`, `multiselect`, `text`, `search`, `suggest`
+- **non-TTY detection built in** via `stream_isatty(STDIN)`, falling back to Symfony's Question
+  Helper — which matters for CI and piped use
+- standalone: no Laravel proper required
+- needs only `mbstring`
+
+Termwind stays, demoted: static styled output and tables, not the streaming path.
+
+### Correction 2: cutting pcntl costs an animated spinner
+
+`laravel/prompts` uses **PCNTL for spinner animation** and "degrades gracefully to a static
+version without it". We cut `pcntl` (see EXTENSIONS.md) on the grounds that `proc_open` and
+`stream_isatty` are ext-standard and atomic writes beat SIGINT trapping. That reasoning holds —
+but the cut has a **cosmetic cost that was not known when it was made**: a static spinner instead
+of an animated one.
+
+**Decision: the cut stands.** A non-animated spinner is not worth a Unix-only extension and a
+split Windows build. Recorded so nobody rediscovers it as a bug.
+
+### Correction 3: Windows is a real problem, and distribution assumed otherwise
+
+`laravel/prompts` **explicitly does not support native Windows PHP — WSL only.** The distribution
+plan promises a FrankenPHP binary as though it were cross-platform. It cannot be, for the
+interactive path, unless the UI layer changes.
+
+**Unresolved.** Options: ship Windows as WSL-only and say so plainly; fall back to Symfony
+Question Helper on Windows and accept a worse experience; or defer Windows entirely. This needs
+deciding before anything is promised, and it is not currently in the Risks section.
+
+### Full-screen TUI: blocked, and that is fine
+
+`php-tui` (605★, a Ratatui port, pushed 2026-05-04) is the only credible full-screen
+alternate-buffer option and it **requires `ext-intl`**, which is not on the approved list. Adding
+intl for a UI we already argued we do not need would be exactly backwards. Confirms the earlier
+call: streaming text, a spinner, a diff and a confirm — not a reactive pane layout.
+
+### Diffs
+
+| library | ★ | pushed | role |
+|---|---|---|---|
+| `sebastianbergmann/diff` | 7,656 | 2026-07-30 | diff engine, no highlighting — what PHPUnit uses |
+| `jfcherng/php-diff` | 483 | 2026-07-20 | full diffs incl. side-by-side/unified/inline, with colour |
+| `tempest/highlight` | 697 | 2026-06-29 | syntax highlighting, terminal and web |
+
+Recommendation: `jfcherng/php-diff` for structure plus `tempest/highlight` for colour. No
+extensions beyond standard. All three actively maintained.
+
+### Resulting UI stack
+
+1. **`laravel/prompts`** — streaming output and all interactive input
+2. **`jfcherng/php-diff` + `tempest/highlight`** — the approval diff
+3. **`termwind`** — static styled output, tables
+4. **`symfony/console`** — `ConsoleSectionOutput` as the low-level redraw escape hatch
+
+Zero unapproved extensions.
