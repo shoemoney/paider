@@ -173,20 +173,51 @@ binary was downloaded and measured directly, arm64/Apple Silicon, macOS Darwin 2
 
 **Binary tested:** FrankenPHP **v1.12.6**, embedding **PHP 8.5.9**, Caddy **v2.11.4**.
 
-### 📦 Size: 176MB, not 20–30MB
+### 📦 Size: 178MB, not 20–30MB
 
 | | |
 |---|---|
-| Static binary, off the shelf | **176MB** (177,902,104 bytes) |
+| Static binary, off the shelf | **178MB** (177,902,104 bytes) |
 | Extensions compiled in | **77** — all 9 Paider requires, plus 68 unwanted (`imagick`, `ldap`, `amqp`, `memcached`, `parallel`, `pgsql`, `pdo_pgsql`, `mysqli`, `pdo_mysql`, `soap`, `tidy`, `xsl`, `gd`, `intl`, `redis`, `ssh2`, `protobuf`, `xlswriter`, and more) |
 | Paider's own payload, `--no-dev --classmap-authoritative` | 33MB on disk, 7.4MB gzipped |
 | Realistic naive-embed total | **~184MB** |
 
-The maintainer's 20–30MB figure describes a **trimmed custom static build**
-(`static-builder.Dockerfile`, or a native `static-php-cli` toolchain), not what `curl`ing the
-release gives you. Docker is not installed on this machine, so that trimmed build **remains
-unverified** — 176MB is what a naive embed actually is today, and the docs must not blur the two
-numbers.
+The maintainer's 20–30MB figure describes a **trimmed custom static build**, not what `curl`ing the
+release gives you. That trimmed build **remains unverified** — 178MB is what a naive embed
+actually is today, and the docs must not blur the two numbers.
+
+> ⚠️ **178MB is decimal (177,902,104 bytes).** GitHub's release page labels the same asset
+> "169.7 MB" because it means MiB. Same file, two conventions — quote bytes when it matters.
+
+Note also that `static-builder.Dockerfile` produces **Linux** binaries only. A macOS binary must
+be built natively with `build-static.sh`; Docker is not a substitute and its absence blocks
+nothing on macOS.
+
+### 🌍 One binary per platform — there is no universal build
+
+`build-static.sh` **cannot cross-compile** (CGO plus a native PHP toolchain), so every target
+needs a runner of that platform. FrankenPHP's own v1.12.6 release is the template:
+
+| asset | size |
+|---|---|
+| `frankenphp-linux-x86_64` | 165.1MB |
+| `frankenphp-linux-aarch64` | 156.8MB |
+| `frankenphp-mac-arm64` | 169.7MB |
+| `frankenphp-mac-x86_64` | 179.2MB |
+| `frankenphp-windows-x86_64.zip` | 56.7MB — **zipped**, so not comparable to the rest |
+
+Two consequences:
+
+1. **A Windows binary exists.** The open Windows question is therefore about `laravel/prompts`
+   (WSL-only, no native Windows PHP support), **not** about FrankenPHP. Those are separate
+   problems and should stop being discussed as one.
+2. **Shipping means a CI matrix**, not a build step: `ubuntu-latest`, `ubuntu-24.04-arm`,
+   `macos-latest`, `macos-13`, optionally `windows-latest`. Free for public repos, and the same
+   shape Deno, Bun, and rtk already use.
+
+**Compressed transfer size**, which is what an installer actually downloads — measured on
+`frankenphp-mac-arm64`: `gzip -9` → **72.6MB**, `zstd -19` → **60.4MB**. Roughly a third of the
+on-disk figure, and the reason the Windows asset merely *looks* smaller.
 
 ### ⏱️ Cold start: the decision is confirmed, not weakened
 
@@ -219,7 +250,7 @@ the full command list, `pdo_sqlite` round-trips an in-memory DB (create/insert/s
 Composer package + FrankenPHP embed binary, no PHAR, no Docker-as-distribution ("Distribution and
 concurrency" in PLAN.md) is **CONFIRMED on cold start** — it was the assumed risk and measurement
 shows it isn't one — and **CONDITIONAL on the trimmed-build size**. If a trimmed static build
-cannot land meaningfully under 176MB, the size argument against `curl | sh` gets harder, not
+cannot land meaningfully under 178MB, the size argument against `curl | sh` gets harder, not
 easier, to answer. That build is the next thing to verify — see PLAN.md's Open questions.
 
 *(Housekeeping, unrelated to the measurement above: `composer.lock` is stale against

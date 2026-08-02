@@ -189,7 +189,7 @@ hyperfine, 3 warmup + 30 timed runs, no shell (`-N`):
   runtime. Fixed FrankenPHP runtime overhead is a constant ~11ms (58.3 − 47.5ms on hello-world);
   the rest is Paider's own bootstrap, ~53ms under both runtimes. The 95.9ms lean-ini baseline
   above reproduces (90.3ms measured today).
-- **Size is the real risk.** ⚠️ The off-the-shelf static binary is **176MB** (177,902,104 bytes),
+- **Size is the real risk.** ⚠️ The off-the-shelf static binary is **178MB** (177,902,104 bytes),
   carrying **77 compiled-in extensions** — all 9 Paider needs, plus 68 nobody asked for
   (`imagick`, `ldap`, `amqp`, `gd`, `intl`, `redis`, `mysqli`, and more — see
   [`EXTENSIONS.md`](EXTENSIONS.md)). Add Paider's own payload (33MB on disk / 7.4MB gzipped) and
@@ -197,8 +197,18 @@ hyperfine, 3 warmup + 30 timed runs, no shell (`-N`):
   ~40MB Go binaries.
 - **The maintainer's 20–30MB estimate is still unverified**, not disproven. It describes a
   *trimmed custom static build* (`static-builder.Dockerfile` or native `static-php-cli`), not the
-  binary the releases page ships today. Docker was not available on this machine to test it —
-  that build is the next thing to verify, not the current reality.
+  binary the releases page ships today. That build is the next thing to verify, not the current
+  reality. (Docker is irrelevant here — `static-builder.Dockerfile` emits *Linux* binaries; a
+  macOS binary has to be built natively either way.)
+- **One binary per platform, and a CI matrix to ship them.** `build-static.sh` cannot
+  cross-compile, so each target needs its own runner: `ubuntu-latest`, `ubuntu-24.04-arm`,
+  `macos-latest`, `macos-13`. Same shape Deno, Bun, and rtk already use. Compressed transfer —
+  what an installer actually pulls — is roughly a third of the on-disk size: `gzip -9` **72.6MB**,
+  `zstd -19` **60.4MB**.
+- **A Windows binary does exist** (`frankenphp-windows-x86_64`). So Windows is a
+  [`laravel/prompts`](https://github.com/laravel/prompts) question, not a FrankenPHP one — see
+  Correction 3 in [`PLAN.md`](PLAN.md). Two separate problems; they should stop being discussed
+  as one.
 
 Functional check under the static binary, for the record: `application list` renders correctly,
 `pdo_sqlite` round-trips an in-memory DB (see [`STORAGE.md`](STORAGE.md)), `stream_isatty()`
