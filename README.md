@@ -28,9 +28,9 @@ ends of the protocol at once. Shipped as a package, Paider turns your own models
 and domain logic into tools the agent can call — defined in the framework's idiom, not
 hand-rolled JSON schemas. No Python or Go CLI can do that for a Laravel developer.
 
-**2. Model routing is a named feature, not a config detail.**
+**2. You can see exactly where the money went.**
 
-Four tiers, chosen for what they are *for*:
+Four tiers, named for what they are *for*:
 
 | tier | job | why it matters |
 |---|---|---|
@@ -39,12 +39,40 @@ Four tiers, chosen for what they are *for*:
 | `research` | reads docs, greps, summarises | **high volume, low difficulty** — where the money quietly goes |
 | `fast` | commit messages, retries | trivial work at trivial cost |
 
-Nobody names a research tier. It is the one that ingests 50k tokens to extract 500, and paying
-orchestrator rates for it is how agent bills get absurd.
+Nobody else names a research tier. It is the one that ingests 50k tokens to extract 500, and
+paying orchestrator rates for it is how agent bills get absurd.
 
-Eleven presets ship in [`config/presets.php`](config/presets.php), every model ID and price
-verified against the live OpenRouter catalogue. On a session that plans 50k/20k tokens and works
-2M/300k:
+Because the tiers are named, Paider can account for them separately — and answer a question no
+other agent CLI can:
+
+```
+$ paider cost
+                                                    ← design, not shipped yet
+
+  tier            calls      in        out       spend    share
+  ───────────────────────────────────────────────────────────────
+  orchestrator       14    61.2k      19.8k      $4.10    82.7%
+  coder             203     1.4M     287.1k      $0.42     8.5%
+  research          118     1.8M      34.6k      $0.23     4.6%
+  fast               77    98.4k      12.2k      $0.21     4.2%
+  ───────────────────────────────────────────────────────────────
+  session                  3.36M     353.7k      $4.96
+
+  92% of your tokens went through tiers costing 17% of your spend.
+  Same work on all-Opus 5: $47.30  ·  you saved $42.34
+```
+
+That last line is the product in one sentence. Most agent tools show you a total, if anything.
+Paider shows you the **ratio** — and the ratio is the whole argument for routing.
+
+It also keeps us honest. The 95.3% figure below is a modelled session; the ledger is what
+confirms or refutes it on real work. A cost claim you cannot check is marketing, and this one is
+checkable by the person paying.
+
+### The presets
+
+Eleven ship in [`config/presets.php`](config/presets.php), every model ID and price verified
+against the live OpenRouter catalogue. Modelled on a session planning 50k/20k and working 2M/300k:
 
 | stack | cost |
 |---|---|
