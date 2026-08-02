@@ -863,3 +863,24 @@ actually contributes here is time-travel and an auditable action log — and an 
 
 Cost: replaying to reconstruct state, mitigated with periodic snapshots if a session ever grows
 long enough to matter. Revisit `EventSauce` only if hand-rolling the append log starts sprawling.
+
+
+---
+
+## Tier assignment, from practice
+
+Jeremy's own routing policy, and the one Paider should ship as behaviour rather than advice:
+
+| tier | model class | work |
+|---|---|---|
+| `orchestrator` | Fable / Opus 5 | plan, decompose, review adversarially |
+| `coder` | Sonnet-class | write the diff — needs to hold a schema |
+| `research` | Haiku / qwen3.7-flash | read, grep, summarise, fetch |
+| `fast` | Haiku / qwen3.7-flash | commit messages, retries, one-liners |
+
+Stated as: *"route documentation to cheap models / route code to sonnet / orchestrate with
+fable."* Note this differs slightly from `config/presets.php`'s `balanced`, which puts the coder
+tier on `qwen3.7-flash` for cost. Both are defensible — flash is near-free and Jeremy has used it
+successfully, but it reports `structured_outputs=false`, which is the standing risk for diff
+generation. **A Sonnet-class coder is the conservative default; flash is the aggressive one.**
+Worth shipping both and letting the ledger show the difference on real work.
