@@ -811,3 +811,55 @@ extensions beyond standard. All three actively maintained.
 4. **`symfony/console`** — `ConsoleSectionOutput` as the low-level redraw escape hatch
 
 Zero unapproved extensions.
+
+---
+
+## PHP floor raised to 8.4 — decided 2026-08-02
+
+`composer.json` now requires `php ^8.4`. Forced from three directions:
+
+| package | needs |
+|---|---|
+| `laravel/prompts`, `termwind`, `laravel/mcp`, `yethee/tiktoken` | 8.1–8.2 |
+| `cognesy/instructor-php`, `jfcherng/php-diff` | **8.3** |
+| `tempest/highlight` | **8.4** |
+
+Preserving 8.2 would mean hand-rolling diffs, syntax highlighting and provider clients to stay
+compatible with a version nobody is obliged to use. Paider has no installed base to break.
+
+**The FrankenPHP binary is unaffected** — it embeds its own PHP, so the floor only constrains
+people installing the composer package into an existing app. That is a real cost for a Laravel
+shop pinned to 8.2, and it is the thesis path, so it is a knowing trade rather than an oversight.
+
+### Docker: dev environment yes, distribution no
+
+These are separate decisions and the docs must not blur them.
+
+- **Distribution: still not Docker.** Container start would consume the whole startup budget for a
+  CLI. Channels remain the composer package and the FrankenPHP binary.
+- **Development: a Docker container is welcome**, and with the floor at 8.4 it makes contributor
+  setup trivial — pinned PHP version, pinned extension set, no "works on my machine". It also
+  gives a clean place to measure the nine-extension configuration rather than testing against a
+  76-extension dev box.
+
+## No Redux/RTK equivalent — and none is wanted
+
+Asked whether PHP has a Redux Toolkit analogue for agent state. It does not, meaningfully:
+state-machine libraries top out around 114★ and are largely abandoned; event sourcing has real
+options (`EventSauce` 866★ framework-agnostic and active, `spatie/laravel-event-sourcing` 912★,
+`patchlevel/event-sourcing` 213★) but all are heavier than this needs.
+
+**The pattern is right; the library is not needed.** Redux exists because browser UIs scatter
+mutation across components. An agent loop is one process executing one sequence. What Redux
+actually contributes here is time-travel and an auditable action log — and an **append-only
+`events` table in the SQLite file already chosen** provides both:
+
+- **Durable `/undo`.** Supersedes the in-memory stack designed earlier: state reconstructs by
+  replaying events, so undo survives a process restart.
+- **An audit trail.** Every tool call, patch, approval and model invocation, in order. Users of a
+  coding agent want to know what it did to their repo; almost nothing offers this.
+- **The cost ledger falls out of it** — it is already an append-only log of tier calls, so it
+  becomes a projection over the same table rather than a separate concern.
+
+Cost: replaying to reconstruct state, mitigated with periodic snapshots if a session ever grows
+long enough to matter. Revisit `EventSauce` only if hand-rolling the append log starts sprawling.
