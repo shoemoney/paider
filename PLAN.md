@@ -420,3 +420,45 @@ Things that need Jeremy's call, not a default guess:
 6. **paider.dev scope.** Docs-only, or also a hosted cost calculator built off the numbers
    already in `config/presets.php`? Cheap to build, genuinely useful, but it's a second surface
    to maintain forever — same "does this need to exist" filter as everything else in this plan.
+
+
+---
+
+## Distribution and concurrency — decided 2026-08-02
+
+### Two channels, not three
+
+| channel | user | why |
+|---|---|---|
+| `composer require paider/paider` | Laravel dev, agent inside the app | **the thesis requires it** — a compiled binary cannot be a package dependency, and turning your models into tools means being one |
+| FrankenPHP embed binary | anyone wanting the CLI standalone | no PHP install, extensions pinned at build |
+
+**PHAR is cut.** It requires PHP installed yet is not a composer dependency, so it is strictly
+worse than `composer global require` for the only audience it could have had. Every extra
+distribution channel is permanent maintenance for a solo maintainer — see Risks.
+
+[FrankenPHP](https://github.com/php/frankenphp) (11,263★, Go, on Caddy, pushed 2026-07-29)
+embeds PHP in a self-executable and
+[explicitly supports CLI](https://frankenphp.dev/docs/embed/): `./my-app php-cli bin/console`.
+It builds the extension set from `composer.json`, which is the fix for the measured problem —
+76 extensions on a dev box cost 94ms of a 143ms startup, and a shipped tool must never inherit
+that. `static-php-cli` (1,917★) is the fallback if FrankenPHP proves awkward.
+
+**Unverified:** binary size and cold-start of a FrankenPHP-embedded CLI. Embedding a PHP runtime
+is tens of megabytes, and startup must be measured against the 95.9ms Laravel Zero baseline
+before this is promised anywhere public. If the binary starts slower than the scaffold, the
+whole rationale weakens.
+
+### Concurrency: Fibers, not Swoole
+
+Where an agent actually needs concurrency is all I/O — parallel tool calls, fanning out to
+sub-agents, racing providers on failover, several MCP servers at once.
+
+- **Octane is the wrong pattern.** It is a long-running HTTP server; a CLI is one process, one task.
+- **Swoole is not needed and costs the distribution story.** It is an extension, so every user
+  installs it, which contradicts the single-binary goal.
+- **PHP 8.5 ships native Fibers**, and `curl_multi` is built in — measured 6 concurrent HTTP
+  requests in 71ms with zero extensions. Amp v3 and ReactPHP sit on Fibers if a real scheduler
+  is wanted.
+
+Revisit Swoole only if profiling demands it, which for an I/O-bound agent is unlikely.
