@@ -399,6 +399,399 @@ which has no embed step yet.*
 
 ---
 
+## ⬜ v0.2 — Multi-agent roster, decided
+
+*Planned. Banked here from a scratchpad design session so it survives past the terminal it was
+written in — three roles, one executor, a bounded review loop. Corrected against three criticals
+an adversarial pass found in the original draft (§"Three criticals, fixed as design" below) and
+reconciled line-for-line against the code that actually shipped in **M1**, not the code the
+original draft assumed would exist. Where the two disagreed, the shipped code won.*
+
+### The roster: three roles, one executor
+
+Five roles were proposed. Three survive — the other two were never agents, they were a routing
+rule and a function wearing an agent costume.
+
+| proposed role | verdict | what it became | why |
+|---|---|---|---|
+| **Orchestrator** | keep | a config row | one call per user prompt, plus rare arbitration. Low volume, high leverage — if it starts narrating the loop it's being over-used. |
+| **Coder** | keep | a config row | the only role with `writes: true`. The only actor with disk access. |
+| **Adversarial Reviewer** | keep | a config row, no write tools | earned, not assumed — see below. |
+| Researcher | **deleted → tool** | `research(question)`, stateless, ≤2k-token reply | it has no memory, no plan, nothing to hand off. That's a function signature, not a role. Callable by all three, fanned out over Fibers + `curl_multi` (already the concurrency decision above), which makes it the one place in the loop that's actually parallel. |
+| Documentor | **deleted → routing rule** | `TierRouter::forTodo()` sends docs-shaped todos to the `research` tier | "route docs to cheap models" is a `match` arm, not a fifth prompt file to maintain and drift out of sync with the other four. |
+| Ingestor | **deleted → deterministic function** | `Ingest::rank()` — git-log recency, zero model calls | identical output every run; a model call here would be pure cost with no judgment being exercised. |
+
+**Empirical case for keeping the Reviewer, not a slogan:** in this project, adversarial review
+(not code review — a pass with an explicit mandate to find a reason the code is wrong) caught an
+arbitrary-code-execution hole (`786a347`) that had shipped through a fully green 144-test suite —
+`Loop::dispatchArtisan()`/`dispatchShell()` trusted an `approval` key if the *model's own tool-call
+input* supplied one, and `systemInstruction()` had just told the model that field's name and
+accepted values in the same prompt. Days later, a second adversarial pass aimed at `paider cost`
+— the product's flagship, checkable claim — found 11 real defects, two of which made it print a
+wrong dollar figure with no caveat (`ModelPricing::costFor()` returning `0.0` instead of `null` on
+an unparsed usage block; `CostComparison` null-guarding `saved_usd` but not `spend_share_pct`, so a
+de-listed model could print "99.9% of your tokens went through tiers costing 0.0% of your spend" —
+the exact silent-zero framing the ledger exists to prevent). Both times the finder read the code
+that ran, not the author's summary of what it was supposed to do. That is what "no write tools" is
+for: a Reviewer that can "just fix it" stops reading for the failure and starts rationalizing past
+it, which is the coder's job already and doesn't need a second seat.
+
+Roles are **config rows against one executor**, not classes — introduce a class per role only when
+a role needs behavior a row can't express (per-role retry policy, per-role tool guards beyond a
+list). Nothing proposed for v0.2 needs that yet.
+
+```php
+// config/agents.php (v0.2, illustrative — not yet in the tree)
+return [
+    'orchestrator' => ['tier' => 'orchestrator', 'tools' => ['research'],                          'writes' => false],
+    'coder'        => ['tier' => null /* TierRouter::forTodo() */, 'tools' => [
+        'read_file', 'write_file', 'patch_file', 'run_shell', 'git', 'artisan', 'research',
+    ], 'writes' => true],
+    'reviewer'     => ['tier' => 'orchestrator', 'tools' => ['read_file', 'research'],              'writes' => false],
+];
+```
+
+Six native tools ship today (`read_file`, `write_file`, `patch_file`, `run_shell`, `git`,
+`artisan` — `app/Tools/*Tool.php`), not the five the Architecture section's tree comment still
+says; `research` above is the new v0.2 tool, and an `mcp` tool joins the coder's list once the
+`mcp/sdk` client lands (already scoped to v0.2 in this Milestones section — no change here, just
+confirming the roster composes with it).
+
+### Tier assignment
+
+| role / call | tier | model class | rationale |
+|---|---|---|---|
+| orchestrator — plan | `orchestrator` | Opus-5-class | exactly one call per user prompt |
+| orchestrator — escalation arbitration | `orchestrator` | Opus-5-class | rare by construction (the cap trips before this fires often) |
+| coder — code todo | `coder` | Sonnet-class (default) | holds a schema, runs in a loop where latency compounds |
+| coder — docs todo | `research` | Haiku/flash-class | read-a-lot, write-a-little — this routing rule *is* the deleted Documentor |
+| reviewer | `orchestrator` | Opus-5-class | the opinionated call, and the one place a cheap model costs money instead of saving it. Cost is bounded by **input discipline, not tier**: the reviewer sees the todo, its acceptance criterion, the diff, and Gate 0's output — never the coder's transcript. Sharing the coder's context means inheriting the coder's rationalization, and paying more for it. |
+| `research` tool | `research` | Haiku/flash-class | stateless, ≤2k-token replies, fanned out over Fibers |
+| turnover summary, commit messages, retries | `fast` | Haiku/flash-class | mechanical text over already-structured input |
+
+This slots into the existing `TierRouter::OPERATION_TIERS` map (`app/Agent/TierRouter.php`) as one
+new entry — `'review' => 'orchestrator'` — plus `TierRouter::forTodo(Todo $todo): string`, a
+`match` on whether the todo is docs-shaped. Nothing else about the router changes: v0.1's "the
+operation→tier mapping is fixed, not configurable" decision (PLAN.md, Architecture) holds for v0.2
+too — a role picks a tier by what kind of work it's doing, not by user config.
+
+### The loop — state machine
+
+<details>
+<summary>State diagram (Mermaid — click to expand)</summary>
+
+```mermaid
+stateDiagram-v2
+    [*] --> Ingest
+    Ingest --> Plan: deterministic, no model call
+    Plan --> NextTodo: orchestrator, once per prompt
+    NextTodo --> Propose: open todo found
+    NextTodo --> Finished: no open todo left
+    Propose --> Apply: coder proposes a diff
+    Apply --> Gate0: two-phase temp-write + rename already atomic
+    Gate0 --> Review: test command passes (or is absent)
+    Gate0 --> RoundCheck: test command fails
+    Review --> TodoDone: verdict = pass
+    Review --> Escalate: verdict = blocked
+    Review --> RoundCheck: verdict = fail
+    RoundCheck --> Propose: round < 3 and fingerprints moved and spend under ceiling
+    RoundCheck --> Escalate: round = 3, or same objection twice, or spend ceiling hit
+    TodoDone --> NextTodo
+    Escalate --> NextTodo: todo marked blocked, run continues
+    Finished --> [*]
+```
+
+</details>
+
+Concrete shape, adapted from the scratchpad design onto what M1 actually ships (`Gate` is
+`App\Approval\Gate`, `EventLog` is `App\Storage\EventLog`, the tool-call protocol is the existing
+text-fenced ` ```tool ` block, not native function-calling):
+
+```php
+// app/Agent/Loop.php — run(), the v0.2 addition. turn() below is the ONLY thing
+// that talks to a provider; today's Loop::turn() becomes AgentTurn::run($role, ...).
+function run(string $prompt): int
+{
+    $s = Replay::fold($eventLog);                 // new: rebuild open-todo/round state from
+                                                    // the log. Nothing today plays this role —
+                                                    // Session is memory-only in M1.
+    if (! $s->plan) {
+        $files = Ingest::rank($cwd)->takeUntilTokens(INGEST_CAP);  // 50_000, deterministic
+        emit('context_ingested', [
+            'files' => $files->count(), 'tokens' => $files->tokens(),
+            'skipped_sensitive' => $files->skippedPaths(),  // critical #3 — see below
+        ]);
+
+        $todos = turn('orchestrator', PlanPrompt::for($prompt, $files), Validate::plan(...));
+        if ($todos->touchesSource() && ! $todos->hasDocsTodo()) {
+            $todos->push(Todo::docs());            // mechanical PHP push. Deleting the
+        }                                           // Documentor can't cause doc drift —
+        emit('plan_created', ['todos' => $todos->toArray()]);   // nothing is asked nicely.
+    }
+
+    while ($todo = $s->nextOpenTodo()) {
+        $tier = TierRouter::forTodo($todo);
+        $round = 0; $prevFingerprints = null; $findings = [];
+
+        while (true) {
+            $diff  = turn('coder', CoderPrompt::for($todo, $findings), Validate::diff(...), $tier);
+            apply($diff, $todo->id);               // existing atomic temp-write+rename in
+                                                    // WriteFileTool/PatchFileTool — already
+                                                    // crash-safe, see "what stays" below.
+
+            $gate = Gate0::run($todo);              // configured test cmd ONLY — see critical #1
+            emit('gate_checked', $gate->toArray()); // always emitted, even {pass: null} = skipped
+
+            if ($gate->pass !== true) {
+                $findings = $gate->asFindings();
+                if (++$round >= MAX_REVIEW_ROUNDS) { return escalate($s, $todo, $findings, 'cap'); }
+                continue;                           // no reviewer turn was paid for
+            }
+
+            $review = turn('reviewer', ReviewPrompt::for($todo, diffFor($todo), $gate), Validate::verdict(...));
+            emit('review_completed', [
+                'todo' => $todo->id, 'round' => $round, 'verdict' => $review->verdict,
+                'fingerprints' => $review->fingerprints(),   // sha1(file . ':' . normalize(claim))
+            ]);
+            if ($review->verdict === 'pass')    { break; }
+            if ($review->verdict === 'blocked') { return escalate($s, $todo, $review, 'blocked'); }
+
+            if ($review->fingerprints() === $prevFingerprints) {
+                return escalate($s, $todo, $review, 'no_progress');
+            }
+            if (++$round >= MAX_REVIEW_ROUNDS)              { return escalate($s, $todo, $review, 'cap'); }
+            if (Ledger::spendFor($s, $todo) > TODO_CEILING) { return escalate($s, $todo, $review, 'budget'); }
+            if (Ledger::spend($s)           > RUN_CEILING)  { return escalate($s, $todo, $review, 'budget'); }
+
+            $prevFingerprints = $review->fingerprints();
+            $findings = $review->findings();
+        }
+
+        emit('todo_completed', ['todo' => $todo->id, 'status' => 'done']);
+        if ($s->contextUsed() >= SOFT) { turnover($s); }   // todo boundary only, never mid-round
+    }
+
+    emit('run_finished', ['exit' => $s->hasBlockedTodos() ? 3 : 0, 'cost' => Ledger::spend($s)]);
+    return $s->hasBlockedTodos() ? 3 : 0;
+}
+```
+
+`turn()` generalizes today's `Loop::turn()` tool-calling cycle (unchanged: the text-fenced
+` ```tool ``` ` parse, `MAX_TOOL_CALLS_PER_TURN = 10` as the per-role safety valve, retry-once-
+then-escalate on a validation failure) to take a `$role` and look up its tool subset from
+`config/agents.php` instead of always granting the full six. `MAX_TOOL_CALLS_PER_TURN` and
+`MAX_REVIEW_ROUNDS` bound two different things and both stay: the first caps how many tool calls
+one role can make while producing *one* reply; the second caps how many propose→apply→gate→review
+cycles *one todo* goes through, and each of those cycles can itself contain up to 10 tool calls.
+
+### The three criticals, fixed as design
+
+The scratchpad draft got three things wrong in ways that would have shipped a real hole. Fixed
+here as the design itself, not appended as a warning after it.
+
+**1. Gate 0 is the configured test command only — not `php -l`, and not a re-implementation of a
+check that already ran.** The draft specified `php -l` as Gate 0's syntax check. `php -l` does not
+exist under the FrankenPHP static binary (its flag parser is Caddy's, and `PHP_BINARY` is empty
+there) and nothing in `app/` shells out to it — the real check is
+`token_get_all($newContent, TOKEN_PARSE)` inside a try/catch, in-process, at
+`PatchFileTool.php:99–107`, and it already runs **before** a patch is even written to disk — a
+batch that fails to parse never lands. `WriteFileTool` and the stamp/staleness re-check
+(`PLAN.md`, "Diff-apply staleness") are the same story: both checks Gate 0 would have re-run
+already happened, synchronously, inside the apply step that precedes it in the loop above. So v0.2
+Gate 0 has exactly one job left — run the project's test command (discovery order: `vendor/bin/
+pest` → `vendor/bin/phpunit` → none found, in which case it emits `gate_checked {pass: null}`
+rather than silently passing) — and it is simpler than the original design because the redundant
+half of it was deleted, not because a check was skipped.
+
+**2. Gate 0's test command, and `--yes`, both route through `Gate::decide()` — neither gets a side
+door.** Every shell execution in M1 already passes through `Loop::dispatchShell` →
+`Gate::decide()`, and `Gate::decide(string $action, callable $prompt): bool` closes over *any*
+prompt source — a human `select()` call today, and under `--yes`, a lookup against a named
+allow-list instead. That's the whole fix: no change to `Gate.php` itself, because its contract
+already supports this. The allow-list has to be named, or `--yes` reopens the exact door
+`786a347` closed — that hole was a model-supplied `approval` field short-circuiting the gate; this
+one would be a model-supplied *write to `.paider/settings.json`*, which `PathGuard::containedIn`
+already permits (it's inside the project root) and `SecretsGuard::isGitIgnored` already flags
+`needs_approval` (typical `.paider/` gitignore convention) — precisely the flag `--yes` exists to
+answer "yes" to. So the allow-list is a **command allow-list, not a blanket approval**, and it
+explicitly excludes `.paider/*` (and the existing `.env*`/`*.pem`/`*.key`/`id_rsa*`/`*.p12`/`.aws/
+credentials` set `SecretsGuard` already refuses) from ever auto-approving, interactive or not:
+
+```php
+// config/agents.php (v0.2, illustrative)
+'yes_allowlist' => [
+    'commands' => ['vendor/bin/pest', 'vendor/bin/phpunit', 'composer test'],  // Gate 0's
+        // resolved test command, verbatim string match — a model-crafted run_shell call
+        // with a *different* command string still doesn't match and still gets denied
+        // non-interactively, same as any other unmatched action.
+    'never' => ['.paider/*'],  // union with SecretsGuard's existing deny-list; --yes cannot
+        // override either. A refusal here is a refusal under --yes too, full stop.
+],
+```
+
+`--yes` mode's `$approvalPrompt` callable becomes "check the allow-list" instead of "ask a human";
+`Gate::decide()` doesn't know or care which, which is exactly why this composes instead of
+bypassing.
+
+**3. `Ingest::rank()` calls `ReadFileTool::execute()` per candidate — it does not read the
+filesystem directly.** The draft's ranker walked `git log` and slurped file contents straight off
+disk, with no `SecretsGuard` check and no approval step — meaning a committed `*.pem`, `id_rsa*`,
+or config file holding a key would rank normally (tracked ≠ safe) and ship to a third-party
+provider on the very first run, silently. Fixed by routing every ranked candidate through the same
+tool the model already uses to read files (`ReadFileTool`, which already calls
+`SecretsGuard::isSensitive` and already refuses with `needs_approval: true` for anything the deny-
+list or `git check-ignore` catches — including *tracked* secrets, since the deny-list check runs
+independent of ignore status). A refusal here is never auto-approved — Ingest treats it as "skip
+this candidate, rank the next one," not "prompt the user about a file they don't know is being
+considered." What changes visibly: `context_ingested`'s payload carries `skipped_sensitive`, the
+list of paths Ingest declined to send — "which files went" is now answerable by reading the log,
+which is the entire point of the log existing. Interactive sessions additionally get a one-time
+confirm (`"Send N files (~T tokens) to <provider>? [y/n]"`) on a session's first ingest only;
+`--yes` skips the prompt by definition (no human to ask) but the `SecretsGuard` filter is not a
+gate that can be skipped — it's structural to `Ingest`, the same way `Gate.php`'s deny-by-default
+is structural rather than optional.
+
+### Hard iteration cap: 3 rounds, one shared counter
+
+**`MAX_REVIEW_ROUNDS = 3`**, and it's one counter shared by Gate 0 and the Reviewer, not two —
+a round that dies at Gate 0 still costs the coder an attempt even though no reviewer turn was
+billed for it. Round 1 catches the real defects, round 2 catches the fix's fallout, round 3 is the
+last honest attempt; past that the reviewer is relitigating taste, not finding bugs.
+
+| break condition | fires when | on trip |
+|---|---|---|
+| round cap | `$round >= 3` (Gate 0 or Reviewer, same counter) | escalate, reason `cap` |
+| no progress | reviewer fingerprints identical to the previous round | escalate at round 2 rather than paying for round 3, reason `no_progress` |
+| per-todo spend | > `TODO_CEILING` ($0.50, config) | escalate, reason `budget` |
+| per-run spend | > `RUN_CEILING` ($2.00, config) | escalate, reason `budget` |
+| reviewer says it can't evaluate | verdict = `blocked` | escalate immediately, reason `blocked` |
+
+**Escalation never aborts the run.** `escalate()` marks the current todo blocked and returns
+control to the outer `while ($todo = $s->nextOpenTodo())` loop — a deadlock on todo one must not
+read as "the agent quit" when todos two through five were independent. The run's exit code (`0` or
+`3`) is decided once, at the very end, by whether *any* todo ended up blocked.
+
+**Non-interactive (`--yes`) escalation reverts, it does not leave work "on a branch."** No
+branching mechanism exists anywhere in this design, and the loop applies each round's diff before
+the reviewer ever sees it (`apply()` runs before `Gate0::run()`), so "uncommitted" is not
+"unapplied." `--yes` therefore reverts the todo's applied writes through the same machinery
+`/undo` needs, keyed by todo — which means `Session`'s undo stack (`app/Agent/Session.php`) needs
+one addition: `recordApply(string $path, ?string $previous, ?string $todoId = null)`, so
+`escalate()` can pop every entry tagged with the blocked todo's id specifically, not just the top
+of the stack. That's the only change `Session.php` needs for v0.2's escalation path — everything
+else about the undo stack (LIFO seal-on-next-touch, stamp-mismatch conflict detection) is reused
+unmodified. Interactive mode instead prompts: ship the coder's version, revert this todo, or grant
+exactly one extra round (hard cap — never a second grant on the same todo).
+
+**The cap ships with its own instrument.** `review_completed` records round-to-verdict for every
+todo from day one; if p90 is 1, drop the cap to 2, if escalations cluster on `no_progress`, the
+reviewer prompt is too vague. Three is a starting value with a measurement attached, not a belief.
+
+### Context threshold: absolute tokens, not a fraction of the window
+
+A percentage of the window is the wrong unit — 70% of a 1M-token window is $3.50 of input on one
+Opus-5 call and 700k tokens of attention dilution regardless of what "70%" sounds like. Absolute,
+capped:
+
+| constant | value | meaning |
+|---|---|---|
+| `INGEST_CAP` | 50,000 tokens | hard ceiling on deterministic file ingestion |
+| `SOFT` | `min(0.70 × window, 120,000)` tokens | turnover hook fires at the next todo boundary, never mid-round |
+| `HARD` | `min(0.90 × window, 160,000)` tokens | refuse another call on this context; forces the zero-model fold below |
+| `TOOL_RESULT_CAP` | 25,000 tokens | truncate to 8k head + 8k tail, `truncated: true` on the event |
+| `RESEARCH_REPLY_CAP` | 2,000 tokens | the `research` tool returns a value, not a conversation |
+
+For a 200k-window model that's soft 140k / hard 180k, capped down to **120,000 / 160,000** —
+headroom has to survive a single fat tool result (up to `TOOL_RESULT_CAP` = 25k) landing in one
+turn, which a flat 10% margin does not.
+
+**Measured from the provider's reported usage on the last response, not a local tokenizer** —
+already how `Loop::turn()`'s `tier_call` event gets `tokens_in`/`tokens_out` today (`response->
+tokensIn`/`tokensOut`), so the context meter reuses the same number the ledger already trusts
+rather than introducing a second, unverified count. `yethee/tiktoken` (already in scope per the
+provider-layer research) stays reserved for *pre-flight* `/add` sizing only, where no response
+exists yet to read a real count from.
+
+**Turnover is a projection, not transcript compression.** Open todos, applied batches (now
+tagged by id, see above), and escalation outcomes replay verbatim from the event log at `SOFT`;
+only prose gets an LLM summary, on the `fast` tier. Above `HARD`, a pure zero-model fold runs
+instead — the case turnover exists to prevent: needing a model call to compress a context that's
+already too large to afford one.
+
+### Event log: twelve types, extending the two that already ship
+
+M1 already writes two event types — `tier_call` (one per model call, carries `tier`/`model`/
+`tokens_in`/`tokens_out`/`cost_usd`/`hypothetical_usd`, and is the entire input to `CostLedger`)
+and `tool_call` (one per tool dispatch). `EventLog`'s schema (`id TEXT PRIMARY KEY, type, payload
+JSON, created_at`, ordered by `rowid`) needs **no `ALTER TABLE`** for any of this — every field
+below is a JSON key inside `payload`, exactly how `tier_call` already carries six of them. WAL
+journal mode and `synchronous = NORMAL` are already the connection defaults
+(`app/Storage/Database.php`), so the durability pragma work a naive port of this design would have
+proposed is already done.
+
+Twelve types total — extending the two that ship, not replacing them, and smaller than both drafts
+this was synthesized from (14 and 38) because the smallest set that answers a real question beats
+a complete one that answers questions nobody's asking of a file that's permanent once it's on a
+user's disk:
+
+| type | new? | carries | why it exists |
+|---|---|---|---|
+| `tier_call` | ships | `+role`, `+todo_id`, `+round` | unchanged shape, three new keys — `CostLedger` only ever filtered on `type === 'tier_call'`, so this is additive |
+| `tool_call` | ships | unchanged | unchanged |
+| `context_ingested` | new | files, tokens, `skipped_sensitive` paths | critical #3's audit trail — "which files went" has to be answerable |
+| `plan_created` | new | todos + acceptance criteria | the orchestrator's one call per prompt, made inspectable |
+| `gate_checked` | new | `pass: bool\|null`, command, output tail | always emitted, even when skipped — a skipped check must not look like a passed one |
+| `approval_decided` | new | action, decision, `mode: interactive\|yes_allowlist` | critical #2's audit trail — "what did it do to my repo and what did I say yes to," and now distinguishes a human's yes from `--yes`'s |
+| `review_completed` | new | verdict, round, fingerprints, findings | the reviewer's opinion, and the cap's own instrument |
+| `todo_completed` | new | todo id, status (`done`\|`blocked`) | closes the loop over the plan |
+| `escalation_raised` | new | reason, uncleared findings | four-way reason enum from the cap table above |
+| `escalation_resolved` | new | choice | separate event because it can land later (interactive prompt) than the raise |
+| `context_turnover` | new | tokens before/after, summary or fold | the compaction event |
+| `run_finished` | new | exit code, total cost | one per prompt; absence after the last `plan_created` is the crash-resume signal, so no separate `run_started` is needed |
+
+**Cut from the original 18, and why each one is safe to cut:**
+
+- **`file.write.intended` / `file.write.applied`** — the draft's crash-safety graft solves a
+  problem M1 doesn't have. `WriteFileTool`/`PatchFileTool` already write to a temp path and
+  `rename()` — atomic at the OS level — so a `kill -9` lands either before the rename (an orphaned
+  temp file, harmless) or after (fully committed); there is no observable in-between state for a
+  recovery event pair to make durable. The real crash-safety gap is *loop* state — which todo/
+  round was active — and that's what `todo_completed` + `review_completed` already cover.
+- **`turn.started`** (kept as one event, not a start/completed pair) — M1's `Loop::turn()` only
+  ever emits after a call completes, because the usage numbers that make the event useful don't
+  exist before then; a `turn.started` marker would be a live-progress nicety the streaming
+  renderer (`stream()`, already shipped) already provides without a log write.
+- **`run.started` / `prompt.received`** — folded into `plan_created`'s existence: a `plan_created`
+  with no later `run_finished` *is* the unambiguous "this run didn't finish" signal `Replay::fold`
+  needs; a separate start marker for the same fact is a second way to ask the same question.
+- **`todo.started`** — the first `tier_call` tagged with a given `todo_id` already marks it;
+  logging the same fact twice under two names is exactly the kind of permanent-and-redundant
+  surface `EventLog` can't afford once real logs exist on real disks.
+
+### What stays in `Loop.php`, what changes
+
+**Stays:** the text-fenced ` ```tool ``` ` parse (`parseToolCall`) — provider-agnostic, so v0.2
+doesn't have to reconcile Anthropic's `tool_use` format against OpenAI's function-calling shape
+across three roles and four tiers; `MAX_TOOL_CALLS_PER_TURN = 10`; `Gate::decide()`'s allow-once/
+allow-session/deny contract, unchanged, and never bypassed by a model-supplied field (the
+`786a347` fix holds); the `APPROVAL_GATED_TOOLS` trio plus `SecretsGuard`/`PathGuard`, reused by
+`Ingest` rather than duplicated; the atomic write-then-rename primitive; `EventLog`'s schema and
+its WAL pragmas.
+
+**Changes:** `Loop::turn()`'s single implicit role (today, effectively "coder" — full six-tool
+access, driven by the REPL's `plan` operation) becomes `AgentTurn::run(string $role, ...)`, scoped
+to that role's `config/agents.php` tool list; a new `Loop::run(string $prompt): int` (the state
+machine above) sequences orchestrator → coder → gate → reviewer per todo instead of `ChatCommand`
+driving one `Loop::turn()` per REPL message directly; `TierRouter` gains `'review' =>
+'orchestrator'` and `forTodo()`; new deterministic collaborators `Ingest` and `Gate0`; a new
+`Replay::fold()` that rebuilds open-todo/round state from `EventLog` on start — a capability M1
+doesn't have at all today, since `Session` is memory-only and a killed process loses everything.
+`ChatCommand`'s interactive REPL keeps working exactly as it does today for one-off requests; the
+full plan→coder→gate→review loop is what the already-milestoned `paider run "<prompt>" --yes`
+command drives end-to-end, non-interactively, bounded by the allow-list above.
+
+---
+
 
 ## The Laravel-native angle (added 2026-08-02, Jeremy's input)
 
