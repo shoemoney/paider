@@ -8,7 +8,7 @@
 [![php](https://img.shields.io/badge/PHP-%E2%89%A5%208.4-777BB4?style=for-the-badge&logo=php&logoColor=white)](composer.json)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
 [![packagist](https://img.shields.io/badge/packagist-dev--main-blueviolet?style=for-the-badge)](https://packagist.org/packages/paider/paider)
-[![tests](https://img.shields.io/badge/tests-160%20passing-brightgreen?style=for-the-badge)](tests/)
+[![tests](https://img.shields.io/badge/tests-164%20passing-brightgreen?style=for-the-badge)](tests/)
 [![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
@@ -19,7 +19,8 @@ Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://l
 
 ## 🚦 Status, honestly
 
-> **Alpha. The v0.1 commands exist and are tested. It has never spoken to a live model.**
+> **Alpha. The commands work, the ledger reports real money, and it has talked to real models.**
+> **What it has never done is drive an end-to-end edit in someone else's repo.**
 
 Built in public from commit one, wrong turns left in. Here is precisely what that means today:
 
@@ -28,7 +29,7 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `cost`, `config:provider`, `config:show` all register and run |
 | 🔧 six native tools | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `git`, `artisan` |
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection; stored in `.paider/` (gitignored locally) |
-| 🧪 test suite | ✅ **160 passing**, 529 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
+| 🧪 test suite | ✅ **164 passing**, 579 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
 | 📦 published on Packagist | ✅ **published** | `paider/paider` at https://packagist.org/packages/paider/paider · dev-main only |
 | 📦 `curl \| sh` installer | ⬜ **not built** | the binary is measured, the installer is not written |
@@ -123,16 +124,20 @@ $ paider cost
   Same work on all-Opus 5: $25.64  ·  you saved $24.70
 ```
 
-> **Modelled session.** `paider cost` ships today and reads this straight off the event log, but
-> it prints only `tier | calls | tokens in | tokens out | spend` — the `share` column, the ratio
-> line, and the all-Opus comparison above are design, not built. `spend` itself is real: each
-> `tier_call` event is priced at write time from [`config/prices.php`](config/prices.php) by exact
-> model id. A model with no entry there stores `cost_usd` as `NULL`, not `$0.00` — the command
-> reports those separately as unpriced calls, naming the specific model, instead of silently
-> undercounting the total.
+> **Modelled session, real command.** ✅ `paider cost` prints all of the above — every column, the
+> ratio line and the all-Opus comparison — straight off the event log. The token volumes shown are
+> a modelled session, but the arithmetic is the shipped code's, not a mockup's. Each `tier_call`
+> event is priced at write time from [`config/prices.php`](config/prices.php) by exact model id.
+> A model with no entry there stores `cost_usd` as `NULL`, not `$0.00` — those surface as unpriced
+> calls naming the specific model, rather than silently undercounting the total.
+>
+> Two tests hold this block and the code together from opposite ends: `CostTableTest` parses this
+> table and recomputes it from `config/prices.php`, and `CostReadmeGoldenTest` seeds the event log
+> with these volumes, runs the real command, and asserts the output matches. The table cannot drift
+> from the code in either direction without a failing test.
 
-That last line is the product the design is aiming at. Most agent tools show you a total, if
-anything. Paider is meant to show you the **ratio** — and the ratio is the whole argument for
+That last line is the product in one sentence. Most agent tools show you a total, if
+anything. Paider shows you the **ratio** — and the ratio is the whole argument for
 routing, once it's wired up.
 
 It also keeps us honest. The 95.3% figure below is a modelled session; the ledger is what
