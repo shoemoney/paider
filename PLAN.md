@@ -447,6 +447,42 @@ the event log records every call, and the cost ledger prices it. A bench that re
 **verified-findings-per-dollar** is a number nobody else publishes, and it is the number that
 should actually pick a tier.
 
+### Publication policy — decided up front, because it is the whole design
+
+**Publish every run, including the errored ones, tagged as such.** Crashes, timeouts, refusals,
+malformed tool calls and API failures are results. A suite that reports only completed runs is
+measuring "how good is this model on the subset of tasks where it did not fall over", which is
+the number least useful to someone choosing a model. Error rate under load is often the
+differentiator, and it is exactly what selective publication hides.
+
+**Publish what each run discovered and what got fixed.** A finding that led to a real fix is
+worth more than a score, and it is checkable — anyone can read the resulting diff. This also
+keeps the suite honest about the verified-vs-reported distinction above: a "finding" with no
+fix and no refutation is neither.
+
+**Publish findings and results. Do NOT publish the bench code or the items.** Once a benchmark's
+contents are public they become training data and an optimisation target, and the score stops
+measuring capability and starts measuring exposure to that benchmark. Every widely-published
+eval decays this way; withholding the items is the only cheap defence.
+
+**The honest cost of that, stated plainly:** a held-back suite is *not independently
+reproducible*. Nobody can rerun it to check us, so the results are worth exactly what our
+methodology and track record are worth. That is a real trade, not a free win, and pretending
+otherwise would be the same dishonesty this project keeps designing against. Mitigations that
+keep most of the value:
+
+- Publish the **methodology** in full — task shapes, scoring rules, run counts, dates, model
+  versions and routes — everything except the items themselves.
+- Publish **per-run traces** with the item redacted, so the reasoning and failure mode are
+  visible even when the prompt is not.
+- Offer **audited third-party access** to the items under an agreement not to redistribute, so
+  the suite can be checked without becoming public training data.
+- **Rotate a held-out slice** every publication and report scores on old-vs-new items separately.
+  If a model's score on rotated-in items is materially lower than on older ones, that gap IS the
+  contamination measurement — publish it.
+- Timestamp and version every run, so a result is always attributable to a specific model
+  snapshot rather than a moving alias.
+
 **Scope discipline:** this is a separate product, not a Paider feature. If it ships it ships as
 its own repo. Recorded here so the idea survives, not so it creeps into v1.0.
 
