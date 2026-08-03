@@ -66,6 +66,35 @@ it('omits system field when there are no system messages', function () {
     expect($body)->not->toHaveKey('system');
 });
 
+it('parses the served model id off a response body whose model differs from the one requested', function () {
+    $http = makeAnthropicHttp([
+        new Response(200, [], json_encode([
+            'model' => 'claude-opus-5-20260315',
+            'content' => [['type' => 'text', 'text' => 'ok']],
+            'usage' => ['input_tokens' => 1, 'output_tokens' => 1],
+        ])),
+    ]);
+
+    $client = new AnthropicClient('sk-ant-test', 'https://api.anthropic.com', $http);
+    $response = $client->send([['role' => 'user', 'content' => 'Hi']], 'claude-x');
+
+    expect($response->servedModel)->toBe('claude-opus-5-20260315');
+});
+
+it('reports servedModel as null when the response body carries no model field', function () {
+    $http = makeAnthropicHttp([
+        new Response(200, [], json_encode([
+            'content' => [['type' => 'text', 'text' => 'ok']],
+            'usage' => ['input_tokens' => 1, 'output_tokens' => 1],
+        ])),
+    ]);
+
+    $client = new AnthropicClient('sk-ant-test', 'https://api.anthropic.com', $http);
+    $response = $client->send([['role' => 'user', 'content' => 'Hi']], 'claude-x');
+
+    expect($response->servedModel)->toBeNull();
+});
+
 it('throws when no API key is available at send time', function () {
     $http = makeAnthropicHttp([]);
     $client = new AnthropicClient('', 'https://api.anthropic.com', $http);

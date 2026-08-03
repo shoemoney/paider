@@ -73,6 +73,18 @@ class CostCommand extends Command
             }
         }
 
+        $mismatches = [];
+        foreach ($tiers as $tier => $row) {
+            if ($row['mismatched_calls'] > 0) {
+                $mismatches[] = [
+                    'tier' => $tier,
+                    'count' => $row['mismatched_calls'],
+                    'calls' => $row['calls'],
+                    'models' => $row['mismatched_models'],
+                ];
+            }
+        }
+
         $comparison = CostComparison::compare($summary);
 
         if ($this->option('json')) {
@@ -80,6 +92,7 @@ class CostCommand extends Command
                 'tiers' => (object) $tiers,
                 'session' => $session,
                 'unpriced_calls' => $unpriced,
+                'model_mismatches' => $mismatches,
                 'comparison' => $comparison,
             ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
 
@@ -116,6 +129,12 @@ class CostCommand extends Command
             );
             render('<div class="px-1">'.e(
                 "{$entry['count']} of {$entry['calls']} {$entry['tier']} calls not priced (".implode(', ', $parts).') — totals exclude them.'
+            ).'</div>');
+        }
+
+        foreach ($mismatches as $entry) {
+            render('<div class="px-1">'.e(
+                "{$entry['count']} of {$entry['calls']} {$entry['tier']} calls served a different model than requested: ".implode(', ', $entry['models'])
             ).'</div>');
         }
 

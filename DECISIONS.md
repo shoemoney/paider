@@ -612,3 +612,60 @@ decision (no Windows for a compiled binary) stands on its own, but it is worth n
 
 Commit: `db8b8f1`. Test suite: 186 passing, 647 assertions (hermetic); 3 live tests (real API calls),
 currently failing due to credential config but skip cleanly in sandboxes.
+
+## 17. Served vs requested model id — resolved, not disputed — 2026-08-03
+
+The money-path audit left one finding DISPUTED: "the served model id is parsed, then discarded —
+the ledger prices the id you asked for, not the one you were billed for, and the log cannot be
+reconciled against an invoice." Investigated by reading `AnthropicClient::send()` and
+`OpenAiCompatibleClient::send()` and checking both providers' documented response shapes (no live
+call made — none is permitted for this job).
+
+**The finding was real.** Both clients decode a `$raw` response body and use only
+`content`/`choices` and `usage` from it; neither ever reads `raw['model']`. Both wire formats
+document a top-level `model` field naming what actually served the request:
+
+- **Anthropic's Messages API** echoes `model` in every response, and Anthropic documents that an
+  undated alias in the request (e.g. a `-latest` style id) can resolve to a dated snapshot in the
+  response — the two are not guaranteed to match character-for-character.
+- **OpenAI-compatible/OpenRouter chat-completions responses** carry the same top-level `model`
+  field, and OpenRouter documents that routing and fallback can serve a different underlying model
+  than the one requested, with the served id reported back in this field.
+
+So the fix path applies, not the "not applicable" path. `ProviderResponse` gained a fourth,
+defaulted `?string $servedModel` field (default `null` so every existing positional
+`new ProviderResponse($content, $tokensIn, $tokensOut, $raw)` call site across the test suite kept
+compiling unchanged). Both clients now parse `is_string($raw['model'] ?? null) ? $raw['model'] :
+null` into it. `Loop::turn()` and `CommitCommand::handle()` both compute
+`$servedModel = $response->servedModel ?? $requestedModel` — falling back to the requested id when
+the provider/fixture reports none, which is what keeps every `raw: []` test double and every
+legacy event unaffected — and now write **both** ids onto the `tier_call` payload: `model` (still
+the field `ModelPricing::costFor()` prices against and `CostLedger` reads) now names the served id,
+and a new `requested_model` key holds what was actually asked for. Same write-time-freeze
+discipline as `cost_usd` (LOCKED #2/#3): whichever id was served at call time is what gets priced
+and stored, permanently.
+
+`CostLedger::summary()` gained `mismatched_calls` / `mismatched_models` (`"requested -> served"`
+strings), computed with the same "absence is unknown, not false" rule as `unpriced_models` and
+`hypothetical_unknown`: a row only counts as a mismatch when `requested_model` is present in its
+payload AND differs from `model`; a legacy row with no `requested_model` key at all contributes
+nothing. `paider cost` renders one line per affected tier below the existing unpriced-calls lines,
+and `--json` gets a `model_mismatches` key alongside `unpriced_calls`.
+
+**A separate, pre-existing bug was found along the way and is explicitly NOT fixed here:**
+`AnthropicClient` sends OpenRouter-style slug ids (e.g. `anthropic/claude-opus-5`, the id
+`config/presets.php` uses for the direct-Anthropic preset) straight into the `model` field of a
+request to `api.anthropic.com`. Real Anthropic will not echo that slug format back — it will
+report its own native dated-snapshot id, with no `anthropic/` prefix. Once this feature ships,
+real production traffic through the direct-Anthropic preset will very likely start showing those
+orchestrator-tier calls as **UNPRICED** (`config/prices.php` has no entry under the real served
+id), not silently mispriced under the wrong id — an honest fail-loud outcome per LOCKED decision
+#3, but a follow-up worth its own job to fix the request-side id mapping.
+
+Tests added: `AnthropicClientTest` and `OpenAiCompatibleClientTest` each gained a served-model-
+parsed and a served-model-absent case; `LoopToolCallProtocolTest` gained a case proving a served id
+that differs from the resolved/requested id is what gets priced and recorded, with the requested id
+recorded alongside it; `CostLedgerTest` and `CostCommandTest` each gained a mismatch-counting case
+(table line and `--json` shape). Verified red/green: temporarily priced by the requested id instead
+of the served id in `Loop::turn()`, confirmed the new Loop test failed on the expected assertion,
+reverted, confirmed green again. Suite: 194 passing (666 assertions), still fully hermetic.

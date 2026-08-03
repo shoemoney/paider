@@ -46,12 +46,20 @@ class Loop
             $resolved = $this->tierRouter->resolve('plan', $session->tierOverrides());
             $response = $this->provider->send($this->buildMessages($session), $resolved['model']);
 
+            // 'model' now names what was actually billed, not what was asked for — a
+            // provider can alias/route/fallback to a different id than requested, and
+            // pricing must follow the id that was actually served. Frozen at write time,
+            // same write-time-freeze discipline as cost_usd (LOCKED #2/#3).
+            $requestedModel = $resolved['model'];
+            $servedModel = $response->servedModel ?? $requestedModel;
+
             $this->eventLog->append('tier_call', [
                 'tier' => 'orchestrator',
-                'model' => $resolved['model'],
+                'model' => $servedModel,
+                'requested_model' => $requestedModel,
                 'tokens_in' => $response->tokensIn,
                 'tokens_out' => $response->tokensOut,
-                'cost_usd' => ModelPricing::costFor($resolved['model'], $response->tokensIn, $response->tokensOut),
+                'cost_usd' => ModelPricing::costFor($servedModel, $response->tokensIn, $response->tokensOut),
                 // Frozen at write time, same as cost_usd (LOCKED decision #2, one field
                 // over) -- so a later config/prices.php edit can't silently move the
                 // "same work on all-Opus 5" comparison onto a different price basis.

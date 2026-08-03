@@ -73,6 +73,35 @@ it('reads the key from the given env var when no override is passed', function (
     putenv('EXAMPLE_API_KEY');
 });
 
+it('parses the served model id off an OpenRouter-style response whose model differs from the one requested', function () {
+    $http = makeOpenAiHttp([
+        new Response(200, [], json_encode([
+            'model' => 'anthropic/claude-opus-5-20260315',
+            'choices' => [['message' => ['content' => 'ok']]],
+            'usage' => ['prompt_tokens' => 1, 'completion_tokens' => 1],
+        ])),
+    ]);
+
+    $client = new OpenAiCompatibleClient('https://openrouter.ai/api/v1', 'OPENROUTER_API_KEY', 'test-key', $http);
+    $response = $client->send([['role' => 'user', 'content' => 'Hi']], 'anthropic/claude-opus-5');
+
+    expect($response->servedModel)->toBe('anthropic/claude-opus-5-20260315');
+});
+
+it('reports servedModel as null when the response body carries no model field', function () {
+    $http = makeOpenAiHttp([
+        new Response(200, [], json_encode([
+            'choices' => [['message' => ['content' => 'ok']]],
+            'usage' => ['prompt_tokens' => 1, 'completion_tokens' => 1],
+        ])),
+    ]);
+
+    $client = new OpenAiCompatibleClient('https://api.example.com/v1', 'EXAMPLE_API_KEY', 'test-key', $http);
+    $response = $client->send([['role' => 'user', 'content' => 'Hi']], 'gpt-x');
+
+    expect($response->servedModel)->toBeNull();
+});
+
 it('throws when no API key is available at send time', function () {
     putenv('EXAMPLE_API_KEY');
     $http = makeOpenAiHttp([]);

@@ -204,6 +204,40 @@ test('the orchestrator tier_call event is priced from the resolved model id, not
         ->and($tierCalls[0]['payload']['cost_usd'])->toBe($expectedCost);
 });
 
+test('a served model that differs from the requested one is priced and recorded as the served id, alongside the requested id', function () {
+    $tool = new RecordingTool;
+
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(
+            content: 'All done.',
+            tokensIn: 1000,
+            tokensOut: 200,
+            raw: [],
+            servedModel: 'anthropic/claude-sonnet-5',
+        ),
+    ]);
+
+    $log = new EventLog(Database::connect(':memory:'));
+    $loop = new Loop([$tool], $provider, new TierRouter, $log, new Gate);
+
+    $loop->turn(loopTestSession(), 'add a feature', neverApprove());
+
+    $tierCalls = array_values(array_filter($log->all(), fn ($event) => $event['type'] === 'tier_call'));
+
+    expect($tierCalls)->toHaveCount(1);
+
+    // Requested (resolved) model is anthropic/claude-opus-5 (see the adjacent pricing
+    // test), but the provider says anthropic/claude-sonnet-5 actually served it -- cost
+    // must follow the served id, not the requested one, and both ids must be recorded.
+    $expectedCost = 1000 / 1e6 * 2.00 + 200 / 1e6 * 10.00; // sonnet-5 prices, not opus-5
+    $wrongCostIfPricedByRequested = 1000 / 1e6 * 5.00 + 200 / 1e6 * 25.00;
+
+    expect($tierCalls[0]['payload']['model'])->toBe('anthropic/claude-sonnet-5')
+        ->and($tierCalls[0]['payload']['requested_model'])->toBe('anthropic/claude-opus-5')
+        ->and($tierCalls[0]['payload']['cost_usd'])->toBe($expectedCost)
+        ->and($tierCalls[0]['payload']['cost_usd'])->not->toBe($wrongCostIfPricedByRequested);
+});
+
 test('a malformed fenced tool block is treated as prose, not a crash and not a dispatch', function () {
     $tool = new RecordingTool;
 
