@@ -294,8 +294,9 @@ vendor/bin/pest
 vendor/bin/pest --group=live
 ```
 
-**Hermetic suite** (`vendor/bin/pest`, 161 tests) — all provider interactions mocked via Guzzle;
-proves self-consistency, zero cost. Excluded group: `live`.
+**Hermetic suite** (`vendor/bin/pest`, 164 tests) — all provider interactions mocked via Guzzle;
+proves self-consistency, zero cost. Excluded group: `live`. This is the number in the badge above;
+the live suite is 3 more on top, not part of it.
 
 **Live suite** (`vendor/bin/pest --group=live`, 3 tests) — real round-trips to `api.openrouter.ai`,
 `api.anthropic.com`, and `api.x.ai` (xAI fallback when `ANTHROPIC_API_KEY` absent). Discovers
