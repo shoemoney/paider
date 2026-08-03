@@ -413,6 +413,22 @@ which has no embed step yet.*
 **⬜ POST-1.0 — Paider's own benchmark suites** — *idea, recorded 2026-08-03. Not scoped, not
 scheduled, and deliberately not in v1.0.*
 
+> ### Mission
+>
+> **Most benchmarks die the moment they start to matter.** Publishing the items buys adoption and
+> spends the very thing that made the number worth citing: within a release cycle the score stops
+> measuring capability and starts measuring exposure to the benchmark — and everyone goes on
+> quoting it anyway. Keeping the items private preserves the measurement and buys nothing, because
+> a number nobody can see is a number nobody uses.
+>
+> The Paider 100 takes that trade apart instead of picking a side. **Exposure comes from the score
+> and the findings. Contamination comes from the items.** So we publish the score loudly, publish
+> every run behind it — errors, timeouts and refusals included and tagged — publish what each run
+> discovered and what it actually fixed, and never publish the items.
+>
+> The promise is not that our number is unimpeachable. It is that it will still mean the same
+> thing in two years.
+
 Build our own evaluation harnesses rather than routing model choices off other people's leaderboards.
 
 | bench | measures |
