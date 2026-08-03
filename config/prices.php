@@ -43,6 +43,7 @@ return [
     'x-ai/grok-build-0.1' => ['in' => 1.00, 'out' => 2.00],
 
     'qwen/qwen3.7-max' => ['in' => 1.475, 'out' => 4.425],
+    'qwen/qwen3.8-max' => ['in' => 2.0, 'out' => 6.0],
     'qwen/qwen3.7-flash' => ['in' => 0.03, 'out' => 0.13],
 
     'z-ai/glm-5.1' => ['in' => 0.966, 'out' => 3.036],

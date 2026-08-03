@@ -82,7 +82,12 @@ return [
     ],
 
     'qwen' => [
-        'orchestrator' => 'qwen/qwen3.7-max',             //  $1.475 /   $4.425     1M ctx
+        // 3.8-max over 3.7-max on Jeremy's bench read 2026-08-03 ("benching very well").
+        // Costs more ($2.00/$6.00 vs $1.475/$4.425) and that is fine here: the
+        // orchestrator is the low-volume, high-value tier this whole file is arranged
+        // around. It also adds vision, which 3.7-max does not have — that model rejects
+        // an image content array outright. Both are on the sk-sp- plan allowlist.
+        'orchestrator' => 'qwen/qwen3.8-max',             //  $2.00  /   $6.00      1M ctx
         // NOT qwen3-coder-plus ($0.65/$3.25). Jeremy's call from using it:
         // it is not smart enough to orchestrate and not fast enough to be the
         // coder -- a dead zone that buys neither intelligence nor speed. The
@@ -114,8 +119,18 @@ return [
     'open' => [
         'orchestrator' => 'moonshotai/kimi-k3',           //  $3.00 /  $15.00   1.05M ctx
         'coder' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
-        'research' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
-        'fast' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13
+        // research/fast on deepseek-v4-flash 2026-08-03, Jeremy's call from use.
+        // NOTE it is 4.7x qwen3.7-flash on input ($0.14 vs $0.03), so this is not a
+        // cost cut on paper — it is a quality-per-dollar call on the tier that reads
+        // whole repos, and DeepSeek's context cache ($0.0028/Mtok on a hit, 50x under
+        // the miss rate) is what makes it land cheaper in practice on re-read-heavy work.
+        //
+        // ⚠️ Weights: DeepSeek has open-weighted prior generations, but v4-flash
+        // specifically was NOT verified as open-weight. This preset's premise is
+        // self-hostability end to end — if v4-flash has no published weights, that
+        // claim no longer holds for this stack. Same caveat as minimax-m3 below.
+        'research' => 'deepseek/deepseek-v4-flash', //  $0.14 /   $0.28   1.05M ctx
+        'fast' => 'deepseek/deepseek-v4-flash', //  $0.14 /   $0.28
     ],
 
     /*
