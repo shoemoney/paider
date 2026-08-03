@@ -566,8 +566,20 @@ the extension count.
 | **Extensions compiled in** | **12**, not 11: `mbstring`, `tokenizer`, `ctype`, `fileinfo`, `iconv`, `curl`, `openssl`, `zlib`, `pdo_sqlite`, `phar`, `filter`, **`dom`** |
 | cold start (first invocation) | 445 ms — untars 74 MB to `$TMPDIR` |
 | cold start (warm, subsequent) | 110 ms — binary already extracted |
-| compressed transfer | 40.6 MB with `zstd -19` — lands beside Go binaries |
-| disk footprint | 111.3 MB (106.2 MiB) — a −37.5% cut from the stock 178 MB binary |
+| **disk footprint, Paider embedded** | **178 MB** (177,955,720 bytes) |
+| **compressed transfer, Paider embedded** | **~72 MB** with `zstd -19` |
+| runtime only, no Paider inside (§9) | 111.3 MB disk / 40.6 MB zstd |
+| cost of embedding Paider | **+67 MB** — mostly `vendor/`, plus libxml arriving with `dom` |
+
+> ⚠️ **Do not quote §9's 111.3 MB / 40.6 MB for the shippable artifact.** Those are the RUNTIME
+> ALONE, with no Paider in it. The binary a user would actually download is 178 MB on disk and
+> ~72 MB compressed. This is easy to get wrong because of an unhelpful coincidence: the stock
+> 77-extension release binary is *also* ~178 MB, so "178 MB" appears in this file meaning two
+> different things. The trimmed-plus-embedded build is not a −37.5% cut from anything — it is
+> the same size as the stock binary, having traded 65 unwanted extensions for Paider's `vendor/`.
+>
+> This matters to the decision, not just the record: 40.6 MB lands beside a Go binary and 72 MB
+> does not, and the ship-or-defer call was made partly on that figure.
 
 **The missing extension, found the expensive way:** the "documented eleven" passed `paider --version`
 and `paider list` (commands that print a version string, exercising almost none of the app), then

@@ -471,9 +471,11 @@ extensions on every invocation. Trim to the twelve Paider actually needs and the
 disappears: 94.8ms ±1.3ms vs. 95.9ms ±1.3ms for lean-ini system PHP, a statistical tie. Say it as
 "the cold-start penalty is eliminated," not "FrankenPHP is faster than PHP" — it isn't, it's even.
 
-**Size: 111MB on disk, honestly stated — but 40.6MB is what an installer downloads.** That lands
-right alongside the ~40MB Go binaries competing agents ship, which makes the `curl | sh` story
-viable. Getting there required fixing real bugs first: the "documented nine" extensions produced
+**Size: 178MB on disk, ~72MB compressed — for the binary that actually contains Paider.** The
+111MB / 40.6MB figures often quoted are the FrankenPHP *runtime alone*, with no Paider inside;
+embedding the app costs another ~67MB, mostly `vendor/`. 72MB does not land alongside the ~40MB
+Go binaries competing agents ship, and that is part of why the `curl | sh` channel is deferred
+rather than shipped — see [`DECISIONS.md` §16](DECISIONS.md). Getting there required fixing real bugs first: the "documented nine" extensions produced
 a binary that **could not boot** — `laravel-zero/framework` calls `Phar::running()`
 unconditionally and needs `ext-phar` present, undeclared in its own `composer.json`. Termwind does
 `new DOMDocument` but doesn't declare `ext-dom` either. Paider's required set is **twelve**, not
