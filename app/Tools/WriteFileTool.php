@@ -27,13 +27,12 @@ final class WriteFileTool implements Tool
             'properties' => [
                 'path' => ['type' => 'string'],
                 'content' => ['type' => 'string'],
-                'approved' => ['type' => 'boolean'],
             ],
             'required' => ['path', 'content'],
         ];
     }
 
-    public function execute(array $input): ToolResult
+    public function execute(array $input, bool $approved = false): ToolResult
     {
         $path = $input['path'];
         $absolute = str_starts_with($path, '/') ? $path : $this->projectRoot.'/'.$path;
@@ -42,7 +41,7 @@ final class WriteFileTool implements Tool
             return ToolResult::fail('path escapes project root');
         }
 
-        if (SecretsGuard::isSensitive($absolute) && ! ($input['approved'] ?? false)) {
+        if (SecretsGuard::isSensitive($absolute) && ! $approved) {
             return ToolResult::fail('sensitive path requires approval', [
                 'needs_approval' => true,
                 'reason' => 'secrets',

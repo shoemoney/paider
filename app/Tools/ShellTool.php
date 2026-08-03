@@ -37,7 +37,8 @@ class ShellTool implements Tool
         ];
     }
 
-    public function execute(array $input): ToolResult
+    // ponytail: unused, only read/write/patch/git use the out-of-band signal — see Tool::execute() doc
+    public function execute(array $input, bool $approved = false): ToolResult
     {
         // proc_open() also accepts an argv-array command (no shell, execve directly) — this
         // tool only advertises a string in inputSchema(), so anything else is malformed

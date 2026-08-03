@@ -26,13 +26,12 @@ final class ReadFileTool implements Tool
             'type' => 'object',
             'properties' => [
                 'path' => ['type' => 'string'],
-                'approved' => ['type' => 'boolean'],
             ],
             'required' => ['path'],
         ];
     }
 
-    public function execute(array $input): ToolResult
+    public function execute(array $input, bool $approved = false): ToolResult
     {
         $path = $input['path'];
         $absolute = str_starts_with($path, '/') ? $path : $this->projectRoot.'/'.$path;
@@ -41,7 +40,7 @@ final class ReadFileTool implements Tool
             return ToolResult::fail('path escapes project root');
         }
 
-        if (SecretsGuard::isSensitive($absolute) && ! ($input['approved'] ?? false)) {
+        if (SecretsGuard::isSensitive($absolute) && ! $approved) {
             return ToolResult::fail('sensitive path requires approval', [
                 'needs_approval' => true,
                 'reason' => 'secrets',

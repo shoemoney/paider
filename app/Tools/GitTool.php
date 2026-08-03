@@ -35,16 +35,15 @@ class GitTool implements Tool
                 'staged' => ['type' => 'boolean'],
                 'path' => ['type' => 'string'],
                 'message' => ['type' => 'string'],
-                'approved' => ['type' => 'boolean'],
             ],
             'required' => ['op'],
         ];
     }
 
-    public function execute(array $input): ToolResult
+    public function execute(array $input, bool $approved = false): ToolResult
     {
         return match ($input['op'] ?? null) {
-            'diff' => $this->diff($input['staged'] ?? false, $input['approved'] ?? false),
+            'diff' => $this->diff($input['staged'] ?? false, $approved),
             'add' => $this->add($input['path'] ?? '.'),
             'commit' => $this->commit($input['message'] ?? ''),
             default => ToolResult::fail('unknown op'),
