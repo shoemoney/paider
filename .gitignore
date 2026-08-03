@@ -4,3 +4,7 @@
 /.vagrant
 .phpunit.result.cache
 .opencode/ralph-loop.local.md
+
+# Local runtime state — event log, settings. Never commit: it accumulates
+# prompts, file contents and tool output as soon as the agent is used.
+.paider/
