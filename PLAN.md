@@ -550,7 +550,7 @@ the event log records every call, and the cost ledger prices it. A bench that re
 **verified-findings-per-dollar** is a number nobody else publishes, and it is the number that
 should actually pick a tier.
 
-### The Paider 100
+### ⬜ The Paider 100
 
 A single score out of 100, backed by **100 individually authored tests** — inspired by existing
 benchmarks, never cloned from them.

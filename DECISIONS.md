@@ -605,7 +605,7 @@ in its own `composer.json` now, since Termwind does not.
 **FrankenPHP has no Windows static build at all** — the release matrix is 3 platforms, not 4. That
 decision (no Windows for a compiled binary) stands on its own, but it is worth noting explicitly.
 
-Commit: `db8b8f1`. Test suite: 186 passing, 647 assertions (hermetic); 3 live tests (real API calls),
+Commit: `db8b8f1`. Test suite: 201 passing, 697 assertions (hermetic); 3 live tests (real API calls),
 currently failing due to credential config but skip cleanly in sandboxes.
 
 ## 17. Shell environment scrub — 2026-08-03
@@ -661,7 +661,7 @@ in §15's residual risk #2. `Loop::dispatch()`'s `unset()` remains their sole de
 New regression tests construct each of the four tools directly (no `Loop`) and pass a model-shaped
 `$input` asserting `'approved' => true`; each must refuse. Verified these fail red if the fix is
 reverted (temporarily read `$input['approved']` again in `ReadFileTool`, confirmed the new test
-failed, restored). Test suite: 190 passing (hermetic), up from 186.
+failed, restored). Test suite: 201 passing (hermetic), up from 186 baseline.
 ## 19. Served vs requested model id — resolved, not disputed — 2026-08-03
 
 The money-path audit left one finding DISPUTED: "the served model id is parsed, then discarded —
