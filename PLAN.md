@@ -180,7 +180,7 @@ app/
     Contracts/Tool.php
     ReadFileTool.php          # .gitignore + deny-list guard before any content leaves the process
     WriteFileTool.php
-    PatchFileTool.php         # stamp check + php -l gate before the diff is shown for approval
+    PatchFileTool.php         # stamp check + in-process syntax gate before the diff is shown
     ShellTool.php             # wraps approval gate
     GitTool.php
     ArtisanTool.php           # v0.1 Laravel-host proof: one hardcoded call, see below
@@ -259,13 +259,26 @@ write-then-rename primitive already chosen for interrupt safety, see EXTENSIONS.
 renames only happen once every temp write and every stamp check in the batch has succeeded — one
 bad file fails the whole apply, nothing partially lands.
 
-**`php -l` after apply, before approval.** One more layer on the same risk: once a patch or
-whole-file write lands on disk (post-stamp-check, pre-approval), Paider shells `php -l` against
-every touched `.php` file. A syntax error is treated exactly like a parse failure upstream — the
-write is reverted (via the undo stack below) and the coder tier gets one retry with the lint error
-before escalating to the orchestrator. This is a one-liner that directly targets the
-`structured_outputs=false` risk on the default coder (`qwen3.7-flash`): it catches the case where
-the diff parsed cleanly but produced invalid PHP, which the parser alone can't see.
+**Syntax gate before the write lands — in-process, no subprocess.** One more layer on the same
+risk: `PatchFileTool` runs `token_get_all($content, TOKEN_PARSE)` in a try/catch against the
+patched content of any `.php` file and fails the apply on `ParseError`, so a syntactically broken
+patch never reaches disk at all. A syntax error is treated exactly like a parse failure upstream —
+nothing is written, and the coder tier gets one retry with the error before escalating to the
+orchestrator. This directly targets the `structured_outputs=false` risk on the default coder
+(`qwen3.7-flash`): it catches the case where the diff parsed cleanly but produced invalid PHP,
+which the diff parser alone cannot see.
+
+> **Corrected 2026-08-02.** This section previously specified shelling out to `php -l` after the
+> write, then reverting via the undo stack. That was never implemented and could not have been:
+> `php -l` does not exist under the FrankenPHP static binary (its flag parser is Caddy's) and
+> `PHP_BINARY` is the empty string there, so there is no interpreter to shell to. The in-process
+> check is strictly better anyway — it runs *before* the write rather than after, so there is
+> nothing to revert.
+>
+> Leaving the wrong version in this file had a real cost: a later design pass read it, believed
+> it, and specified a review gate built on `php -l`. An adversarial reviewer caught that. Prose
+> that describes code which does not exist is not merely stale — it is an instruction to build
+> the wrong thing.
 
 **`/undo`, designed.** It undoes the single most recently *applied* file write (whole-file or
 patch) — not a turn, not a commit. `Session.php` keeps an in-memory stack of `{path, previous
