@@ -79,8 +79,12 @@ Every one of these is a plausible, tempting feature. None of them ship in v1.0.
   this list was first written and are synced back here now) — plus a generic
   OpenRouter/OpenAI-compatible escape hatch. Provider requests get a `--base-url` override, not a
   bespoke integration.
-- **No native Windows support.** WSL only — Maestro made the same call for the same reason
-  (POSIX shell tool execution). State it, don't apologize for it.
+- **No native Windows support — but the reason is narrower than it was.** ~~WSL only~~ The UI
+  half of this non-goal is dead: `laravel/prompts` under a Laravel console kernel already falls
+  back on Windows (Correction 3 below, measured). What remains is **POSIX shell tool execution** —
+  Paider's tools shell out, and that is the same reason Maestro made this call. So the honest
+  statement is "Windows is untested and the shell tools assume POSIX", not "the UI can't run
+  there." Do not cite `laravel/prompts` as the blocker; that was wrong. Revisit if someone asks.
 - **No multi-subscription rotation.** Explicitly parked in `DECISIONS.md` §5: a Claude Max seat
   cannot be spent through the API since 2026-06-15, which breaks the one case (Anthropic) where
   Jeremy personally holds multiple seats. `config/presets.php`'s `accounts` block stays inert
@@ -499,10 +503,13 @@ Ranked by (likelihood × how bad it is if it happens), not by how interesting it
    and the 94ms cost of an unpinned dev-extension ini are both measured in DECISIONS.md — track
    both in CI on every release, not just at launch.
 
-7. **Windows/WSL-only cuts off a real slice of PHP developers** (PHP has meaningfully more
-   native-Windows usage than the Python/Node agent-CLI audience does). *Mitigation:* it's a
-   stated, deliberate non-goal shared with Maestro, not silence — revisit only if WSL friction
-   shows up as a repeated real complaint, not preemptively.
+7. **Windows cuts off a real slice of PHP developers** (PHP has meaningfully more native-Windows
+   usage than the Python/Node agent-CLI audience does). *Mitigation, revised 2026-08-02:* the
+   risk shrank when the UI blocker turned out not to exist — FrankenPHP ships a Windows binary
+   and Laravel's `ConfiguresPrompts` already handles the input fallback, both measured. The
+   residual risk is **POSIX shell tool execution**, which is narrower and cheaper to fix than a
+   UI-layer rewrite. Still a stated non-goal, not silence; revisit only if it shows up as a
+   repeated real complaint, not preemptively.
 
 ---
 
