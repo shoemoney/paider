@@ -460,6 +460,36 @@ scheduled, and deliberately not in v1.0.*
 > boring for years: same items, same scoring, same methodology, mistakes published, nothing quietly
 > retuned when a result is inconvenient.
 
+**The worked example, checked 2026-08-03.** ARC-AGI-3: Claude Opus 5 scores 30.2%, Fable-class
+models ~20%, GPT-5.6 Sol (Max) 7.8% ([ARC Prize](https://arcprize.org/results/anthropic-claude-opus-5)).
+Opus 5 also takes 90.4% on ARC-AGI-2 and 97.5% on ARC-AGI-1. A 1.5x lead over a sibling that is
+otherwise no weaker is the shape that should prompt a question — and the coverage answers it:
+the benchmark was public before Opus 5 was developed, and *"independent testing on an alternative
+puzzle benchmark showed narrower gains, suggesting the large ARC-AGI-3 advantage may reflect
+specialized optimization for that specific benchmark format"*
+([The Decoder](https://the-decoder.com/anthropics-opus-5-blows-past-fable-5-and-gpt-5-6-sol-on-the-benchmark-designed-to-measure-real-intelligence/)).
+
+Same models, different ruler, different answer. That is the entire argument for a private item
+set in one data point: the public number could not distinguish capability from exposure, and an
+independent one could.
+
+### Rotation and fairness — two rules that pull against each other
+
+**Items change on an unpredictable schedule, and the schedule is never published.** Not quarterly,
+not on release days, not on any cadence anyone can plan around. A known rotation date is a
+training deadline; an unknown one cannot be optimised toward. Even internally the schedule is
+decided late rather than committed to in advance, because a calendar that exists can leak.
+
+**Within any single published round, every model gets byte-identical items and byte-identical
+prompts.** Rotation is what keeps the ruler honest over years; identical conditions are what make
+a comparison valid at all. Vary the items *between* rounds and never *within* one.
+
+This means a score is always attributable to a specific round, and cross-round comparison is
+reported with that caveat visible — including the old-vs-new gap on rotated items, which is the
+contamination measurement described below. A model that scores well on rotated-in items it has
+never seen has demonstrated something. A model that only scores well on the older set has
+demonstrated something too, and the suite should say so out loud.
+
 Build our own evaluation harnesses rather than routing model choices off other people's leaderboards.
 
 | bench | measures |
