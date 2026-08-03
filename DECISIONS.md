@@ -541,12 +541,21 @@ field names.
 4. **A NUL byte in a path crashed the process** — `fnmatch()` throws `ValueError` when a NUL
    appears. Unhandled, this is a model-triggerable zero-approval DoS. Caught and fail-safe now.
 
-**One residual risk, recorded honestly (the other is now fixed — see §17):**
+**Two residual risks were recorded here honestly. Both have since been addressed — the original
+wording is kept below because the wrong turns are the useful part of this log.**
 
-1. **Architectural caveat:** tools still trust the `approved` key if called directly, not through
-   `dispatch()`. Defence is a single chokepoint, so any future code path reaching a tool without
-   going through `dispatch()` reopens all four bypasses at once. Document the rule, lint for it,
-   code-review for it.
+1. ~~**Architectural caveat:** tools still trust the `approved` key if called directly, not
+   through `dispatch()`. Defence is a single chokepoint, so any future code path reaching a tool
+   without going through `dispatch()` reopens all four bypasses at once.~~
+   **Closed by §18** for the four file/git tools, which now take approval as a PHP-typed
+   parameter that model-supplied JSON cannot reach — two independent mechanisms instead of one.
+   **Scope, stated precisely:** `run_shell` and `artisan` use a different tri-state `approval`
+   key and were deliberately left out; for those two, `Loop::dispatch()`'s `unset()` genuinely
+   does remain the sole defence. The caveat is narrower than it was, not gone.
+
+2. ~~An approved shell command's child inherits the full parent environment, including live
+   provider API keys.~~ **Closed by §17** — `ShellTool` and `GitTool` now pass an explicit
+   allowlisted environment to `proc_open` via `App\Support\ShellEnv`.
 
 Commit: `407a2fc`. Tests added: `ApprovalGateSelfApprovalTest`, `ApprovalGateApprovedFieldTest`,
 `PathGuardSymlinkTest`, `ToolExitCodeTest`.

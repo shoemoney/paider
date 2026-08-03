@@ -407,7 +407,7 @@ per-tool, with regression tests asserting the gate runs and wins.
 
 **Both risks below are now closed:**
 1. **Fixed — 2026-08-03, [`DECISIONS.md` §17](DECISIONS.md#17-shell-environment-scrub--2026-08-03):** an approved shell command's child used to inherit the full parent environment, including live provider API keys. `ShellTool` and `GitTool` now scrub the environment to a curated allowlist: `PATH`, `HOME`, `LANG`, `TERM`, `TMPDIR`, `USER`, `SHELL`. A user who needs another variable can opt it back in with `PAIDER_SHELL_ENV_ALLOW`.
-2. **Fixed — 2026-08-03, [`DECISIONS.md` §18](DECISIONS.md#18-approval-defence-in-depth--15s-residual-risk-2-closed-2026-08-03):** tools like `read_file`, `write_file`, and `patch_file` used to trust an `approved` key in the model's input if called directly. The approval decision is now a separate `$approved` parameter that only PHP code can set, making it impossible to self-approve through the JSON schema.
+2. **Fixed — 2026-08-03, [`DECISIONS.md` §18](DECISIONS.md#18-approval-defence-in-depth--15s-residual-risk-2-closed-2026-08-03):** tools like `read_file`, `write_file`, and `patch_file` used to trust an `approved` key in the model's input if called directly. The approval decision is now a separate `$approved` parameter that only PHP code can set, making it impossible to self-approve through the JSON schema. **Scope, honestly:** this covers the four file/git tools. `run_shell` and `artisan` use a different tri-state approval key and were deliberately left out — for those two, the `Loop::dispatch()` chokepoint is still the only defence.
 
 </details>
 
