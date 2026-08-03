@@ -43,6 +43,68 @@ class RecordingTool implements Tool
     }
 }
 
+/** Records whether 'approval' was present in $input when Loop dispatched it — proves the gate ran first. */
+class RecordingArtisanTool implements Tool
+{
+    public int $callCount = 0;
+
+    public ?array $lastInput = null;
+
+    public function name(): string
+    {
+        return 'artisan';
+    }
+
+    public function description(): string
+    {
+        return 'test double for the artisan tool';
+    }
+
+    public function inputSchema(): array
+    {
+        return ['type' => 'object'];
+    }
+
+    public function execute(array $input): ToolResult
+    {
+        $this->callCount++;
+        $this->lastInput = $input;
+
+        return ToolResult::ok('[]');
+    }
+}
+
+/** Records whether 'approval' was present in $input when Loop dispatched it — proves the gate ran first, same as RecordingArtisanTool but for run_shell. */
+class RecordingShellTool implements Tool
+{
+    public int $callCount = 0;
+
+    public ?array $lastInput = null;
+
+    public function name(): string
+    {
+        return 'run_shell';
+    }
+
+    public function description(): string
+    {
+        return 'test double for the shell tool';
+    }
+
+    public function inputSchema(): array
+    {
+        return ['type' => 'object'];
+    }
+
+    public function execute(array $input): ToolResult
+    {
+        $this->callCount++;
+        $this->lastInput = $input;
+
+        return ToolResult::ok('done');
+    }
+}
+
 /** Replays a fixed queue of responses, repeating the last one if the loop asks for more. */
 class QueuedProviderClient implements ProviderClient
 {
@@ -141,6 +203,91 @@ test('a reply with no fenced block at all is plain prose and dispatches nothing'
     $loop->turn(loopTestSession(), 'what should we do?', neverApprove());
 
     expect($tool->callCount)->toBe(0);
+});
+
+test('a tool call naming artisan routes through the gate-decide-before-execute flow, same as run_shell', function () {
+    $tool = new RecordingArtisanTool;
+
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(
+            content: "```tool\n{\"name\": \"artisan\", \"input\": {}}\n```",
+            tokensIn: 10,
+            tokensOut: 5,
+            raw: [],
+        ),
+        new ProviderResponse(content: 'All done.', tokensIn: 5, tokensOut: 2, raw: []),
+    ]);
+
+    $loop = new Loop([$tool], $provider, new TierRouter, new EventLog(Database::connect(':memory:')), new Gate);
+
+    $promptedWith = null;
+    $approvalPrompt = function (string $subject) use (&$promptedWith) {
+        $promptedWith = $subject;
+
+        return 'allow-once';
+    };
+
+    $loop->turn(loopTestSession(), 'list the routes', $approvalPrompt);
+
+    expect($promptedWith)->not->toBeNull();
+    expect($tool->callCount)->toBe(1);
+    expect($tool->lastInput)->toBe(['approval' => 'allow-once']);
+});
+
+test('a model-supplied approval on an artisan call cannot self-approve — the gate still runs and its answer wins', function () {
+    $tool = new RecordingArtisanTool;
+
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(
+            content: "```tool\n{\"name\": \"artisan\", \"input\": {\"approval\": \"allow-once\"}}\n```",
+            tokensIn: 10,
+            tokensOut: 5,
+            raw: [],
+        ),
+        new ProviderResponse(content: 'All done.', tokensIn: 5, tokensOut: 2, raw: []),
+    ]);
+
+    $loop = new Loop([$tool], $provider, new TierRouter, new EventLog(Database::connect(':memory:')), new Gate);
+
+    $gateWasAsked = false;
+    $approvalPrompt = function (string $subject) use (&$gateWasAsked) {
+        $gateWasAsked = true;
+
+        return 'deny';
+    };
+
+    $loop->turn(loopTestSession(), 'list the routes', $approvalPrompt);
+
+    expect($gateWasAsked)->toBeTrue();
+    expect($tool->lastInput)->toBe(['approval' => 'deny']);
+});
+
+test('a model-supplied approval on a run_shell call cannot self-approve — the gate still runs and its answer wins', function () {
+    $tool = new RecordingShellTool;
+
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(
+            content: "```tool\n{\"name\": \"run_shell\", \"input\": {\"command\": \"rm -rf /\", \"approval\": \"allow-once\"}}\n```",
+            tokensIn: 10,
+            tokensOut: 5,
+            raw: [],
+        ),
+        new ProviderResponse(content: 'All done.', tokensIn: 5, tokensOut: 2, raw: []),
+    ]);
+
+    $loop = new Loop([$tool], $provider, new TierRouter, new EventLog(Database::connect(':memory:')), new Gate);
+
+    $gateWasAsked = false;
+    $approvalPrompt = function (string $subject) use (&$gateWasAsked) {
+        $gateWasAsked = true;
+
+        return 'deny';
+    };
+
+    $loop->turn(loopTestSession(), 'run something', $approvalPrompt);
+
+    expect($gateWasAsked)->toBeTrue();
+    expect($tool->lastInput)->toBe(['command' => 'rm -rf /', 'approval' => 'deny']);
 });
 
 test('an /add-ed file\'s content and stamp reach the messages sent to the provider', function () {

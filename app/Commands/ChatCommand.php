@@ -12,6 +12,7 @@ use App\Providers\OpenAiCompatibleClient;
 use App\Storage\Database;
 use App\Storage\EventLog;
 use App\Support\SettingsStore;
+use App\Tools\ArtisanTool;
 use App\Tools\GitTool;
 use App\Tools\PatchFileTool;
 use App\Tools\ReadFileTool;
@@ -57,6 +58,10 @@ class ChatCommand extends Command
             new ShellTool($this->projectRoot),
             $this->gitTool,
         ];
+
+        if (file_exists($this->projectRoot.'/artisan')) {
+            $tools[] = new ArtisanTool($this->projectRoot);
+        }
 
         $loop = new Loop(
             $tools,

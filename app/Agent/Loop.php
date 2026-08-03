@@ -124,6 +124,10 @@ class Loop
             return $this->dispatchShell($tool, $input, $approvalPrompt);
         }
 
+        if ($name === 'artisan') {
+            return $this->dispatchArtisan($tool, $input, $approvalPrompt);
+        }
+
         if ($name === 'write_file' || $name === 'patch_file') {
             return $this->dispatchWrite($tool, $session, $input, $approvalPrompt);
         }
@@ -139,12 +143,25 @@ class Loop
 
     private function dispatchShell(Tool $tool, array $input, callable $approvalPrompt): ToolResult
     {
-        if (array_key_exists('approval', $input)) {
-            return $tool->execute($input);
-        }
+        // 'approval' is a Loop-internal field, resolved by the gate below — never trust one
+        // supplied in the model's own tool-call input, or the model could self-approve.
+        unset($input['approval']);
 
         $command = is_string($input['command'] ?? null) ? $input['command'] : '';
         $allowed = $this->gate->decide($command, fn () => $approvalPrompt($command));
+
+        $input['approval'] = $allowed ? 'allow-once' : 'deny';
+
+        return $tool->execute($input);
+    }
+
+    private function dispatchArtisan(Tool $tool, array $input, callable $approvalPrompt): ToolResult
+    {
+        // Same rule as dispatchShell: 'approval' is never taken from the model's input.
+        unset($input['approval']);
+
+        $subject = 'php artisan route:list --json';
+        $allowed = $this->gate->decide($subject, fn () => $approvalPrompt($subject));
 
         $input['approval'] = $allowed ? 'allow-once' : 'deny';
 

@@ -7,7 +7,7 @@
 [![status](https://img.shields.io/badge/status-alpha-orange?style=for-the-badge)](#-status-honestly)
 [![php](https://img.shields.io/badge/PHP-%E2%89%A5%208.4-777BB4?style=for-the-badge&logo=php&logoColor=white)](composer.json)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
-[![tests](https://img.shields.io/badge/tests-140%20passing-brightgreen?style=for-the-badge)](tests/)
+[![tests](https://img.shields.io/badge/tests-144%20passing-brightgreen?style=for-the-badge)](tests/)
 [![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
@@ -24,10 +24,10 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 
 | | state | evidence |
 |---|---|---|
-| 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `config:provider`, `config:show` all register and run |
-| 🔧 five native tools | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `git` |
+| 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `cost`, `config:provider`, `config:show` all register and run |
+| 🔧 six native tools | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `git`, `artisan` |
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection |
-| 🧪 test suite | ✅ **140 passing**, 386 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
+| 🧪 test suite | ✅ **144 passing**, 394 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
 | 📦 `curl \| sh` installer | ⬜ **not built** | the binary is measured, the installer is not written |
 | 🏷️ tagged release | ⬜ **none** | no version has shipped |
@@ -106,7 +106,6 @@ other agent CLI can:
 
 ```
 $ paider cost
-                                                    ← design, not shipped yet
 
   tier            calls      in        out       spend    share
   ───────────────────────────────────────────────────────────────
@@ -121,8 +120,14 @@ $ paider cost
   Same work on all-Opus 5: $25.64  ·  you saved $24.70
 ```
 
-That last line is the product in one sentence. Most agent tools show you a total, if anything.
-Paider shows you the **ratio** — and the ratio is the whole argument for routing.
+> **Modelled session.** `paider cost` ships today and reads this straight off the event log, but
+> it prints only `tier | calls | tokens in | tokens out | spend` — the `share` column, the ratio
+> line, and the all-Opus comparison above are design, not built. And `spend` reads `$0.000` until
+> `tier_call` events carry real prices; today `cost_usd` is hardcoded to `0.0` at every write site.
+
+That last line is the product the design is aiming at. Most agent tools show you a total, if
+anything. Paider is meant to show you the **ratio** — and the ratio is the whole argument for
+routing, once it's wired up.
 
 It also keeps us honest. The 95.3% figure below is a modelled session; the ledger is what
 confirms or refutes it on real work. A cost claim you cannot check is marketing, and this one is
@@ -206,7 +211,7 @@ flowchart TB
     subgraph Tools [🔧 native tools]
         direction LR
         T1[read_file] ~~~ T2[write_file] ~~~ T3[patch_file]
-        T4[run_shell] ~~~ T5[git]
+        T4[run_shell] ~~~ T5[git] ~~~ T6[artisan]
     end
 
     Tools -->|every path checked| Guard[🛡️ PathGuard]
@@ -266,7 +271,7 @@ vendor/bin/pest
 vendor/bin/pest --group=live
 ```
 
-**Hermetic suite** (`vendor/bin/pest`, 140 tests) — all provider interactions mocked via Guzzle;
+**Hermetic suite** (`vendor/bin/pest`, 144 tests) — all provider interactions mocked via Guzzle;
 proves self-consistency, zero cost. Excluded group: `live`.
 
 **Live suite** (`vendor/bin/pest --group=live`, 3 tests) — real round-trips to `api.openrouter.ai`,
@@ -296,6 +301,7 @@ Three real calls across two tiers; the cost ledger reconciles exactly:
 |---|---|---|
 | `paider` / `paider chat` 💬 | interactive session rooted at the cwd | ✅ built |
 | `paider commit` 📝 | stage everything, generate a message on the **fast** tier, commit | ✅ built |
+| `paider cost` 💰 | per-tier calls, tokens, and spend from the event log | ✅ built |
 | `paider config:provider <preset>` 🎛️ | switch the active tier stack | ✅ built |
 | `paider config:show` 👀 | show the active preset and the model per tier | ✅ built |
 
@@ -466,12 +472,12 @@ flowchart LR
 
 | milestone | scope | state |
 |---|---|---|
-| **v0.1** | 4 commands, 5 tools, approval gate, event log, cost ledger, tier router | 🔨 **in progress** |
+| **v0.1** | 5 commands, 6 tools, approval gate, event log, cost ledger, tier router | 🔨 **in progress** |
 | **v0.2** | `mcp/sdk` client, `paider run --yes`, repo-map on the research tier, test-feedback loop | ⬜ planned |
 | **v1.0** | MCP **server** mode — external clients drive Paider's tools; published semver policy | ⬜ planned |
 
 <details>
-<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 130 tests pass?</b></summary>
+<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 144 tests pass?</b></summary>
 
 Because [`PLAN.md`](PLAN.md) wrote v0.1's definition of done *before* the code existed, and
 grading against it honestly leaves three boxes unticked:
