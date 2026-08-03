@@ -55,28 +55,33 @@ test('OpenAiCompatibleClient completes a real round-trip through OpenRouter', fu
 
 test('AnthropicClient completes a real round-trip against an Anthropic-compatible endpoint', function () {
     /*
-     * UNVERIFIED as of 2026-08-02 — this is the one provider path with no live coverage.
+     * No Anthropic key exists on this machine, but the Anthropic WIRE FORMAT is what needs
+     * proving, not the vendor. xAI serves it at https://api.x.ai/v1/messages, so an XAI_API_KEY
+     * exercises the same code path: the `system` hoist, `content` block filtering, and
+     * usage.input_tokens/output_tokens placement.
      *
-     * There is no Anthropic key on this machine. The attempted workaround was Moonshot's
-     * Anthropic-compatible endpoint, which does not work here either: the vaulted kimi
-     * credential is an `sk-kim…` kimi.com coding-subscription key, and those 401 against
-     * BOTH api.moonshot.ai and api.moonshot.cn (probed directly, not assumed). Moonshot's
-     * /anthropic path also 404s for chat/completions.
-     *
-     * So the Anthropic wire format — the `system` hoist, `content` block filtering, and
-     * usage.input_tokens/output_tokens placement — remains proven only against fixtures we
-     * wrote ourselves. Set ANTHROPIC_API_KEY (or any genuine Anthropic-format endpoint via
-     * ANTHROPIC_BASE_URL) and this runs for real.
+     * Prefers a real ANTHROPIC_API_KEY when one is present. Moonshot was tried first and does
+     * not work here — the vaulted kimi credential is an `sk-kim…` kimi.com coding-subscription
+     * key, which 401s against both api.moonshot.ai and api.moonshot.cn (probed, not assumed).
      */
-    $client = new AnthropicClient(
-        liveKey('ANTHROPIC_API_KEY'),
-        getenv('ANTHROPIC_BASE_URL') ?: 'https://api.anthropic.com',
-    );
+    [$key, $base, $model] = getenv('ANTHROPIC_API_KEY')
+        ? [getenv('ANTHROPIC_API_KEY'), 'https://api.anthropic.com', 'claude-haiku-4-5-20251001']
+        : [liveKey('XAI_API_KEY'), 'https://api.x.ai', 'grok-4'];
+
+    $client = new AnthropicClient($key, $base);
 
     $response = $client->send(
         [['role' => 'user', 'content' => 'Reply with exactly the word: PAIDER']],
-        getenv('ANTHROPIC_LIVE_MODEL') ?: 'claude-haiku-4-5-20251001',
+        $model,
     );
+
+    // Real Anthropic-format responses interleave non-text blocks — grok-4 returns a `thinking`
+    // block before its `text` block. The parser filters on type === 'text'; if that filter ever
+    // breaks, content comes back with reasoning glued to the front. Fixtures we wrote ourselves
+    // never exercised this, which is precisely why it is asserted here.
+    $types = array_column($response->raw['content'] ?? [], 'type');
+    expect($types)->toContain('text')
+        ->and($response->content)->not->toContain('thinking');
 
     expect($response->content)->toBeString()->not->toBe('')
         ->and($response->tokensIn)->toBeGreaterThan(0)
