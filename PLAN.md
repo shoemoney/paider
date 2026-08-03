@@ -415,6 +415,13 @@ scheduled, and deliberately not in v1.0.*
 
 > ### Mission
 >
+> **The industry needs a long-standing, INDEPENDENT, reliable source of truth, and does not have one.** Every
+> few months a benchmark arrives, gets adopted, gets saturated, and is replaced by its own authors —
+> and the replacement cadence is presented as rigour rather than as the decay it is. The result is
+> that there is no stable ruler. You cannot ask "is this year's model actually better than the one
+> two years ago, on the same measure, measured the same way" and get an answer anyone trusts. That
+> is a strange gap in a field that talks about progress constantly.
+>
 > **Most benchmarks die the moment they start to matter.** Publishing the items buys adoption and
 > spends the very thing that made the number worth citing: within a release cycle the score stops
 > measuring capability and starts measuring exposure to the benchmark — and everyone goes on
@@ -437,8 +444,21 @@ scheduled, and deliberately not in v1.0.*
 > everyone who applies it. The open-source community is better served by a recipe than by a meal
 > that spoils the moment it is served.
 >
+> **Independence is the whole credential.** A benchmark run by a lab measuring its own models has
+> an obvious conflict, and no amount of methodology fixes it. Paider has no model to sell and no
+> lab to flatter. It routes to all of them, and its cost ledger
+> means a wrong routing decision costs its own users real money — so the incentive points at
+> accuracy rather than at any particular model winning. That is not a claim of virtue; it is a
+> structural fact about where the pressure comes from, and it is the only credential that matters.
+>
+> The commitment that makes it checkable: **when the Paider 100 says Paider's own default preset is
+> the wrong choice, that gets published too.** A source of truth that has never embarrassed its
+> author has not yet been tested.
+>
 > The promise is not that our number is unimpeachable. It is that it will still mean the same
-> thing in two years.
+> thing in two years — and "long-standing" is a claim only time can settle. It is earned by being
+> boring for years: same items, same scoring, same methodology, mistakes published, nothing quietly
+> retuned when a result is inconvenient.
 
 Build our own evaluation harnesses rather than routing model choices off other people's leaderboards.
 
