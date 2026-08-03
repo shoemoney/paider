@@ -19,7 +19,7 @@ class Loop
 {
     private const MAX_TOOL_CALLS_PER_TURN = 10;
 
-    private const APPROVAL_GATED_TOOLS = ['read_file', 'write_file', 'patch_file'];
+    private const APPROVAL_GATED_TOOLS = ['read_file', 'write_file', 'patch_file', 'git'];
 
     /** @var array<string, Tool> */
     private array $tools = [];
@@ -123,6 +123,12 @@ class Loop
             return ToolResult::fail("unknown tool: {$name}");
         }
 
+        // 'approval' and 'approved' are Loop-internal fields, set only after Gate::decide()
+        // actually runs (dispatchShell/dispatchArtisan/retryWithApproval below) — never
+        // trust either one supplied in the model's own tool-call input, or the model can
+        // self-approve a gated read/write/patch/git call and skip the gate entirely.
+        unset($input['approval'], $input['approved']);
+
         if ($name === 'run_shell') {
             return $this->dispatchShell($tool, $input, $approvalPrompt);
         }
@@ -146,11 +152,16 @@ class Loop
 
     private function dispatchShell(Tool $tool, array $input, callable $approvalPrompt): ToolResult
     {
-        // 'approval' is a Loop-internal field, resolved by the gate below — never trust one
-        // supplied in the model's own tool-call input, or the model could self-approve.
-        unset($input['approval']);
+        // Fail closed on a non-string command BEFORE the gate ever sees it. proc_open()
+        // also accepts an argv-array command; letting that through here would show the
+        // human approver an empty '' subject (is_string() coerces it away) while the real
+        // argv still executes, and a single grant on '' would then silently authorize every
+        // future array-form command for the rest of the session.
+        if (! is_string($input['command'] ?? null) || $input['command'] === '') {
+            return ToolResult::fail('command must be a string');
+        }
 
-        $command = is_string($input['command'] ?? null) ? $input['command'] : '';
+        $command = $input['command'];
         $allowed = $this->gate->decide($command, fn () => $approvalPrompt($command));
 
         $input['approval'] = $allowed ? 'allow-once' : 'deny';
@@ -160,9 +171,6 @@ class Loop
 
     private function dispatchArtisan(Tool $tool, array $input, callable $approvalPrompt): ToolResult
     {
-        // Same rule as dispatchShell: 'approval' is never taken from the model's input.
-        unset($input['approval']);
-
         $subject = 'php artisan route:list --json';
         $allowed = $this->gate->decide($subject, fn () => $approvalPrompt($subject));
 
@@ -172,23 +180,26 @@ class Loop
     }
 
     /**
-     * Before any Write/PatchFileTool dispatch actually applies, record the file's current
-     * content so /undo can restore it. Read via the read_file tool rather than raw
-     * filesystem calls — Loop doesn't hold the project root itself, only the injected
-     * tools, and read_file already knows how to resolve a root-relative path safely.
+     * Capture the file's current content (for /undo) via the read_file tool rather than raw
+     * filesystem calls — Loop doesn't hold the project root itself, only the injected tools,
+     * and read_file already knows how to resolve a root-relative path safely. The undo entry
+     * is only pushed once the write/patch actually SUCCEEDED: a rejected write (e.g. a path
+     * PathGuard bounces as outside the project root) must never poison the undo stack, or a
+     * later /undo seals against — and then deletes — a file the write never touched.
      */
     private function dispatchWrite(Tool $tool, Session $session, array $input, callable $approvalPrompt): ToolResult
     {
         $path = is_string($input['path'] ?? null) ? $input['path'] : null;
-
-        if ($path !== null) {
-            $session->recordApply($path, $this->previousContentFor($path));
-        }
+        $previous = $path === null ? null : $this->previousContentFor($path);
 
         $result = $tool->execute($input);
 
         if ($this->needsRetry($result, $input)) {
             $result = $this->retryWithApproval($tool, $input, $approvalPrompt);
+        }
+
+        if ($result->ok && $path !== null) {
+            $session->recordApply($path, $previous);
         }
 
         return $result;
@@ -204,7 +215,10 @@ class Loop
     private function retryWithApproval(Tool $tool, array $input, callable $approvalPrompt): ToolResult
     {
         $path = is_string($input['path'] ?? null) ? $input['path'] : '';
-        $allowed = $this->gate->decide($path, fn () => $approvalPrompt($path));
+        // A git diff carries no 'path' (it's a repo-wide op) — fall back to the tool's own
+        // name so the human approver sees "git", not an empty prompt.
+        $subject = $path !== '' ? $path : $tool->name();
+        $allowed = $this->gate->decide($subject, fn () => $approvalPrompt($subject));
 
         if (! $allowed) {
             return ToolResult::fail('denied', ['needs_approval' => true]);

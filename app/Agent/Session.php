@@ -2,6 +2,7 @@
 
 namespace App\Agent;
 
+use App\Support\PathGuard;
 use App\Tools\ReadFileTool;
 use App\Tools\ToolResult;
 
@@ -133,6 +134,14 @@ class Session
 
         $entry = array_pop($this->undoStack);
         $path = $entry['path'];
+
+        // Belt-and-braces: Loop only ever pushes an entry after a successful, PathGuard-passed
+        // write now, so this should never fire — but /undo mutates (deletes/overwrites) the raw
+        // path with no approval prompt of its own, so it re-checks containment itself rather
+        // than trusting the stack was built safely.
+        if (! PathGuard::containedIn($this->projectRoot, $path)) {
+            return ['status' => 'conflict', 'path' => $path];
+        }
 
         $current = is_file($path) ? file_get_contents($path) : null;
         $currentHash = $current === null ? null : hash('sha256', $current);

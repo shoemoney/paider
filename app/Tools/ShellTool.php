@@ -39,6 +39,13 @@ class ShellTool implements Tool
 
     public function execute(array $input): ToolResult
     {
+        // proc_open() also accepts an argv-array command (no shell, execve directly) — this
+        // tool only advertises a string in inputSchema(), so anything else is malformed
+        // input, not a command to run. Root-cause guard: covers every caller, not just Loop.
+        if (! is_string($input['command'] ?? null) || $input['command'] === '') {
+            return ToolResult::fail('command must be a string');
+        }
+
         if (! array_key_exists('approval', $input)) {
             return ToolResult::fail('approval required', ['needs_approval' => true]);
         }
@@ -82,6 +89,11 @@ class ShellTool implements Tool
             }
 
             if (microtime(true) >= $deadline) {
+                // ponytail: SIGTERM/SIGKILL reach only the tracked pid. Anything the command
+                // detached (`&`, `( ... &)`) survives, reparented to init. proc_open gives the
+                // child PHP's own process group, so a group kill would take this process down
+                // with it; a real fix needs posix_setsid/pcntl_fork, both out of scope (LOCKED:
+                // no pcntl/posix). Bounded, not fully containing — see the return below.
                 proc_terminate($process); // SIGTERM — a well-behaved child dies here
 
                 $killDeadline = microtime(true) + 0.5;
@@ -102,7 +114,7 @@ class ShellTool implements Tool
                 fclose($pipes[2]);
                 proc_close($process);
 
-                return ToolResult::fail('command timed out', ['timed_out' => true]);
+                return ToolResult::fail('command timed out (any detached children may still be running)', ['timed_out' => true]);
             }
 
             usleep(20_000);

@@ -43,3 +43,43 @@ test('rejects a sibling directory sharing only a string prefix', function () {
 test('rejects an unresolvable root', function () {
     expect(PathGuard::containedIn(pathGuardRoot().'/does-not-exist', pathGuardRoot().'/x'))->toBeFalse();
 });
+
+test('rejects a dangling symlink leaf (target does not exist at check time)', function () {
+    $root = pathGuardRoot();
+    $link = $root.'/dangling-leaf-link';
+
+    if (! file_exists($link) && ! is_link($link)) {
+        symlink($root.'/never-created-target', $link);
+    }
+
+    expect(PathGuard::containedIn($root, $link))->toBeFalse();
+});
+
+test('rejects a path through a dangling intermediate symlink', function () {
+    $root = pathGuardRoot();
+    $link = $root.'/dangling-dir-link';
+
+    if (! file_exists($link) && ! is_link($link)) {
+        symlink($root.'/never-created-dir', $link);
+    }
+
+    expect(PathGuard::containedIn($root, $link.'/inner.txt'))->toBeFalse();
+});
+
+test('a live (already-resolvable) symlink whose target is inside root still passes — regression guard for the dangling-symlink fix', function () {
+    $root = pathGuardRoot();
+    $targetDir = $root.'/src';
+    $link = $root.'/live-link';
+
+    if (! file_exists($link) && ! is_link($link)) {
+        symlink($targetDir, $link);
+    }
+
+    expect(PathGuard::containedIn($root, $link.'/whatever.php'))->toBeTrue();
+});
+
+test('rejects a NUL byte anywhere in the candidate path', function () {
+    $root = pathGuardRoot();
+
+    expect(PathGuard::containedIn($root, $root."/evil\0.php"))->toBeFalse();
+});

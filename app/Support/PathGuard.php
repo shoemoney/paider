@@ -11,6 +11,14 @@ class PathGuard
      */
     public static function containedIn(string $root, string $candidate): bool
     {
+        // A NUL can never be part of a legitimate path, and downstream fnmatch()/filesystem
+        // calls (SecretsGuard::isSensitive() in particular) throw a ValueError on one — fail
+        // closed here, once, for every caller that routes a model-supplied path through this
+        // guard first (Read/Write/PatchFileTool all do).
+        if (str_contains($candidate, "\0")) {
+            return false;
+        }
+
         $rootReal = realpath($root);
 
         if ($rootReal === false) {
@@ -66,7 +74,14 @@ class PathGuard
         // leaf — to resolve any such symlink and re-check containment.
         $existing = $normalized;
 
-        while (! file_exists($existing)) {
+        // is_link() is lstat-based, so it also catches a DANGLING symlink — one whose
+        // target doesn't currently exist, which file_exists() alone follows through and
+        // reports as false, indistinguishable from "not created yet". Without this, the
+        // loop would walk past the symlink itself up to its parent, realpath() the parent
+        // instead, and pass containment even though the leaf is a real filesystem entry
+        // that can point anywhere once its target comes into existence later (a classic
+        // TOCTOU — see the sibling live-symlink check just below this loop).
+        while (! file_exists($existing) && ! is_link($existing)) {
             $parent = dirname($existing);
 
             if ($parent === $existing) {

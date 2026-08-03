@@ -318,3 +318,21 @@ test('a path that escapes the workspace root is denied', function () {
     expect($result->ok)->toBeFalse()
         ->and($result->meta['denied'] ?? null)->toBeTrue();
 });
+
+test('a NUL byte in path is denied instead of crashing the process', function () {
+    $root = patchFileWorkspace();
+
+    $tool = new PatchFileTool($root);
+
+    // json_decode faithfully turns a model tool-call's   escape into a PHP string with
+    // an embedded NUL byte — exactly what Loop::parseToolCall() hands to execute(). Without
+    // the PathGuard NUL guard this reaches SecretsGuard::isSensitive()'s fnmatch() call and
+    // throws an uncaught ValueError, killing the whole process instead of failing the tool call.
+    $result = $tool->execute([
+        'path' => "evil.txt\0.php",
+        'diff' => "@@ -0,0 +1,1 @@\n+PWNED\n",
+        'stamp' => PatchFileTool::NEW_FILE_STAMP,
+    ]);
+
+    expect($result->ok)->toBeFalse();
+});
