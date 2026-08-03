@@ -14,10 +14,16 @@ use Laravel\Prompts\Task;
  * that breaks either of these silently breaks native Windows support.
  */
 
-/** Fallbacks are registered by Illuminate's ConfiguresPrompts during a command run. */
+/**
+ * Fallbacks are registered by Illuminate's ConfiguresPrompts during a command run,
+ * so this needs to run SOME command — any one of Paider's own will do. It used to
+ * run `inspire`, which was Laravel Zero scaffold and has since been deleted; pick
+ * a command the product actually owns so the test does not depend on scaffolding
+ * outliving the scaffold.
+ */
 function registeredFallbacks(): array
 {
-    test()->artisan('inspire')->run();
+    test()->artisan('config:show')->run();
 
     return (new ReflectionClass(Prompt::class))->getStaticPropertyValue('fallbacks');
 }

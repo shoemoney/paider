@@ -76,8 +76,29 @@ return [
     |
     */
 
+    /*
+     * Whatever is public at the first tag is frozen by the release policy —
+     * removing a command afterwards is a breaking change. None of these are
+     * Paider's; they are Laravel Zero skeleton commands for building Laravel
+     * Zero apps, which is not what anyone installs this to do.
+     *
+     * `app:build` is the sharpest one: it builds a PHAR, and PHAR is an
+     * explicitly cut distribution format (PLAN.md, "Distribution and
+     * concurrency"). Leaving it public advertises a channel that does not exist
+     * — the same reason box.json is no longer shipped in the dist archive.
+     */
     'remove' => [
-        //
+        LaravelZero\Framework\Commands\BuildCommand::class,
+        LaravelZero\Framework\Commands\MakeCommand::class,
+        LaravelZero\Framework\Commands\RenameCommand::class,
+        LaravelZero\Framework\Commands\InstallCommand::class,
+        LaravelZero\Framework\Commands\TestMakeCommand::class,
+
+        // `paider test` runs Paider's own suite. tests/ is export-ignored from the
+        // dist archive, so for anyone who installed via composer this command has
+        // nothing to run — it would fail confusingly rather than do nothing.
+        // Contributors work from a clone and use `vendor/bin/pest` directly.
+        NunoMaduro\Collision\Adapters\Laravel\Commands\TestCommand::class,
     ],
 
 ];

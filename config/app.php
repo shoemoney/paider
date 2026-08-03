@@ -26,7 +26,24 @@ return [
     |
     */
 
-    'version' => app('git.version'),
+    /*
+     * Composer records the version it installed, so ask it rather than the
+     * filesystem. Laravel Zero's default here is app('git.version'), which shells
+     * out to `git describe --tags` from basePath() — two problems, both real:
+     *
+     *   1. Installed via composer there is no .git in vendor/paider/paider, and
+     *      git WALKS UP. Inside a host app tagged v9.9.9, `paider --version`
+     *      reports v9.9.9 — the consumer's version, presented as Paider's.
+     *   2. It forks a git process on every single invocation, in a tool whose
+     *      whole pitch includes a 94.8ms cold start.
+     *
+     * InstalledVersions is generated at install time, costs nothing to read, and
+     * is correct in vendor/. The fallback covers the FrankenPHP static binary and
+     * any other context where composer's runtime API is not present.
+     */
+    'version' => class_exists(\Composer\InstalledVersions::class)
+        ? (\Composer\InstalledVersions::getPrettyVersion('paider/paider') ?? 'unreleased')
+        : 'unreleased',
 
     /*
     |--------------------------------------------------------------------------
