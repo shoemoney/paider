@@ -8,7 +8,8 @@
 [![php](https://img.shields.io/badge/PHP-%E2%89%A5%208.4-777BB4?style=for-the-badge&logo=php&logoColor=white)](composer.json)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
 [![packagist](https://img.shields.io/badge/packagist-v0.1.0-blueviolet?style=for-the-badge)](https://packagist.org/packages/paider/paider)
-[![tests](https://img.shields.io/badge/tests-175%20passing-brightgreen?style=for-the-badge)](tests/)
+[![ci](https://img.shields.io/github/actions/workflow/status/shoemoney/paider/tests.yml?style=for-the-badge&label=tests)](https://github.com/shoemoney/paider/actions/workflows/tests.yml)
+[![tests](https://img.shields.io/badge/tests-177%20passing-brightgreen?style=for-the-badge)](tests/)
 [![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
@@ -29,7 +30,7 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `cost`, `config:provider`, `config:show` all register and run |
 | 🔧 six native tools | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `git`, `artisan` |
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection; stored in `.paider/` (gitignored locally) |
-| 🧪 test suite | ✅ **175 passing**, 630 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
+| 🧪 test suite | ✅ **177 passing**, 634 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
 | 📦 published on Packagist | ✅ **published** | `paider/paider` at https://packagist.org/packages/paider/paider |
 | 📦 `curl \| sh` installer | ⬜ **not built** | the binary is measured, the installer is not written |
@@ -294,7 +295,7 @@ vendor/bin/pest
 vendor/bin/pest --group=live
 ```
 
-**Hermetic suite** (`vendor/bin/pest`, 164 tests) — all provider interactions mocked via Guzzle;
+**Hermetic suite** (`vendor/bin/pest`, 174 tests) — all provider interactions mocked via Guzzle;
 proves self-consistency, zero cost. Excluded group: `live`. This is the number in the badge above;
 the live suite is 3 more on top, not part of it.
 
@@ -508,12 +509,12 @@ flowchart LR
 
 | milestone | scope | state |
 |---|---|---|
-| **v0.1** | 5 commands, 6 tools, approval gate, event log, cost ledger, tier router | 🔨 **in progress** |
+| **v0.1** | 5 commands, 6 tools, approval gate, event log, cost ledger, tier router, CI pipeline, ~94.8ms cold start | 🔨 **in progress** |
 | **v0.2** | `mcp/sdk` client, `paider run --yes`, repo-map on the research tier, test-feedback loop | ⬜ planned |
 | **v1.0** | MCP **server** mode — external clients drive Paider's tools; published semver policy | ⬜ planned |
 
 <details>
-<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 164 tests pass?</b></summary>
+<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 174 tests pass?</b></summary>
 
 Because [`PLAN.md`](PLAN.md) wrote v0.1's definition of done *before* the code existed, and
 grading against it honestly leaves one box unticked:
@@ -527,10 +528,11 @@ grading against it honestly leaves one box unticked:
 | honest comparison table vs Maestro | ✅ **added above** |
 | live provider round-trips | ✅ **3 tests, ledger reconciles** |
 | published on Packagist | ✅ **published** — [`paider/paider`](https://packagist.org/packages/paider/paider), tagged v0.1.0 |
+| CI pipeline with hermetic + live suites | ✅ **shipped** — `.github/workflows/tests.yml` runs on PR, `--prefer-lowest` catches version leaks |
 | end-to-end on a real repo with a real API key | ⬜ never attempted |
 
 The one remaining box — running a full session against a real repo with a real API key and watching an edit land — is the last blocker to shipping v0.1. Everything else is done. The rule
-in this repo is that a green checkbox is a promise a `grep` or a test run can keep — seven
+in this repo is that a green checkbox is a promise a `grep` or a test run can keep — eight
 checked above are testable / grepable; the unchecked one requires end-to-end human verification.
 
 </details>

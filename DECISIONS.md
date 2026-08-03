@@ -426,3 +426,77 @@ needs a TrueType console font.
 
 **Decision: Windows Terminal is the documented baseline for Windows.** No WSL requirement, no
 split UI layer, no Symfony fallback to write. Ship it and say so in the README.
+
+---
+
+## 11. Command surface locked to five — 2026-08-02
+
+v0.1.0 shipped with the command roster frozen: `paider chat`, `commit`, `cost`, `config:provider`,
+`config:show`. That is exactly five public commands, all Paider's own. Removed: `app:build`,
+`app:install`, `app:rename`, `make:command`, `make:test`, `test`, `inspire` — the Laravel Zero
+defaults that shipped in the scaffold.
+
+**Rationale:** a release tag is a promise. Anything on the public surface at the first tag is frozen
+by the release policy. `app:build` is a distribution channel (builds a PHAR via Box) and leaving it
+public advertised a channel that does not exist — the binary distribution is FrankenPHP, not PHAR.
+Hidden four LaravelZero scaffold commands you never advertised; nobody's workflow broke.
+
+## 12. `--version` now reads from Composer, not `git describe`
+
+v0.1.0 `paider --version` reports `Paider v0.1.0` every time, regardless of what the consumer app's
+version is. The bug: prior code read `config/app.php`'s `app('git.version')`, which calls `git describe
+--tags` from `basePath()`. **On install via composer, there is no `.git` in `vendor/paider/paider`, so
+`git` walks up the tree** — inside a host app tagged `v9.9.9`, Paider reported `v9.9.9`.
+
+**Verified in a scratch repo**: fresh `composer require paider/paider`, host app was tagged
+`application@v9.9.9`. Before fix: `paider --version` → "Application v9.9.9". After fix: `paider --version`
+→ "Paider v0.1.0".
+
+**Solution:** read `Composer\InstalledVersions` at runtime, which reports the installed package
+version. Removes a `git` fork from every invocation, which also saves 3–5ms on startup.
+
+## 13. Dist archive trimmed: 760 KB → 200 KB
+
+The shipped tarball via Packagist (what `composer install` extracts) is controlled by `.gitattributes`
+with `export-ignore` — unused files never leave the repo. v0.1.0 configured:
+
+```
+export-ignore
+/tests/
+phpunit.xml.dist
+PLAN.md
+DECISIONS.md
+EXTENSIONS.md
+STORAGE.md
+box.json
+composer.lock
+```
+
+A consumer gets exactly `app/ bootstrap/ config/ paider/ composer.json LICENSE README.md CHANGELOG.md`.
+
+**Note:** `CHANGELOG.md` was **un**-ignored, correcting a mistake in the skeleton. The skeleton
+shipped it on the repo but ignored it on export — backwards. Now the changelog is in the tarball.
+
+Result: 200 KB of **intentional, shipped code** vs. the 760 KB of build tooling and unreleased docs
+that no consumer needs.
+
+## 14. CI pipeline shipped — 2026-08-02
+
+`.github/workflows/tests.yml` runs on every `pull_request` (never `pull_request_target`, so fork PRs
+see no secrets):
+
+- **Hermetic suite on PHP 8.4 + 8.5**: `vendor/bin/pest` with `--prefer-lowest` (all dependencies at
+  their minimum declared versions) to catch transitive version leaks.
+- **PHP extensions**: exactly Paider's eleven (from `EXTENSIONS.md`), not a system default, so the
+  binary's trimmed extension set is verified on every PR.
+- **Live-suite safety**: the three live tests (real API calls, requires credentials) skip cleanly
+  with the message "skipped" if credentials are absent, so CI stays green in sandboxes with no
+  secrets configured.
+- **Functional smoke test**: `paider cost` runs against a seeded event log and asserts the formatted
+  output matches.
+
+**Real finding from the first run**: the `--prefer-lowest` job caught a transitive version leak.
+Paider depends on `laravel/prompts` *indirectly* via Laravel Zero, but had no explicit constraint.
+The stock version resolved to `^0.3.0`, which includes classes (`Stream`, `Task`, `Callout`) added
+in v0.3.19, but `--prefer-lowest` pulled 0.3.0 (the tag) which did not have them — test failure.
+Now pinned to `^0.3.19` explicitly.
