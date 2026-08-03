@@ -458,12 +458,21 @@ leaving size conditional. Round 2 actually built the trimmed binary natively —
 round 1's cold-start conclusion, not just its size one. Full numbers:
 [`DECISIONS.md` §9](DECISIONS.md).
 
+Both columns below are the **runtime alone, with no Paider inside** — see the note under the
+table for what the shippable artifact actually costs.
+
 | | round 1 (stock, 77 ext) | round 2 (trimmed, 11 ext) |
 |---|---|---|
 | Size | 178MB | **111.3MB (106.2 MiB)** — −37.5% |
 | Compressed (`zstd -19`) | 60.4MB | **40.6MB** |
 | Cold start vs. lean-ini PHP | ~23% slower | **parity** (1.01x, i.e. no measurable penalty) |
 | Cold start vs. stock binary | — | **1.20x faster** |
+
+> The round-2 column says **11 ext** and that is not a typo: it is what that build contained when
+> these numbers were taken. The required set later turned out to be **twelve** — `ext-dom` was
+> missing, and the 11-extension binary booted fine and only failed on a command that renders
+> output. A current trimmed runtime is therefore marginally larger than 111.3MB; it has not been
+> re-measured, and no number here should be quoted as if it had been.
 
 **Cold start: the penalty is gone, not just smaller.** Round 1's "~23% slower than lean-ini PHP"
 is **superseded** — that number came from the stock binary dynamically initialising 66 unwanted
