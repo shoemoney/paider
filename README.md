@@ -1,12 +1,39 @@
-# Paider
+<div align="center">
 
-A PHP-native AI coding agent. Built on [Laravel Zero](https://laravel-zero.com),
-[Laravel Prompts](https://laravel.com/docs/prompts), [Termwind](https://github.com/nunomaduro/termwind)
-and the official [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk).
+# 🐘 Paider
 
-**Status: pre-alpha.** Nothing works yet. This repository currently contains a plan, a decision
-log, and a model-routing config. It is being built in public from commit one, including the
-parts that were wrong.
+**A PHP-native AI coding agent — that lives *inside* your Laravel app.** 🤖
+
+[![status](https://img.shields.io/badge/status-alpha-orange?style=for-the-badge)](#-status-honestly)
+[![php](https://img.shields.io/badge/PHP-%E2%89%A5%208.4-777BB4?style=for-the-badge&logo=php&logoColor=white)](composer.json)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
+[![tests](https://img.shields.io/badge/tests-128%20passing-brightgreen?style=for-the-badge)](tests/)
+[![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
+
+Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
+
+</div>
+
+---
+
+## 🚦 Status, honestly
+
+> **Alpha. The v0.1 commands exist and are tested. It has never spoken to a live model.**
+
+Built in public from commit one, wrong turns left in. Here is precisely what that means today:
+
+| | state | evidence |
+|---|---|---|
+| 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `config:provider`, `config:show` all register and run |
+| 🔧 five native tools | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `git` |
+| 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection |
+| 🧪 test suite | ✅ **128 passing**, 349 assertions | `vendor/bin/pest` |
+| 🌐 talking to a real LLM | ⬜ **never done** | provider clients are tested against a **mocked** Guzzle transport only |
+| 📦 `curl \| sh` installer | ⬜ **not built** | the binary is measured, the installer is not written |
+| 🏷️ tagged release | ⬜ **none** | no version has shipped |
+
+**Do not install this expecting a working agent.** The wiring is real and tested; the last
+mile — an actual API key, an actual model, an actual edit landing in your repo — is unproven.
 
 ---
 
@@ -29,9 +56,13 @@ and domain logic into tools the agent can call — defined in the framework's id
 hand-rolled JSON schemas. No Python or Go CLI can do that for a Laravel developer.
 
 The full version of this — any MCP client driving Paider's tools — is v1.0, gated on the MCP PHP
-SDK maturing past pre-1.0. But the shape ships in v0.1 already: pointed at a Laravel repo, Paider
-gets one extra tool, `ArtisanTool`, that reads `route:list` as structured data instead of shell
-text. Small on purpose — see [`PLAN.md`](PLAN.md) — but real, not just promised.
+SDK maturing past pre-1.0. The intended first step is `ArtisanTool`, reading `route:list` as
+structured data instead of shell text when pointed at a Laravel repo.
+
+> ⬜ **`ArtisanTool` is not built.** It was scoped for v0.1 and deliberately deferred: any
+> `php artisan <anything>` boots the target app and executes its service providers, which makes
+> it arbitrary code execution — so an allowlist is *not* a security boundary for it. It needs an
+> approval design of its own rather than a slot in the existing five. See [`PLAN.md`](PLAN.md).
 
 **2. You can see exactly where the money went.**
 
@@ -90,9 +121,10 @@ other three tiers, self-hostable end to end, for people who will not send their 
 frontier lab. As far as we can tell nobody in PHP ships a preset for them.
 
 ```bash
-paider config provider open      # kimi-k3 + qwen3.7-flash, open weights
-paider config provider balanced  # opus-5 to think, qwen3.7-flash to do
-paider config provider kimi      # single-provider stacks for all the majors
+paider config:provider open      # kimi-k3 + qwen3.7-flash, open weights
+paider config:provider balanced  # opus-5 to think, qwen3.7-flash to do
+paider config:provider kimi      # single-provider stacks for all the majors
+paider config:show               # what am I actually running?
 ```
 
 ## Why build it at all
@@ -127,6 +159,109 @@ from arrow-key selection to typed numbers. Windows Terminal is the documented ba
 Where Ink genuinely wins is a full-screen alternate-buffer app with many live reactive panes.
 A coding agent is mostly streaming text, a spinner, a diff and a confirm — and PHP is fine at
 those. If Paider ever needs a real reactive TUI, that is the moment to reconsider, not before.
+
+## 🏗️ Architecture
+
+Everything durable goes through one SQLite file. The cost ledger is not a balance anyone
+increments — it is a **projection replayed over an append-only event log**, which is why
+`/undo` and the audit trail come free rather than being features someone has to maintain.
+
+```mermaid
+flowchart TB
+    User([👤 you]) -->|prompt| Chat[💬 ChatCommand]
+    Chat --> Session[🧠 Session]
+    Session --> Loop[🔁 Loop]
+
+    Loop -->|picks a tier| Router{{🎚️ TierRouter}}
+    Router -->|orchestrator| P1[🌐 AnthropicClient]
+    Router -->|coder · research · fast| P2[🌐 OpenAiCompatibleClient]
+
+    Loop -->|proposes a tool call| Gate{🔐 Approval Gate}
+    Gate -->|denied| Loop
+    Gate -->|allowed| Tools
+
+    subgraph Tools [🔧 native tools]
+        direction LR
+        T1[read_file] ~~~ T2[write_file] ~~~ T3[patch_file]
+        T4[run_shell] ~~~ T5[git]
+    end
+
+    Tools -->|every path checked| Guard[🛡️ PathGuard]
+    Tools --> Log[(🗄️ events · append-only)]
+    P1 & P2 --> Log
+    Log -->|projection| Ledger[💰 CostLedger]
+
+    style Gate fill:#f96,stroke:#333,color:#000
+    style Guard fill:#9cf,stroke:#333,color:#000
+    style Log fill:#cfc,stroke:#333,color:#000
+```
+
+<details>
+<summary><b>🔍 One turn, end to end</b></summary>
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as 👤 you
+    participant L as 🔁 Loop
+    participant R as 🎚️ TierRouter
+    participant M as 🌐 model
+    participant G as 🔐 Gate
+    participant T as 🔧 tool
+    participant E as 🗄️ events
+
+    U->>L: "fix the failing test"
+    L->>R: which model for `orchestrator`?
+    R-->>L: anthropic/claude-opus-5
+    L->>M: prompt + tool contracts
+    M-->>L: fenced tool call
+    Note over L,M: text-fenced blocks, not native tool-calling —<br/>providers disagree on the format, qwen3.7-flash<br/>reports structured_outputs=false
+    L->>G: patch_file(app/Foo.php)
+    G->>U: show diff · allow once / session / deny
+    U-->>G: allow once
+    G->>T: execute
+    T->>T: stamp check → parse hunks → syntax gate
+    T-->>L: ToolResult
+    L->>E: append(tool_result, …)
+    E-->>L: uuid7
+    Note over E: append only — no update(),<br/>no delete(), anywhere in the class
+```
+
+</details>
+
+## ⌨️ CLI reference
+
+| command | what it does | state |
+|---|---|---|
+| `paider` / `paider chat` 💬 | interactive session rooted at the cwd | ✅ built |
+| `paider commit` 📝 | stage everything, generate a message on the **fast** tier, commit | ✅ built |
+| `paider config:provider <preset>` 🎛️ | switch the active tier stack | ✅ built |
+| `paider config:show` 👀 | show the active preset and the model per tier | ✅ built |
+
+In-session slash commands — aider's proven UX, not a Paider invention:
+
+| slash | effect |
+|---|---|
+| `/add <file>` ➕ | put a file in context (and stamp it for staleness detection) |
+| `/drop <file>` ➖ | take it back out |
+| `/diff` 🔍 | show pending changes |
+| `/undo` ↩️ | roll back the last applied change |
+| `/tier <name> <model>` 🎚️ | override one tier for this session |
+| `/quit` 👋 | leave |
+
+## 🔐 The parts we were paranoid about
+
+Every row below is a bug that was **found and fixed by adversarial review**, not a design
+someone got right first try:
+
+| guard | what it stops |
+|---|---|
+| 🛡️ `PathGuard` | `..` traversal in a non-existent tail **and** an existing intermediate dir symlinked out of the project |
+| 🔐 `Gate` | only ever caches a **grant** — there is no path that reads a cached deny as an allow |
+| 🧾 `EventLog` | no `update()`, no `delete()`, anywhere — append-only is structural, not a comment |
+| 🤫 `SecretsGuard` | redaction before anything reaches a model |
+| 💸 `QwenPlanKeyGuard` | refuses an `sk-sp-` plan key paired with a PAYG base URL, which would silently bill you |
+| 🚫 strict JSON | six paths where a lenient decode turned a failed call into a successful-looking empty one |
 
 ## Read the thinking
 
@@ -237,6 +372,41 @@ better than the two above. A third channel is maintenance forever for an audienc
 
 **No Docker.** Container start would eat the entire startup budget.
 
-## License
+## 🗺️ Roadmap
 
-MIT.
+```mermaid
+flowchart LR
+    V01["🧱 v0.1<br/>commands · tools · ledger"] --> V02["🔌 v0.2<br/>MCP client · agent roster"]
+    V02 --> V10["🏛️ v1.0<br/>Paider as an MCP server"]
+
+    style V01 fill:#cfc,stroke:#2a2,color:#000
+    style V02 fill:#ffd,stroke:#aa2,color:#000
+    style V10 fill:#eee,stroke:#999,color:#000
+```
+
+| milestone | scope | state |
+|---|---|---|
+| **v0.1** | 4 commands, 5 tools, approval gate, event log, cost ledger, tier router | ✅ built · unproven against a live model |
+| **v0.2** | `mcp/sdk` client, `laravel/mcp` server-side, the multi-agent roster | 🔨 next |
+| **v1.0** | any MCP client drives Paider's tools; `ArtisanTool` against a real Laravel app | ⬜ planned |
+
+## 📜 License
+
+[**Apache-2.0**](LICENSE) — see the full text, which is byte-for-byte the official one
+(`md5 3b83ef96387f14655fc854ddc3c6bd57`).
+
+Dependency licenses audited and compatible: 93 MIT · 26 BSD-3-Clause · 1 Apache-2.0.
+All permissive, no copyleft.
+
+---
+
+<div align="center">
+
+**Written in PHP on purpose.** 🐘
+
+*Not because PHP is fast — it isn't, and [`DECISIONS.md` §3](DECISIONS.md) says so with numbers —
+but because an agent that lives inside your Laravel app knows things an external one has to be told.*
+
+<sub>Every ✅ above is backed by a passing test. Every ⬜ is honest about not existing yet.</sub>
+
+</div>

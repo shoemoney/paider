@@ -119,7 +119,7 @@ Commands:
 - **`paider commit`** — stages the working tree, generates a commit message on the **fast**
   tier, runs `git commit`. This is the smallest standalone feature that's useful even outside a
   full agent session and a good "does the tier router actually work" smoke test.
-- **`paider config provider <preset>`** — writes the selected `config/presets.php` preset as the
+- **`paider config:provider <preset>`** — writes the selected `config/presets.php` preset as the
   active provider stack into `.paider/settings.json` (mirrors Maestro's
   `.maestro/settings.json` pattern, same directory-scoping decision, no reason to diverge).
 - **`paider config show`** — prints the resolved tier → model → price table for the active
@@ -166,7 +166,7 @@ app/
     ChatCommand.php          # bare + `chat` — the REPL loop
     CommitCommand.php
     Config/
-      ProviderCommand.php    # `config provider <preset>`
+      ProviderCommand.php    # `config:provider <preset>`
       ShowCommand.php        # `config show`
   Agent/
     Session.php              # holds context files, chat history, active tier map
@@ -680,7 +680,7 @@ Three findings that affect Paider directly:
 
 So the `balanced` default — Opus 5 to think, `qwen3.7-flash` to do — **cannot run on a Coding
 Plan**. A plan holder needs a different preset. That is a real gap: add a `qwen-plan` preset
-built only from allowlisted models, and have `paider config provider` warn when a selected model
+built only from allowlisted models, and have `paider config:provider` warn when a selected model
 is not on the user's plan.
 
 **2. Wrong key silently bills pay-as-you-go.** Plan keys are prefixed `sk-sp-` and require a
