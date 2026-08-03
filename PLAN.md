@@ -623,6 +623,45 @@ and "did not clear the floor" makes a worse chart than 0.18%. That cost is the p
 designed to survive being quoted out of context is a different artefact from a number designed to
 be quoted.
 
+### The framing attack — and why publishing the number is not enough
+
+A clean item set and honest intervals still leave one surface undefended: **presentation**. A lab
+does not need to touch the benchmark to win with it. It needs a slide. Linear gains become
+"exponential", a truncated y-axis turns +9 items into a vertical wall, a log scale flatters
+whoever is furthest right, and a relative percentage ("29% better!") is technically true and
+completely uninformative about magnitude.
+
+This is not a moral failing on the labs' part — they are obliged to market, and every one of them
+will present a favourable result favourably. **The defence is not to ask them not to. It is to make
+the honest reading the more citable one, and to publish it first.**
+
+**We characterise the trend ourselves, in the primary source.** Every publication states the shape
+of the gain explicitly and quantitatively: *"generation N to N+1: +9 items (95% CI 5–13),
+consistent with +7, +11 and +8 across the prior three generations — linear."* A lab claiming an
+exponential leap is then contradicted not by an opinion but by the source it is citing, in wording
+that predates its slide. Saying nothing about shape leaves the shape claim to whoever speaks
+loudest.
+
+**The canonical chart is ours, and it is boring on purpose.** Zero-based linear axis, intervals
+drawn, all generations shown including the flat ones. Published as an image and as the data that
+generated it, so anyone can reproduce it exactly. A lab is free to redraw it; the redraw is then
+visibly a redraw.
+
+**Deltas are published alongside levels**, because linear-versus-exponential is a claim about
+deltas, not levels. A table of per-generation item-count changes makes the shape legible without
+anyone needing to fit a curve.
+
+**Machine-readable results ship with every round** — every score, interval, per-category
+breakdown and per-run outcome, in a stable format. Anyone can regenerate the honest chart in
+minutes. Making the truthful version trivially cheap to produce is more effective than any
+licence term.
+
+**Corrections are a standing practice, not a grievance.** When a published claim materially
+misrepresents a Paider 100 result, we publish the side-by-side: their framing, our numbers, no
+adjectives. Dated, in a permanent log. This is the one place where being an independent
+non-participant has teeth — we have no model to defend and no partnership to protect, so the
+correction costs us nothing to make.
+
 ### Publication policy — decided up front, because it is the whole design
 
 **Publish every run, including the errored ones, tagged as such.** Crashes, timeouts, refusals,
