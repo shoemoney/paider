@@ -426,6 +426,17 @@ scheduled, and deliberately not in v1.0.*
 > every run behind it — errors, timeouts and refusals included and tagged — publish what each run
 > discovered and what it actually fixed, and never publish the items.
 >
+> **The methodology is a gift to the commons. The items are not.** Everything about *how* a bench
+> is built gets published in full — task design, scoring rules, run counts, rotation schedule, the
+> reasoning behind every judgement call, and the mistakes that shaped it. That is the part with
+> transferable value, and withholding it would be hoarding, not protecting.
+>
+> The items stay private for one reason: publishing them produces exactly one more dead benchmark.
+> Publishing the method lets anyone build their own hundred — and theirs stays valid *because it is
+> theirs*. One shared item set decays for everyone who uses it; one shared methodology compounds for
+> everyone who applies it. The open-source community is better served by a recipe than by a meal
+> that spoils the moment it is served.
+>
 > The promise is not that our number is unimpeachable. It is that it will still mean the same
 > thing in two years.
 
