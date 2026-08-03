@@ -116,8 +116,13 @@ program. Symfony Console is twenty years mature; `laravel/prompts` does streamin
 Termwind does Tailwind-style layout for static output; and Collision renders errors better than
 most things in any language.
 
-One honest caveat: `laravel/prompts` does not support native Windows PHP — WSL only. That is an
-open question for the standalone binary, tracked in [PLAN.md](PLAN.md).
+The Windows caveat you will read about — "`laravel/prompts` is WSL-only" — **does not apply here**,
+and that was measured, not assumed. `Illuminate\Console\Command` already calls
+`Prompt::fallbackWhen(windows_os())` and registers Symfony Question Helper fallbacks, so Laravel
+Zero inherits a working Windows path for free. The streaming output side is **byte-identical**
+under the fallback (all 47 lines of a captured run); only the interactive input prompts change,
+from arrow-key selection to typed numbers. Windows Terminal is the documented baseline — legacy
+`cmd.exe` mangles the box-drawing glyphs. Full measurement in [`DECISIONS.md` §10](DECISIONS.md).
 
 Where Ink genuinely wins is a full-screen alternate-buffer app with many live reactive panes.
 A coding agent is mostly streaming text, a spinner, a diff and a confirm — and PHP is fine at
@@ -126,7 +131,7 @@ those. If Paider ever needs a real reactive TUI, that is the moment to reconside
 ## Read the thinking
 
 - **[STORAGE.md](STORAGE.md)** — one SQLite file, no services. Why not Redis.
-- **[EXTENSIONS.md](EXTENSIONS.md)** — the nine extensions that ship, and what was cut.
+- **[EXTENSIONS.md](EXTENSIONS.md)** — the eleven extensions that ship, and what was cut.
 - **[PLAN.md](PLAN.md)** — thesis, non-goals, v0.1 scope, architecture, milestones, risks.
 - **[DECISIONS.md](DECISIONS.md)** — how we got here, measured, with the wrong turns left in:
   recommending the wrong repo, picking a model off a spec sheet that a practitioner knew was a
@@ -205,10 +210,9 @@ hyperfine, 3 warmup + 30 timed runs, no shell (`-N`):
   `macos-latest`, `macos-13`. Same shape Deno, Bun, and rtk already use. Compressed transfer —
   what an installer actually pulls — is roughly a third of the on-disk size: `gzip -9` **72.6MB**,
   `zstd -19` **60.4MB**.
-- **A Windows binary does exist** (`frankenphp-windows-x86_64`). So Windows is a
-  [`laravel/prompts`](https://github.com/laravel/prompts) question, not a FrankenPHP one — see
-  Correction 3 in [`PLAN.md`](PLAN.md). Two separate problems; they should stop being discussed
-  as one.
+- **A Windows binary does exist** (`frankenphp-windows-x86_64`), and the `laravel/prompts` half of
+  the Windows question is **resolved** — Laravel's own `ConfiguresPrompts` already handles it, and
+  the streaming path is unchanged. See [`DECISIONS.md` §9](DECISIONS.md). Windows is shippable.
 
 Functional check under the static binary, for the record: `application list` renders correctly,
 `pdo_sqlite` round-trips an in-memory DB (see [`STORAGE.md`](STORAGE.md)), `stream_isatty()`

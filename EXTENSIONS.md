@@ -8,7 +8,12 @@ extensions cost **94ms of a 143ms** PHP startup. A tool that inherits a user's i
 tax. Pinning the set is most of the reason
 [FrankenPHP](https://frankenphp.dev/docs/embed/) was chosen over `composer global require`.
 
-## v0.1 — required, eight
+## v0.1 — required, ten
+
+⚠️ **Corrected 2026-08-02 (round 2).** This table was eight for one measurement cycle and it was
+wrong — `phar` and `filter` are both load-bearing and were missing. See "🪤 The Laravel Zero
+`Phar::running()` trap" below for how that surfaced: a trimmed 9-extension static build compiled
+clean and then couldn't boot the app.
 
 | extension | why | who needs it |
 |---|---|---|
@@ -20,15 +25,54 @@ tax. Pinning the set is most of the reason
 | `curl` | LLM HTTP, and `curl_multi` for concurrency | Paider |
 | `openssl` | TLS, and AES-256-GCM for stored credentials | Paider |
 | `zlib` | gzipped HTTP responses | Paider |
+| `phar` | `laravel-zero/framework`'s `Build::isRunning()` calls `Phar::running()` **unconditionally**, every invocation, not only when building a PHAR | `laravel-zero/framework` — an **undeclared** dependency, see the trap below |
+| `filter` | flagged by `composer check-platform-reqs --no-dev` on the prod tree | `illuminate` internals |
 
-Free — compiled into PHP core, not separate extensions: `json`, `filter`, `pcre`, `date`,
+Free — compiled into PHP core, not separate extensions: `json`, `pcre`, `date`,
 `spl`, `reflection`, `hash`, `random`.
+
+Add `pdo_sqlite` (opt-in, v0.2, below) and the real required count is **eleven**, not nine.
+
+### 🪤 The Laravel Zero `Phar::running()` trap
+
+Trim a FrankenPHP static build to the "documented nine" (the eight above minus `phar`/`filter`,
+plus `pdo_sqlite`) and it compiles cleanly, boots the binary — and dies on the very first command:
+
+```
+Fatal error: Uncaught Error: Class "Phar" not found
+  in vendor/laravel-zero/framework/src/Providers/Build/Build.php:37
+```
+
+`LaravelZero\Framework\Providers\Build\Build::isRunning()` calls `Phar::running()`
+**unconditionally during bootstrap** — every single invocation pays that check, not just a
+`box compile` run. And `laravel-zero/framework`'s own `composer.json` does **not** declare
+`ext-phar` as a dependency, so nothing warns you before the binary is built and shipped. It's
+invisible on a stock FrankenPHP binary (77 extensions covers it by accident) and invisible on
+ordinary Homebrew PHP (`ext-phar` ships enabled by default) — it only bites a *deliberately
+trimmed* static build, which is exactly the build this project needs. `composer
+check-platform-reqs --no-dev` flagged `filter` the same way, for the same reason: present
+everywhere by accident, undeclared, invisible until something narrows the extension set on
+purpose.
+
+**Anyone trimming a PHP static binary for a Laravel-Zero-based tool will hit this.** Documented
+loudly here rather than rediscovered as a "why won't my binary start" bug report.
+
+**This is a different thing from "no PHAR as a distribution format."** That decision (see
+`DECISIONS.md` / `PLAN.md`) is about how Paider ships — never as a `.phar` file. Compiling
+`ext-phar` *into* the interpreter is unrelated: it's a class the framework's own bootstrap
+requires to exist, regardless of whether anything is ever packaged as a PHAR. Same word, two
+unconnected questions — no contradiction.
 
 ## Deliberately excluded
 
-**Dev-only, never shipped.** `dom`, `libxml`, `simplexml`, `xml`, `xmlwriter`, `phar`. Every one
-arrives via `paratest`, `phpunit`, `phar-io/manifest` or `pint` — test and lint tooling that has
-no business in a user's binary.
+**Dev-only, never shipped.** `dom`, `libxml`, `simplexml`, `xml`, `xmlwriter`. Every one arrives
+via `paratest`, `phpunit`, `phar-io/manifest` or `pint` — test and lint tooling that has no
+business in a user's binary.
+
+⚠️ **`phar` used to be listed here too, and that was wrong** — moved to required above,
+2026-08-02. It looks like dev-only tooling (it does arrive via `phar-io/manifest`), but
+`laravel-zero/framework` also needs the `Phar` class present at runtime, on every invocation, not
+just at build time. See the trap above.
 
 **`pdo_mysql`, `pdo_pgsql` — cut.** They were listed to let the agent introspect the *user's*
 database schema. Laravel already writes its schema down as migration files, which the agent can
@@ -76,11 +120,39 @@ are not wanted anywhere in this document: `imagick`, `ldap`, `amqp`, `memcached`
 `pgsql`, `pdo_pgsql`, `mysqli`, `pdo_mysql`, `soap`, `tidy`, `xsl`, `gd`, `intl`, `redis`, `ssh2`,
 `protobuf`, `xlswriter`, and more.
 
-That bloat is why the off-the-shelf binary is **178MB**. Trimming those 68 down to the 9 above is
-exactly what a custom static build (`static-builder.Dockerfile` or native `static-php-cli`) is
-for — see [`DECISIONS.md` §8](DECISIONS.md) and [`README.md`](README.md#distribution). That
-trimmed build is not yet built or verified; the "chosen set" in this file stays the target
-regardless of which build tool gets there.
+That bloat is why the off-the-shelf binary is **178MB**. Trimming those 68 down to the eleven
+above is exactly what a custom static build (`build-static.sh`, run natively) is for — see
+[`DECISIONS.md` §9](DECISIONS.md) and [`README.md`](README.md#distribution).
+
+## ✅ Trimmed build verified — round 2, 2026-08-02
+
+Round 1 could only measure the stock binary; this round actually built the trimmed one, natively
+on macOS with FrankenPHP's own `build-static.sh` (**not** Docker — the Docker static-builder
+emits Linux binaries only). PHP 8.5.9, Caddy v2.11.4, Go 1.26.5. Build time: **~7 minutes**.
+
+The first attempt used the "documented nine" and **could not boot** — the `Phar::running()` trap
+above. With all eleven extensions
+(`PHP_EXTENSIONS="mbstring,tokenizer,ctype,fileinfo,iconv,curl,openssl,zlib,pdo_sqlite,phar,filter"`)
+it works:
+
+| | |
+|---|---|
+| Binary size | **111,315,960 bytes = 111.3 MB decimal / 106.2 MiB** |
+| Cost of adding `phar` + `filter` | **+283 KB** — negligible |
+| vs. stock 178MB / 77-ext binary | **−37.5%** size |
+| Extensions loaded at runtime | **25** — the 11 above, plus 14 always-compiled core: `Core`, `PDO`, `Reflection`, `SPL`, `Zend OPcache`, `date`, `hash`, `json`, `lexbor`, `pcre`, `random`, `standard`, `uri` |
+| Compressed, `gzip -9` | 46.6 MB |
+| Compressed, `zstd -19` | 40.6 MB |
+
+Functional check, trimmed binary: `application --version`, `application list`, an in-memory
+`pdo_sqlite` create/insert/select round-trip, `stream_isatty()` correct under a non-TTY pipe,
+`PHP_VERSION` 8.5.9. All pass. Cold-start numbers (−16% vs. the stock binary): `DECISIONS.md` §9.
+
+**The 20–30MB maintainer estimate was not reached via this build path, and now we know why:**
+`build-static.sh` always links the full Caddy server and Go HTTP stack, even for a binary that
+will only ever be invoked as `php-cli`. There is no CLI-only mode in the script. Not disproven in
+general — a Caddy-free build might get closer — just not what the supported path produces. See
+`PLAN.md`'s open questions.
 
 ## The rule
 

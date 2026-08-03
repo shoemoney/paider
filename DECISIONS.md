@@ -232,7 +232,9 @@ hyperfine, 3 warmup + 30 timed runs, no shell (`-N`):
 | `frankenphp php-cli` hello-world | 58.3ms | ±0.8ms |
 
 - FrankenPHP is **~23% slower** than a hypothetical lean-ini system PHP (111.3 vs 90.3ms) — the
-  honest downside.
+  honest downside. **⚠️ Superseded by §9 below** — this measured the stock, untrimmed binary; the
+  penalty turned out to be the cost of the 66 unwanted extensions dynamically initialising, not
+  anything inherent to FrankenPHP. It disappears entirely once trimmed.
 - FrankenPHP is **~1.7x faster** than the PHP a real user actually has installed (111.3 vs
   189.6ms): Homebrew PHP dynamically loads 73 extensions from disk on every invocation; the
   static binary has them compiled in and pays nothing for it at runtime.
@@ -255,3 +257,172 @@ easier, to answer. That build is the next thing to verify — see PLAN.md's Open
 
 *(Housekeeping, unrelated to the measurement above: `composer.lock` is stale against
 `composer.json` — composer warns on install. The `^8.4` floor bump was never re-locked.)*
+
+⚠️ **Both open items above are resolved by §9 below** — the trimmed build was built and measured,
+and it revises the cold-start conclusion, not just the size one.
+
+## 9. FrankenPHP, round 2 — the trimmed build was built, and it changes two conclusions
+
+§8 measured the **stock** off-the-shelf binary and could only confirm the decision on one axis
+(cold start), leaving size conditional on an unverified trimmed build. That build now exists:
+built natively on macOS with FrankenPHP's own `build-static.sh` (**not** Docker — the Docker
+static-builder emits Linux binaries only), PHP **8.5.9**, Caddy **v2.11.4**, Go **1.26.5**. Build
+time: **~7 minutes**. Only missing host dependency was `re2c`.
+
+### 🪤 Attempt 1 failed — and found a real spec bug
+
+The documented nine extensions (`mbstring,tokenizer,ctype,fileinfo,iconv,curl,openssl,zlib,
+pdo_sqlite`) produced a 111,032,744-byte binary that **could not boot the app**:
+
+```
+Fatal error: Uncaught Error: Class "Phar" not found
+  in vendor/laravel-zero/framework/src/Providers/Build/Build.php:37
+```
+
+`LaravelZero\Framework\Providers\Build\Build::isRunning()` calls `Phar::running()`
+**unconditionally** during bootstrap, on every invocation — and `laravel-zero/framework` does not
+declare `ext-phar` in its `composer.json`, so nothing warns you. It's invisible on the stock
+77-extension binary by accident. `composer check-platform-reqs --no-dev` on the prod tree also
+flagged **`filter`**, likewise absent from the documented nine.
+
+**Paider's required extension set is eleven, not nine** — the existing nine plus `phar` and
+`filter`. This would have shipped as a broken binary. Full writeup and the trap explanation:
+[`EXTENSIONS.md`](EXTENSIONS.md).
+
+### ✅ Attempt 2 — eleven extensions, works
+
+| | |
+|---|---|
+| Trimmed binary size | **111,315,960 bytes = 111.3 MB decimal / 106.2 MiB** |
+| Cost of adding `phar` + `filter` | **+283 KB** — negligible |
+| Extensions loaded at runtime | 25 (the 11 required + 14 always-compiled core: `Core`, `PDO`, `Reflection`, `SPL`, `Zend OPcache`, `date`, `hash`, `json`, `lexbor`, `pcre`, `random`, `standard`, `uri`) |
+| vs. stock 178MB / 77-ext binary | **−37.5%** |
+| Compressed, `gzip -9` | **46.6 MB** |
+| Compressed, `zstd -19` | **40.6 MB** |
+
+(Round 1 compressed the stock binary to gzip 72.6MB / zstd 60.4MB, for comparison.)
+
+### ⏱️ Cold start, four-way, hyperfine (3 warmup + 30 timed runs, `-N`)
+
+| command | mean | std dev |
+|---|---|---|
+| `php -n application --version` (lean-ini system PHP 8.5.8) | 95.9ms | ±1.3ms |
+| `php application --version` (real Homebrew ini, 73 ext) | 192.9ms | ±1.4ms |
+| stock frankenphp, 77 ext, 178MB | 113.5ms | ±1.4ms |
+| **trimmed frankenphp, 11 ext, 111MB** | **94.8ms** | **±1.3ms** |
+
+- The trimmed binary is **1.01x faster** than the lean-ini system-PHP baseline — a statistical tie
+  / parity, not a meaningful win. Correct framing: the cold-start penalty is **eliminated**, zero
+  measurable cost — not "FrankenPHP is faster than PHP."
+- Trimmed is **1.20x faster** than the stock binary and **2.03x faster** than a real user's
+  Homebrew PHP.
+- **§8's "~23% slower than lean-ini PHP" conclusion is superseded.** That penalty was never
+  inherent to FrankenPHP — it was the cost of dynamically initialising 66 unwanted extensions in
+  the stock binary. Trimming removes it entirely.
+- The 95.9ms lean-ini baseline **reproduced exactly** this round (95.9ms both times) — a good
+  sanity check on the harness.
+
+### 📏 The 20–30MB estimate: not achieved, and now we know why
+
+111MB is 3.7–5.5x the maintainer's estimate, so it does not hold for this build path. Reason:
+`build-static.sh` **always links the full Caddy server and Go HTTP stack**, even for a binary
+only ever invoked as `php-cli` — there is no CLI-only mode in the script. Reported as **not
+achieved via the supported build path**, Caddy named as the likely cause. Not claimed impossible
+in general, and not claimed disproven — see PLAN.md's open questions for the remaining
+CLI-only-build question.
+
+### Functional verification, trimmed binary
+
+`application --version` → "Application unreleased" ✅ · `application list` renders the full
+command list ✅ · `pdo_sqlite` round-trips an in-memory DB (create/insert/select) ✅ ·
+`stream_isatty()` correct under a non-TTY pipe (`bool(false)`) ✅ · `PHP_VERSION` 8.5.9, above the
+`^8.4` floor ✅.
+
+### The decision, restated again — now confirmed on both axes
+
+Composer package + FrankenPHP embed, no PHAR, no Docker-as-distribution is now **CONFIRMED on
+both axes**, where §8 could only confirm one:
+
+- **Cold start:** no penalty at all once trimmed. Fully resolved.
+- **Size:** 111MB on disk, but **40.6MB compressed** — landing right alongside the ~40MB Go
+  binaries competing agents ship. The `curl | sh` story is viable. The on-disk figure is still
+  large and worth stating honestly, but transfer size is what an installer experiences.
+- **Build cost** is ~7 minutes per platform, built natively — cheap enough for a CI matrix, which
+  removes the last practical objection.
+
+**Remaining open:** whether a CLI-only build without Caddy could approach the 20–30MB estimate.
+A nice-to-have now, not a blocker — see PLAN.md's Open questions.
+
+---
+
+## 10. Windows resolved — 2026-08-02
+
+The blocker recorded in §8 ("the open Windows question is about `laravel/prompts`") **was already
+solved by the framework Paider is built on.** Nothing needed to be written.
+
+`Illuminate\Console\Command` uses the `ConfiguresPrompts` trait, which on every command run calls:
+
+```php
+Prompt::fallbackWhen(windows_os() || $this->laravel->runningUnitTests());
+```
+
+…and registers a Symfony Question Helper fallback for ten of the eleven input prompts. Laravel
+Zero's `Command` extends `Illuminate\Console\Command`, so Paider inherits all of it for free. The
+`RuntimeException('Prompts is not currently supported on Windows')` in `Prompt::checkEnvironment()`
+is only reachable when `laravel/prompts` is used **standalone**, outside a Laravel console kernel.
+That is not how Paider uses it.
+
+### Measured, not assumed
+
+`Prompt::fallbackWhen(true)` reproduces the exact branch native Windows takes, so the comparison
+runs without a Windows box. Three PTY captures (expect-driven, `laravel/prompts` v0.3.21), with
+`pcntl` disabled via `-d disable_functions=…` to match Paider's extension set:
+
+| run | mode | pcntl | bytes |
+|---|---|---|---|
+| A | native | yes | 11,709 |
+| B | native | **no** | 11,518 |
+| C | **windows fallback** | **no** | 7,864 |
+
+**The output section of B and C is byte-identical — all 47 lines.** `stream()`, `note()`,
+`table()`, `spin()` and `progress()` render exactly the same under the Windows fallback, because
+every one of those classes **overrides `prompt()`** and so never reaches `checkEnvironment()`.
+`shouldFallback()` is `$shouldFallback && isset($fallbacks[static::class])`, so an output class
+with no registered fallback renders normally rather than throwing.
+
+Paider's primary UI — the streaming LLM response — is therefore **unaffected on Windows.** Only
+the eleven interactive input prompts change, and they degrade to Laravel's styled
+`$this->components` UI, not to raw Symfony:
+
+```
+  Route to: [sonnet]                     ┌ Route to ─────────────────┐
+  fable ............................ 0   │ › ● fable                 │
+  sonnet ........................... 1   │   ○ sonnet                │
+  haiku ............................ 2   │   ○ haiku                 │
+❯                                        └───────────────────────────┘
+       windows fallback                            native
+```
+
+Typed number instead of arrow keys. Worse, not bad, and only on the input path.
+
+### Two real findings
+
+1. **`NumberPrompt` has no fallback registered and does reach the Windows guard.** Every other
+   input prompt is covered; `number()` alone would throw `RuntimeException` on native Windows.
+   **Do not call `number()`** — use `text()` with numeric validation, or register a fallback in
+   Paider's own base command. Guarded by `tests/Feature/PromptsWindowsFallbackTest.php`.
+2. **Spinner animation confirmed dead without pcntl** — 6 frames with `pcntl`, 1 static frame
+   (`⠶`) without. Exactly the cosmetic cost PLAN.md Correction 2 predicted and accepted. The
+   progress bar is unaffected: it renders and advances fully either way.
+
+### The remaining Windows caveat is the terminal, not the library
+
+`laravel/prompts` renders with box-drawing (`┌ │ └ ─`) and block glyphs (`█`). Native Windows PHP
+8.4 handles the ANSI side fine — PHP enables `ENABLE_VIRTUAL_TERMINAL_PROCESSING` at startup via
+`sapi_windows_vt100_support()`, and Symfony Console probes the same function in
+`hasColorSupport()`. `stream_isatty()` works on Windows too. What is *not* reliable is UTF-8 in
+legacy `conhost.exe`/`cmd.exe`, where code page 65001 is a known-partial hack and box-drawing
+needs a TrueType console font.
+
+**Decision: Windows Terminal is the documented baseline for Windows.** No WSL requirement, no
+split UI layer, no Symfony fallback to write. Ship it and say so in the README.

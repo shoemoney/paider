@@ -808,6 +808,18 @@ deciding before anything is promised, and it is not currently in the Risks secti
 > question is `laravel/prompts`. Half of "Windows is unresolved" was never about Windows; it was
 > an assumption about FrankenPHP that turned out to be false. Decide the UI layer and Windows is
 > decided. See [`DECISIONS.md` §8](DECISIONS.md).
+>
+> **RESOLVED 2026-08-02, same day.** The other half evaporated too, and for the same reason —
+> an unchecked assumption. Laravel's `ConfiguresPrompts` trait (inherited by every Laravel Zero
+> command) *already* calls `Prompt::fallbackWhen(windows_os())` and *already* registers Symfony
+> Question Helper fallbacks. The WSL-only limitation applies to standalone `laravel/prompts`, not
+> to prompts driven by a Laravel console kernel. Measured with `fallbackWhen(true)` under a PTY:
+> the entire output section — `stream()`, `note()`, `table()`, `spin()`, `progress()` — is
+> **byte-identical** to native, because those classes override `prompt()` and never reach the
+> Windows guard. Only the input prompts change, to typed-number selection. Two findings worth
+> keeping: `number()` is the one prompt with no fallback and **will throw on Windows** (avoid it;
+> guarded by a test), and Windows Terminal is the baseline because legacy `cmd.exe` mangles the
+> box-drawing glyphs. Nothing to build. Full write-up in [`DECISIONS.md` §9](DECISIONS.md).
 
 ### Full-screen TUI: blocked, and that is fine
 
