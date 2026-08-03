@@ -9,7 +9,7 @@
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
 [![packagist](https://img.shields.io/badge/packagist-v0.1.0-blueviolet?style=for-the-badge)](https://packagist.org/packages/paider/paider)
 [![ci](https://img.shields.io/github/actions/workflow/status/shoemoney/paider/tests.yml?style=for-the-badge&label=tests)](https://github.com/shoemoney/paider/actions/workflows/tests.yml)
-[![tests](https://img.shields.io/badge/tests-175%20passing-brightgreen?style=for-the-badge)](tests/)
+[![tests](https://img.shields.io/badge/tests-186%20passing-brightgreen?style=for-the-badge)](tests/)
 [![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
@@ -30,7 +30,7 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `cost`, `config:provider`, `config:show` all register and run |
 | 🔧 six native tools | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `git`, `artisan` |
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection; stored in `.paider/` (gitignored locally) |
-| 🧪 test suite | ✅ **175 passing**, 630 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
+| 🧪 test suite | ✅ **186 passing**, 647 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
 | 📦 published on Packagist | ✅ **published** | `paider/paider` at https://packagist.org/packages/paider/paider |
 | 📦 `curl \| sh` installer | ⬜ **not built** | the binary is measured, the installer is not written |
@@ -308,7 +308,7 @@ vendor/bin/pest --group=live
   Measure both. Never derive one from the other.
 -->
 
-**Hermetic suite** (`vendor/bin/pest`, 175 tests) — all provider interactions mocked via Guzzle;
+**Hermetic suite** (`vendor/bin/pest`, 186 tests) — all provider interactions mocked via Guzzle;
 proves self-consistency, zero cost. Excluded group: `live`. This is the number in the badge above;
 the live suite is 3 more on top, **not** part of it.
 
@@ -361,38 +361,55 @@ someone got right first try:
 
 | guard | what it stops |
 |---|---|
-| 🛡️ `PathGuard` | `..` traversal in a non-existent tail **and** an existing intermediate dir symlinked out of the project |
+| 🛡️ `PathGuard` | `..` traversal, symlink escapes (including dangling symlinks), and prevents `file_exists()` false negatives |
 | 🔐 `Gate` | only ever caches a **grant** — there is no path that reads a cached deny as an allow |
-| 🔐 approval bypass | the model's own tool-call input **never** contains the `approval` key — `Loop` deletes it before the gate runs, so a model trying `{"approval":"allow-once"}` cannot self-approve |
+| 🔐 approval bypass | the model's tool-call input scrubbed of **both** `approval` **and** `approved` keys before any tool sees it; `Loop::dispatch()` is the sole enforcement point for all tool-trusting paths |
 | 🧾 `EventLog` | no `update()`, no `delete()`, anywhere — append-only is structural, not a comment |
 | 🤫 `SecretsGuard` | redaction before anything reaches a model |
 | 💸 `QwenPlanKeyGuard` | refuses an `sk-sp-` plan key paired with a PAYG base URL, which would silently bill you |
 | 🚫 strict JSON | six paths where a lenient decode turned a failed call into a successful-looking empty one |
 | ⏱️ `ShellTool` timeout | SIGTERM then **SIGKILL** after 0.5s — `proc_close()` blocks until the child exits, so a `trap '' TERM` command ran the full 20s against a 1s timeout and reported exit 0 |
+| 🪢 NUL-byte path guard | fnmatch errors on NUL bytes are caught and fail-safe, preventing model-triggered process crash |
 | 📎 `patch_file` + secrets | creating a **new** `.env`/`id_rsa` skipped approval entirely, because `stamp='__new_file__'` needs no prior read — which is where the gate used to catch it |
+| 🔄 `/undo` boundary | `/undo` respects project root, cannot delete files outside it or poison the stack |
+| 📤 JSON-array commands | array-form `command` in shell execution is displayed plainly in approval prompts, grants cache by displayed text, no auto-grant on later arrays |
 | ✅ result checking | `paider commit` returned SUCCESS when nothing was committed, and fed a SecretsGuard *refusal* to the model as though it were a diff |
 
 <details>
-<summary><b>🔬 Where these came from</b></summary>
+<summary><b>🔬 Where these came from — and the incomplete fix that was already verified</b></summary>
 
-Every row above was found by an **adversarial review pass that read the code on disk rather
-than the author's summary**, then re-verified against the committed result. Three are worth
-calling out because the tests were green the whole time:
+**Adversarial review with 33 agents across 8 lenses, independently reproduced by skeptics.** All six defects 
+found, all committed to regression tests. One finding towers over the others:
 
-- **Approval gate bypass (critical).** `Loop::dispatchArtisan()` and `Loop::dispatchShell()` passed the model's own tool-call input straight through to the tool without scrubbing. If that input contained `{"approval": "yes"}`, it bypassed the gate entirely — the approval callback never ran. `ArtisanTool` accepts any non-`deny` value, and `Loop::systemInstruction()` JSON-encodes the tool's `inputSchema()` into the prompt, so the model was explicitly told the field name and values. A model reply of `{"name":"artisan","input":{"approval":"allow-once"}}` would run service providers with zero human approval: **arbitrary code execution**. Fixed by `unset($input['approval'])` in both dispatchers before the gate. Two regression tests now assert the gate runs and its answer wins when a model tries to self-approve.
-- **`/add` was silently inert.** `Loop` never read `Session::contextFiles()`, so added files
-  never reached the model — and without their sha256 the model could not supply the stamp
-  `patch_file` requires. The headline workflow did nothing, with no error.
-- **`PathGuard` had two independent escapes**, found by two different reviewers. The first was
-  `..` in a non-existent tail. The second was an *existing* intermediate directory symlinked
-  out of the project, which the first fix said nothing about.
+**The approval bypass fix was incomplete — a second field name existed.** `Loop::dispatchShell()` and
+`Loop::dispatchArtisan()` had been scrubbed of `$input['approval']` to close an ACE hole. But `read_file`,
+`write_file`, `patch_file`, and `git` trust a *different* key — `approved` — and `Loop::dispatch()` passed
+the model's raw input unchanged to all of them. The model is handed both field names in the JSON schema in
+the system prompt, so it knew exactly what to try. A model reply with `{"approved":"allow-once"}` would
+bypass the gate on file read/write/git operations: **no approval callback, no human confirmation, raw
+credentials in the next model call**. Fixed at the single chokepoint in `Loop::dispatch()` rather than
+per-tool, with regression tests asserting the gate runs and wins.
+
+**The other five found and fixed:**
+- **JSON-array `command`** displayed as `''` in approval prompts while the original array was passed to
+  `proc_open`; grants cached by displayed text so one `allow-session` silently authorized every later array.
+- **`/undo` deleted files outside project root** with no prompt, poisoning the undo stack.
+- **`PathGuard` passed a dangling symlink** — `file_exists()` returns false for one, but the path was never
+  checked after that.
+- **NUL byte in a path crashed the process** — `fnmatch()` throws `ValueError`, unhandled, a zero-approval DoS.
+
+**Two honest caveats:**
+1. **Residual risk, unfixed:** an approved shell command's child inherits the full parent environment
+   including live provider API keys. The gate holds — the user has to approve *something* — but it is real.
+2. **Architectural caveat:** tools still trust `approved` if called directly (not through `dispatch()`).
+   Defence is a single chokepoint, so any code path reaching a tool without `dispatch()` reopens all bypasses.
 
 </details>
 
 ## 📚 Read the thinking
 
 - **[STORAGE.md](STORAGE.md)** — one SQLite file, no services. Why not Redis.
-- **[EXTENSIONS.md](EXTENSIONS.md)** — the eleven extensions that ship, and what was cut.
+- **[EXTENSIONS.md](EXTENSIONS.md)** — the twelve extensions that ship, and what was cut.
 - **[PLAN.md](PLAN.md)** — thesis, non-goals, v0.1 scope, architecture, milestones, risks.
 - **[DECISIONS.md](DECISIONS.md)** — how we got here, measured, with the wrong turns left in:
   recommending the wrong repo, picking a model off a spec sheet that a practitioner knew was a
@@ -450,17 +467,18 @@ round 1's cold-start conclusion, not just its size one. Full numbers:
 
 **Cold start: the penalty is gone, not just smaller.** Round 1's "~23% slower than lean-ini PHP"
 is **superseded** — that number came from the stock binary dynamically initialising 66 unwanted
-extensions on every invocation. Trim to the eleven Paider actually needs and the penalty
+extensions on every invocation. Trim to the twelve Paider actually needs and the penalty
 disappears: 94.8ms ±1.3ms vs. 95.9ms ±1.3ms for lean-ini system PHP, a statistical tie. Say it as
 "the cold-start penalty is eliminated," not "FrankenPHP is faster than PHP" — it isn't, it's even.
 
 **Size: 111MB on disk, honestly stated — but 40.6MB is what an installer downloads.** That lands
 right alongside the ~40MB Go binaries competing agents ship, which makes the `curl | sh` story
-viable. Getting there required fixing a real bug first: the "documented nine" extensions produced
+viable. Getting there required fixing real bugs first: the "documented nine" extensions produced
 a binary that **could not boot** — `laravel-zero/framework` calls `Phar::running()`
-unconditionally and needs `ext-phar` present, undeclared in its own `composer.json`. Paider's
-required set is **eleven**, not nine (adding `phar` and `filter` cost +283KB). See
-[`EXTENSIONS.md`](EXTENSIONS.md) for the trap and the full extension table.
+unconditionally and needs `ext-phar` present, undeclared in its own `composer.json`. Termwind does
+`new DOMDocument` but doesn't declare `ext-dom` either. Paider's required set is **twelve**, not
+nine (adding `phar`, `filter`, and `dom` cost +283KB total). See [`EXTENSIONS.md`](EXTENSIONS.md)
+for the traps and the full extension table.
 
 <details>
 <summary>Full round 2 hyperfine table (3 warmup + 30 timed runs, <code>-N</code>)</summary>
@@ -527,7 +545,7 @@ flowchart LR
 | **v1.0** | MCP **server** mode — external clients drive Paider's tools; published semver policy | ⬜ planned |
 
 <details>
-<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 175 tests pass?</b></summary>
+<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 186 tests pass?</b></summary>
 
 Because [`PLAN.md`](PLAN.md) wrote v0.1's definition of done *before* the code existed, and
 grading against it honestly leaves one box unticked:

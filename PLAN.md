@@ -967,7 +967,7 @@ Things that need Jeremy's call, not a default guess:
    stock 178MB binary, and cold start at parity with lean-ini system PHP (no penalty, where round
    1 measured a 23% one on the stock binary). Getting there also surfaced a real spec bug — the
    "documented nine" extensions produce a binary that cannot boot Paider at all (`Phar::running()`
-   trap, see EXTENSIONS.md) — so the required set is now eleven, not nine. Distribution is
+   trap, see EXTENSIONS.md) — so the required set is now twelve, not nine. Distribution is
    confirmed on both axes. Full numbers: DECISIONS.md §9.
 
 8. **⬜ CLI-only FrankenPHP build, Caddy-free.** `build-static.sh` always links the full Caddy
@@ -1012,11 +1012,11 @@ Docker on this machine, and Docker's static-builder emits Linux binaries only re
 **Measured 2026-08-02, round 2 — both conclusions above revised.** The trimmed build now exists,
 built natively (`build-static.sh`, ~7 minutes). Two corrections:
 
-1. **The required extension set is eleven, not nine.** The "documented nine" produced a binary
+1. **The required extension set is twelve, not nine.** The "documented nine" produced a binary
    that compiled clean and then could not boot — `laravel-zero/framework` calls
    `Phar::running()` unconditionally and needs `ext-phar` present, which its own `composer.json`
-   never declared. `filter` was the same story. See EXTENSIONS.md for the trap.
-2. **With all eleven, the trimmed binary is 111.3MB (106.2 MiB) — a −37.5% cut from stock — and
+   never declared. `filter` and `dom` were the same story. See EXTENSIONS.md for the trap.
+2. **With all twelve, the trimmed binary is 111.3MB (106.2 MiB) — a −37.5% cut from stock — and
    cold start is at *parity* with lean-ini system PHP (94.8ms vs. 95.9ms), not 23% slower.** The
    23% penalty was never inherent to FrankenPHP; it was the cost of the stock binary dynamically
    initialising 66 unwanted extensions. Trimming removes it entirely.
@@ -1146,7 +1146,7 @@ is the record of the correction, not an open item.
 **4. Non-goals lists 9 presets; `config/presets.php` has 11.** `open` and `open-frugal` were added
 later and never synced back.
 
-**Resolved 2026-08-02:** Non-goals now lists all eleven, with `open`/`open-frugal` called out as
+**Resolved 2026-08-02:** Non-goals now lists all twelve, with `open`/`open-frugal` called out as
 the two added late.
 
 **5. The cost ledger is not a moat.** It is arithmetic on data we already hold — a competitor
@@ -1194,8 +1194,8 @@ now precisely because it names a *different* build (`static-builder.Dockerfile`/
 than the one measured. See DECISIONS.md §8 and the new Open question below.
 
 **Resolved (built) 2026-08-02, round 2:** the trimmed build named above was built. It revises,
-not just confirms, round 1: the "9 wanted" extensions were wrong (11 are required — see
-EXTENSIONS.md's `Phar::running()` trap), and once trimmed to the correct eleven, cold start is at
+not just confirms, round 1: the "9 wanted" extensions were wrong (12 are required — see
+EXTENSIONS.md's `Phar::running()` trap and `ext-dom` caveat), and once trimmed to the correct twelve, cold start is at
 *parity* with lean-ini PHP rather than 23% behind it — that penalty was the stock binary's 66
 unwanted extensions initialising, not anything inherent to FrankenPHP. Size lands at 111.3MB /
 40.6MB compressed, −37.5% off stock. The 20–30MB estimate still wasn't reached, and now there's a
@@ -1330,7 +1330,7 @@ These are separate decisions and the docs must not blur them.
   CLI. Channels remain the composer package and the FrankenPHP binary.
 - **Development: a Docker container is welcome**, and with the floor at 8.4 it makes contributor
   setup trivial — pinned PHP version, pinned extension set, no "works on my machine". It also
-  gives a clean place to measure the eleven-extension configuration rather than testing against a
+  gives a clean place to measure the twelve-extension configuration rather than testing against a
   76-extension dev box.
 
 ## No Redux/RTK equivalent — and none is wanted

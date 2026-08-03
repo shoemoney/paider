@@ -487,7 +487,7 @@ see no secrets):
 
 - **Hermetic suite on PHP 8.4 + 8.5**: `vendor/bin/pest` with `--prefer-lowest` (all dependencies at
   their minimum declared versions) to catch transitive version leaks.
-- **PHP extensions**: exactly Paider's eleven (from `EXTENSIONS.md`), not a system default, so the
+- **PHP extensions**: exactly Paider's twelve (from `EXTENSIONS.md`), not a system default, so the
   binary's trimmed extension set is verified on every PR.
 - **Live-suite safety**: the three live tests (real API calls, requires credentials) skip cleanly
   with the message "skipped" if credentials are absent, so CI stays green in sandboxes with no
@@ -500,3 +500,103 @@ Paider depends on `laravel/prompts` *indirectly* via Laravel Zero, but had no ex
 The stock version resolved to `^0.3.0`, which includes classes (`Stream`, `Task`, `Callout`) added
 in v0.3.19, but `--prefer-lowest` pulled 0.3.0 (the tag) which did not have them — test failure.
 Now pinned to `^0.3.19` explicitly.
+
+## 15. Security audit — six defects found and fixed, 2026-08-03
+
+Adversarial review with 33 agents across 8 lenses (red team playing a hostile model). Every finding
+independently reproduced by two skeptics instructed to refute it. All six committed to regression tests.
+
+**The headline: a fix that had already been verified was incomplete.**
+
+Earlier, an ACE hole was closed: `Loop::dispatchShell()` and `Loop::dispatchArtisan()` were scrubbed
+of `$input['approval']` so the model could not self-approve. Tests passed. Then the security audit
+read the code on disk and found that `read_file`, `write_file`, `patch_file`, and `git` trust a
+*different* key — **`approved`** — and `Loop::dispatch()` passed the model's raw input unchanged to all
+of them. The model is told both field names in the system prompt, so it knew exactly what to try.
+A reply with `{"approved":"allow-once"}` would bypass the gate on file and git operations: no
+approval callback, no human confirmation, raw credentials in the next provider call. 
+
+**This is the useful lesson for codebases that gate tool calls:** centralize approval scrubbing at
+the sole chokepoint where *all* tools route through. Fixedness at one dispatcher leaves siblings
+broken. Fixed in `Loop::dispatch()` with regression tests asserting the gate runs and wins on both
+field names.
+
+**The other five defects found and fixed:**
+
+1. **JSON-array command execution** — a `command` field with an array value was coerced to `''` for
+   display in the approval prompt, but the original array was passed to `proc_open()` — which
+   takes arrays as `argv`, needing no shell parsing. Grants cached by displayed text, so one
+   `allow-session` grant silently authorized every later array-form command for the session.
+   Displays plainly now, grants only cache by the displayed text, no auto-grant on arrays.
+
+2. **`/undo` deleted files outside project root** with no prompt, reporting "reverted" while
+   poisoning the undo stack. A write correctly rejected for being out-of-root still added an
+   entry to the stack, so later `/undo` commands tried to reverse it. Now `/undo` respects
+   boundaries.
+
+3. **PathGuard walked past a dangling symlink** — the third independent escape found in that
+   single function. `file_exists()` returns false for a dangling symlink, but nothing checked
+   after that point. Now fails safe: if the path traversal crosses anything symlinked, reject it.
+
+4. **A NUL byte in a path crashed the process** — `fnmatch()` throws `ValueError` when a NUL
+   appears. Unhandled, this is a model-triggerable zero-approval DoS. Caught and fail-safe now.
+
+**Two residual risks, recorded honestly:**
+
+1. **Approved shell commands inherit the parent environment**, including live provider API keys.
+   The gate holds — the user has to approve something — but it is real. A rubber-stamped diagnostic
+   script can hand a credential back into the model's context. This needs deeper sandboxing
+   (separate `env`, drop capabilities, chroot-like isolation) which is out of scope for v0.1.
+
+2. **Architectural caveat:** tools still trust the `approved` key if called directly, not through
+   `dispatch()`. Defence is a single chokepoint, so any future code path reaching a tool without
+   going through `dispatch()` reopens all four bypasses at once. Document the rule, lint for it,
+   code-review for it.
+
+Commit: `407a2fc`. Tests added: `ApprovalGateSelfApprovalTest`, `ApprovalGateApprovedFieldTest`,
+`PathGuardSymlinkTest`, `ToolExitCodeTest`.
+
+## 16. FrankenPHP embed: twelve extensions, not eleven — 2026-08-03
+
+The trimmed FrankenPHP binary from §9 was built and measured for real. It works, and it corrected
+the extension count.
+
+| | |
+|---|---|
+| **Extensions compiled in** | **12**, not 11: `mbstring`, `tokenizer`, `ctype`, `fileinfo`, `iconv`, `curl`, `openssl`, `zlib`, `pdo_sqlite`, `phar`, `filter`, **`dom`** |
+| cold start (first invocation) | 445 ms — untars 74 MB to `$TMPDIR` |
+| cold start (warm, subsequent) | 110 ms — binary already extracted |
+| compressed transfer | 40.6 MB with `zstd -19` — lands beside Go binaries |
+| disk footprint | 111.3 MB (106.2 MiB) — a −37.5% cut from the stock 178 MB binary |
+
+**The missing extension, found the expensive way:** the "documented eleven" passed `paider --version`
+and `paider list` (commands that print a version string, exercising almost none of the app), then
+died on `paider cost` with `Class "DOMDocument" not found`. Termwind's `HtmlRenderer` does
+`new DOMDocument`, and Termwind's own `composer.json` requires only `php` and `ext-mbstring`. So
+`composer check-platform-reqs` cannot see it, CI has `dom` in its default PHP anyway, and every
+dev machine has it. The only environment that could reveal it is the one actually distributed —
+a build containing exactly what was asked for and nothing else.
+
+**The general lesson:** smoke-test with something that does *work*, not something that proves the
+binary starts. `--version` and `list` are not smoke tests; they prove the binary can fork and print.
+Run a command that does real work through the actual rendering pipeline. Paider declares `ext-dom`
+in its own `composer.json` now, since Termwind does not.
+
+**Three reasons the recommendation is still defer, not ship:**
+
+1. **Invocation is `<binary> php-cli paider <command>`**, not `./paider <command>`. A bare name
+   mismatch is a documentation problem; the real issue is the next one.
+
+2. **Naming the binary `paider` and running it from a directory containing a `paider` script**
+   makes PHP try to `include` the 178 MB binary as a script and OOM. The obvious layout is the one
+   that breaks. Needs a rename, a wrapper, or a different distribution model.
+
+3. **It untars to `TMPDIR` per start**, which defaults to `/var/tmp` on Linux — shared, world-writable,
+   and deterministic in path. On CI/containers a co-resident user could pre-plant a poisoned `.php`
+   file there. Needs `TMPDIR` explicitly set on execution, or untars to a `.paider/` cache directory.
+
+**FrankenPHP has no Windows static build at all** — the release matrix is 3 platforms, not 4. That
+decision (no Windows for a compiled binary) stands on its own, but it is worth noting explicitly.
+
+Commit: `db8b8f1`. Test suite: 186 passing, 647 assertions (hermetic); 3 live tests (real API calls),
+currently failing due to credential config but skip cleanly in sandboxes.

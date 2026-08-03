@@ -152,15 +152,15 @@ emits Linux binaries only). PHP 8.5.9, Caddy v2.11.4, Go 1.26.5. Build time: **~
 
 The first attempt used the "documented nine" and **could not boot** — the `Phar::running()` trap
 above. With all twelve extensions
-(`PHP_EXTENSIONS="mbstring,tokenizer,ctype,fileinfo,iconv,curl,openssl,zlib,pdo_sqlite,phar,filter"`)
+(`PHP_EXTENSIONS="mbstring,tokenizer,ctype,fileinfo,iconv,curl,openssl,zlib,pdo_sqlite,phar,filter,dom"`)
 it works:
 
 | | |
 |---|---|
 | Binary size | **111,315,960 bytes = 111.3 MB decimal / 106.2 MiB** |
-| Cost of adding `phar` + `filter` | **+283 KB** — negligible |
+| Cost of adding `phar` + `filter` + `dom` | **+283 KB** — negligible |
 | vs. stock 178MB / 77-ext binary | **−37.5%** size |
-| Extensions loaded at runtime | **25** — the 11 above, plus 14 always-compiled core: `Core`, `PDO`, `Reflection`, `SPL`, `Zend OPcache`, `date`, `hash`, `json`, `lexbor`, `pcre`, `random`, `standard`, `uri` |
+| Extensions loaded at runtime | **26** — the 12 above, plus 14 always-compiled core: `Core`, `PDO`, `Reflection`, `SPL`, `Zend OPcache`, `date`, `hash`, `json`, `lexbor`, `pcre`, `random`, `standard`, `uri` |
 | Compressed, `gzip -9` | 46.6 MB |
 | Compressed, `zstd -19` | 40.6 MB |
 
