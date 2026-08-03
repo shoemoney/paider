@@ -1,6 +1,51 @@
 * text=auto eol=lf
-/.github export-ignore
-.scrutinizer.yml export-ignore
-BACKERS.md export-ignore
-CONTRIBUTING.md export-ignore
-CHANGELOG.md export-ignore
+
+# What ships to a consumer via `composer require paider/paider`.
+#
+# Packagist serves dist archives built by `git archive`, so anything NOT
+# export-ignored here lands in every user's vendor/ directory forever. Verify a
+# change to this file with:
+#
+#     git archive --format=tar HEAD | tar -t
+#
+# Kept: app/ bootstrap/ config/ paider composer.json LICENSE README.md
+# Everything below is development apparatus, not something a consumer runs.
+
+# CI and repo tooling
+/.github            export-ignore
+.editorconfig       export-ignore
+.gitattributes      export-ignore
+.gitignore          export-ignore
+
+# The test suite — 204 KB, and nothing a consumer executes. Anyone who wants to
+# run it can `composer require --prefer-source` or clone the repo.
+/tests              export-ignore
+phpunit.xml.dist    export-ignore
+
+# Planning and decision records: the argument for the project, not documentation
+# of its API. They belong on GitHub where the README links them, not in somebody
+# else's vendor/ directory. 108 KB combined.
+PLAN.md             export-ignore
+DECISIONS.md        export-ignore
+EXTENSIONS.md       export-ignore
+STORAGE.md          export-ignore
+
+# PHAR build config, inherited from the Laravel Zero skeleton. PHAR is an
+# explicitly cut distribution format (PLAN.md, "Distribution and concurrency"),
+# so shipping its build config advertises a channel that does not exist.
+box.json            export-ignore
+
+# 300 KB, and a consumer's resolver ignores it entirely — a library's lock file
+# has no effect on the depending project. It stays in git, where CI and
+# contributors need it; there is no reason to put it in every install.
+composer.lock       export-ignore
+
+# NOT export-ignored, deliberately:
+#
+#   CHANGELOG.md — the skeleton ignored it. That was a scaffold default, not a
+#   decision. Someone reading vendor/paider/paider to work out what changed
+#   between two versions should find it right there.
+#
+# Removed from this file: .scrutinizer.yml, BACKERS.md and CONTRIBUTING.md.
+# None of them exist in this repository — they were Laravel Zero skeleton
+# leftovers ignoring files that were never here.
