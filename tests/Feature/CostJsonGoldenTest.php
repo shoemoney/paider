@@ -39,9 +39,13 @@ afterEach(function () {
 function costJsonKeySets(): array
 {
     return [
-        'top' => ['tiers', 'session', 'unpriced_calls', 'comparison'],
-        'tier' => ['calls', 'tokens_in', 'tokens_out', 'spend_usd', 'unpriced_calls', 'unpriced_models', 'hypothetical_usd', 'hypothetical_unknown', 'share_pct'],
-        'session' => ['calls', 'tokens_in', 'tokens_out', 'spend_usd', 'unpriced_calls', 'unpriced_models', 'hypothetical_usd', 'hypothetical_unknown'],
+        // 'model_mismatches' arrived with the served-vs-requested-model work: providers can
+        // serve a different model than you asked for, and the ledger surfaces that rather than
+        // silently pricing the id you requested. This pin caught the addition on merge, which
+        // is exactly what it is for — the key is intentional, so the pin moves with it.
+        'top' => ['tiers', 'session', 'unpriced_calls', 'comparison', 'model_mismatches'],
+        'tier' => ['calls', 'tokens_in', 'tokens_out', 'spend_usd', 'unpriced_calls', 'unpriced_models', 'hypothetical_usd', 'hypothetical_unknown', 'share_pct', 'mismatched_calls', 'mismatched_models'],
+        'session' => ['calls', 'tokens_in', 'tokens_out', 'spend_usd', 'unpriced_calls', 'unpriced_models', 'hypothetical_usd', 'hypothetical_unknown', 'mismatched_calls', 'mismatched_models'],
         'unpriced_entry' => ['tier', 'count', 'calls', 'models'],
         'comparison' => ['hypothetical_usd', 'saved_usd', 'token_share_pct', 'spend_share_pct'],
     ];

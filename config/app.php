@@ -1,5 +1,8 @@
 <?php
 
+use App\Providers\AppServiceProvider;
+use Composer\InstalledVersions;
+
 return [
 
     /*
@@ -41,8 +44,8 @@ return [
      * is correct in vendor/. The fallback covers the FrankenPHP static binary and
      * any other context where composer's runtime API is not present.
      */
-    'version' => class_exists(\Composer\InstalledVersions::class)
-        ? (\Composer\InstalledVersions::getPrettyVersion('paider/paider') ?? 'unreleased')
+    'version' => class_exists(InstalledVersions::class)
+        ? (InstalledVersions::getPrettyVersion('paider/paider') ?? 'unreleased')
         : 'unreleased',
 
     /*
@@ -71,7 +74,7 @@ return [
     */
 
     'providers' => [
-        App\Providers\AppServiceProvider::class,
+        AppServiceProvider::class,
     ],
 
 ];

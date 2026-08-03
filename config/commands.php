@@ -1,5 +1,21 @@
 <?php
 
+use App\Commands\ChatCommand;
+use Illuminate\Console\Scheduling\ScheduleFinishCommand;
+use Illuminate\Console\Scheduling\ScheduleListCommand;
+use Illuminate\Console\Scheduling\ScheduleRunCommand;
+use Illuminate\Foundation\Console\VendorPublishCommand;
+use LaravelZero\Framework\Commands\BuildCommand;
+use LaravelZero\Framework\Commands\InstallCommand;
+use LaravelZero\Framework\Commands\MakeCommand;
+use LaravelZero\Framework\Commands\RenameCommand;
+use LaravelZero\Framework\Commands\StubPublishCommand;
+use LaravelZero\Framework\Commands\TestMakeCommand;
+use NunoMaduro\Collision\Adapters\Laravel\Commands\TestCommand;
+use NunoMaduro\LaravelConsoleSummary\SummaryCommand;
+use Symfony\Component\Console\Command\DumpCompletionCommand;
+use Symfony\Component\Console\Command\HelpCommand;
+
 return [
 
     /*
@@ -13,7 +29,7 @@ return [
     |
     */
 
-    'default' => App\Commands\ChatCommand::class,
+    'default' => ChatCommand::class,
 
     /*
     |--------------------------------------------------------------------------
@@ -55,14 +71,14 @@ return [
     */
 
     'hidden' => [
-        NunoMaduro\LaravelConsoleSummary\SummaryCommand::class,
-        Symfony\Component\Console\Command\DumpCompletionCommand::class,
-        Symfony\Component\Console\Command\HelpCommand::class,
-        Illuminate\Console\Scheduling\ScheduleRunCommand::class,
-        Illuminate\Console\Scheduling\ScheduleListCommand::class,
-        Illuminate\Console\Scheduling\ScheduleFinishCommand::class,
-        Illuminate\Foundation\Console\VendorPublishCommand::class,
-        LaravelZero\Framework\Commands\StubPublishCommand::class,
+        SummaryCommand::class,
+        DumpCompletionCommand::class,
+        HelpCommand::class,
+        ScheduleRunCommand::class,
+        ScheduleListCommand::class,
+        ScheduleFinishCommand::class,
+        VendorPublishCommand::class,
+        StubPublishCommand::class,
     ],
 
     /*
@@ -88,17 +104,17 @@ return [
      * — the same reason box.json is no longer shipped in the dist archive.
      */
     'remove' => [
-        LaravelZero\Framework\Commands\BuildCommand::class,
-        LaravelZero\Framework\Commands\MakeCommand::class,
-        LaravelZero\Framework\Commands\RenameCommand::class,
-        LaravelZero\Framework\Commands\InstallCommand::class,
-        LaravelZero\Framework\Commands\TestMakeCommand::class,
+        BuildCommand::class,
+        MakeCommand::class,
+        RenameCommand::class,
+        InstallCommand::class,
+        TestMakeCommand::class,
 
         // `paider test` runs Paider's own suite. tests/ is export-ignored from the
         // dist archive, so for anyone who installed via composer this command has
         // nothing to run — it would fail confusingly rather than do nothing.
         // Contributors work from a clone and use `vendor/bin/pest` directly.
-        NunoMaduro\Collision\Adapters\Laravel\Commands\TestCommand::class,
+        TestCommand::class,
     ],
 
 ];

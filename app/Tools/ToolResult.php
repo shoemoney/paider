@@ -2,7 +2,7 @@
 
 namespace App\Tools;
 
-readonly final class ToolResult
+final readonly class ToolResult
 {
     public function __construct(
         public bool $ok,

@@ -75,6 +75,9 @@ jobs:
         if: matrix.deps == 'lowest'
         run: composer update --no-interaction --no-progress --prefer-dist --prefer-lowest --prefer-stable
 
+      - name: Check code style (pint)
+        run: vendor/bin/pint --test
+
       # The default suite excludes the `live` group (phpunit.xml.dist), so this is hermetic:
       # no network, no provider credentials, no spend. If this step ever needs a secret,
       # something has leaked out of tests/Live and that is the bug, not the missing secret.

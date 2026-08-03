@@ -33,7 +33,7 @@ test('a clean valid diff applies and matches expected output byte-for-byte', fun
     $original = "line one\nline two\nline three\n";
     $path = writeFixture($root, 'clean.txt', $original);
 
-    $diff = <<<DIFF
+    $diff = <<<'DIFF'
     --- a/clean.txt
     +++ b/clean.txt
     @@ -1,3 +1,3 @@
@@ -82,7 +82,7 @@ test('a hunk whose context lines do not match current content returns conflict a
     $original = "alpha\nbeta\ngamma\n";
     $path = writeFixture($root, 'conflict.txt', $original);
 
-    $diff = <<<DIFF
+    $diff = <<<'DIFF'
     @@ -1,3 +1,3 @@
      alpha
     -THIS DOES NOT MATCH
@@ -108,7 +108,7 @@ test('a stale stamp returns stale_stamp and leaves the file untouched', function
     $original = "current content\n";
     $path = writeFixture($root, 'stale.txt', $original);
 
-    $diff = <<<DIFF
+    $diff = <<<'DIFF'
     @@ -1,1 +1,1 @@
     -current content
     +new content
@@ -153,7 +153,7 @@ test('a diff that applies cleanly but yields invalid PHP is rejected via the syn
     $original = "<?php\n\nfunction greet(): string\n{\n    return 'hello';\n}\n";
     $path = writeFixture($root, 'broken.php', $original);
 
-    $diff = <<<DIFF
+    $diff = <<<'DIFF'
     @@ -3,4 +3,4 @@
      function greet(): string
      {
@@ -248,7 +248,7 @@ test('a diff that never touches the last line of a no-trailing-newline file does
     $original = "line one\nline two\nline three";
     $path = writeFixture($root, 'no-eol.txt', $original);
 
-    $diff = <<<DIFF
+    $diff = <<<'DIFF'
     @@ -1,3 +1,3 @@
      line one
     -line two

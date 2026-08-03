@@ -31,25 +31,25 @@ return [
 
     'anthropic' => [
         'orchestrator' => 'anthropic/claude-opus-5',      //  $5.00 / $25.00   1M ctx
-        'coder'        => 'anthropic/claude-sonnet-5',    //  $2.00 / $10.00
-        'research'     => 'anthropic/claude-haiku-4.5', //  $1.00 /  $5.00
-        'fast'         => 'anthropic/claude-haiku-4.5',   //  $1.00 /  $5.00
+        'coder' => 'anthropic/claude-sonnet-5',    //  $2.00 / $10.00
+        'research' => 'anthropic/claude-haiku-4.5', //  $1.00 /  $5.00
+        'fast' => 'anthropic/claude-haiku-4.5',   //  $1.00 /  $5.00
         // claude-fable-5 ($10/$50) and claude-opus-5-fast ($10/$50) trade price
         // for latency; opt in with --orchestrator when a plan is worth it.
     ],
 
     'openai' => [
         'orchestrator' => 'openai/gpt-5.5-pro',           // $30.00 / $180.00  1.05M ctx
-        'coder'        => 'openai/gpt-chat-latest',       //  $5.00 /  $30.00
-        'research'     => 'openai/gpt-5-nano',       //  $0.05 /   $0.40
-        'fast'         => 'openai/gpt-5-nano',            //  $0.05 /   $0.40
+        'coder' => 'openai/gpt-chat-latest',       //  $5.00 /  $30.00
+        'research' => 'openai/gpt-5-nano',       //  $0.05 /   $0.40
+        'fast' => 'openai/gpt-5-nano',            //  $0.05 /   $0.40
     ],
 
     'google' => [
-        'orchestrator' => 'google/gemini-3.1-pro-preview',//  $2.00 /  $12.00  1.05M ctx
-        'coder'        => 'google/gemini-3.6-flash',      //  $1.50 /   $7.50
-        'research'     => 'google/gemini-3.6-flash', //  $1.50 /   $7.50   1.05M ctx
-        'fast'         => 'google/gemma-4-26b-a4b-it',    //  $0.07 /   $0.34
+        'orchestrator' => 'google/gemini-3.1-pro-preview', //  $2.00 /  $12.00  1.05M ctx
+        'coder' => 'google/gemini-3.6-flash',      //  $1.50 /   $7.50
+        'research' => 'google/gemini-3.6-flash', //  $1.50 /   $7.50   1.05M ctx
+        'fast' => 'google/gemma-4-26b-a4b-it',    //  $0.07 /   $0.34
     ],
 
     // Jeremy's call, and the catalogue backs it: k3 orchestrates, and the fast
@@ -62,23 +62,23 @@ return [
         // the coder tier, where latency compounds inside a loop. It is NOT listed
         // on OpenRouter, so it is reachable only via the direct endpoint. Prefer it
         // when the user has a Moonshot key rather than an aggregator key.
-        'coder'        => 'moonshotai/kimi-k2.7-code',    //  $0.73 /   $3.50   262k ctx
-        'research'     => 'moonshotai/kimi-k2',      //  $0.57 /   $2.30
-        'fast'         => 'moonshotai/kimi-k2',           //  $0.57 /   $2.30
+        'coder' => 'moonshotai/kimi-k2.7-code',    //  $0.73 /   $3.50   262k ctx
+        'research' => 'moonshotai/kimi-k2',      //  $0.57 /   $2.30
+        'fast' => 'moonshotai/kimi-k2',           //  $0.57 /   $2.30
     ],
 
     'deepseek' => [
         'orchestrator' => 'deepseek/deepseek-v4-pro',     //  $0.435 /   $0.87  1.05M ctx
-        'coder'        => 'deepseek/deepseek-v3.2',       //  $0.269 /   $0.40
-        'research'     => 'deepseek/deepseek-v4-flash', //  $0.14 /   $0.28
-        'fast'         => 'deepseek/deepseek-v4-flash',   //  $0.14 /   $0.28
+        'coder' => 'deepseek/deepseek-v3.2',       //  $0.269 /   $0.40
+        'research' => 'deepseek/deepseek-v4-flash', //  $0.14 /   $0.28
+        'fast' => 'deepseek/deepseek-v4-flash',   //  $0.14 /   $0.28
     ],
 
     'xai' => [
         'orchestrator' => 'x-ai/grok-4.5',                //  $2.00 /   $6.00   500k ctx
-        'coder'        => 'x-ai/grok-4.3',                //  $1.25 /   $2.50     1M ctx
-        'research'     => 'x-ai/grok-build-0.1',     //  $1.00 /   $2.00
-        'fast'         => 'x-ai/grok-build-0.1',          //  $1.00 /   $2.00
+        'coder' => 'x-ai/grok-4.3',                //  $1.25 /   $2.50     1M ctx
+        'research' => 'x-ai/grok-build-0.1',     //  $1.00 /   $2.00
+        'fast' => 'x-ai/grok-build-0.1',          //  $1.00 /   $2.00
     ],
 
     'qwen' => [
@@ -89,16 +89,16 @@ return [
         // coder tier runs in a loop, so latency compounds; flash wins on both
         // axes. It reports structured_outputs=false, so if malformed diffs
         // ever show up, that is the first thing to suspect.
-        'coder'        => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
-        'research'     => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
-        'fast'         => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13
+        'coder' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
+        'research' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
+        'fast' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13
     ],
 
     'glm' => [
         'orchestrator' => 'z-ai/glm-5.1',                 //  $0.966 /   $3.036
-        'coder'        => 'z-ai/glm-5',                   //  $0.95 /   $2.55
-        'research'     => 'z-ai/glm-4.7-flash',      //  $0.06 /   $0.40
-        'fast'         => 'z-ai/glm-4.7-flash',           //  $0.06 /   $0.40
+        'coder' => 'z-ai/glm-5',                   //  $0.95 /   $2.55
+        'research' => 'z-ai/glm-4.7-flash',      //  $0.06 /   $0.40
+        'fast' => 'z-ai/glm-4.7-flash',           //  $0.06 /   $0.40
     ],
 
     /*
@@ -113,9 +113,9 @@ return [
     */
     'open' => [
         'orchestrator' => 'moonshotai/kimi-k3',           //  $3.00 /  $15.00   1.05M ctx
-        'coder'        => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
-        'research'     => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
-        'fast'         => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13
+        'coder' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
+        'research' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
+        'fast' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13
     ],
 
     /*
@@ -131,9 +131,9 @@ return [
     */
     'open-frugal' => [
         'orchestrator' => 'minimax/minimax-m3',           //  $0.30 /   $1.20   1.05M ctx
-        'coder'        => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
-        'research'     => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
-        'fast'         => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13
+        'coder' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
+        'research' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
+        'fast' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13
     ],
 
     /*
@@ -150,9 +150,9 @@ return [
     */
     'balanced' => [
         'orchestrator' => 'anthropic/claude-opus-5',      //  $5.00 /  $25.00   1M ctx
-        'coder'        => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13   1M ctx
-        'research'     => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13   1M ctx
-        'fast'         => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13
+        'coder' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13   1M ctx
+        'research' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13   1M ctx
+        'fast' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13
     ],
 
     /*
@@ -171,8 +171,8 @@ return [
     | metered billing. Verify the current terms before building on either.
     */
     'accounts' => [
-        'rotate'   => true,
-        'broker'   => 'aigate',
+        'rotate' => true,
+        'broker' => 'aigate',
         'strategy' => 'rate-limit-aware',   // park a 429'd account, retry next healthy
     ],
 ];

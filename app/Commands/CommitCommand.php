@@ -41,7 +41,7 @@ class CommitCommand extends Command
         $unstaged = $git->execute(['op' => 'diff', 'staged' => false]);
 
         if (trim($unstaged->output) === '') {
-            note("Nothing to commit.");
+            note('Nothing to commit.');
 
             return Command::SUCCESS;
         }

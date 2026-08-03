@@ -117,7 +117,7 @@ class QueuedProviderClient implements ProviderClient
 {
     private int $cursor = 0;
 
-    /** @var array<int, array<int, array{role: string, content: string}>> every $messages it was sent */
+    /** @var array<int, array<int, array{role: string, content: string}>> every it was sent */
     public array $seenMessages = [];
 
     /** @param array<int, ProviderResponse> $responses */

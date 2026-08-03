@@ -10,7 +10,7 @@ it('prices a known model at several token volumes', function () {
     expect(ModelPricing::costFor('known/model-x', 1_000_000, 0))->toBe(1.0)
         ->and(ModelPricing::costFor('known/model-x', 0, 1_000_000))->toBe(5.0)
         ->and(ModelPricing::costFor('known/model-x', 500_000, 200_000))
-            ->toBe(500_000 / 1e6 * 1.00 + 200_000 / 1e6 * 5.00);
+        ->toBe(500_000 / 1e6 * 1.00 + 200_000 / 1e6 * 5.00);
 });
 
 it('returns null, not 0.0, for a known model with zero usage on both sides -- a completion is never free', function () {
