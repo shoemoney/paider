@@ -5,6 +5,7 @@ through `pdo_sqlite` — the ninth and, unless something forces it, final extens
 
 ```
 .paider/paider.db        # project-scoped: sessions, memory, plan, cost ledger
+                         # gitignored: the event log accumulates prompts and is local-only
 ~/.paider/paider.db      # user-scoped: credentials, global preferences
 ```
 

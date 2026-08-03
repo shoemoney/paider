@@ -7,7 +7,8 @@
 [![status](https://img.shields.io/badge/status-alpha-orange?style=for-the-badge)](#-status-honestly)
 [![php](https://img.shields.io/badge/PHP-%E2%89%A5%208.4-777BB4?style=for-the-badge&logo=php&logoColor=white)](composer.json)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
-[![tests](https://img.shields.io/badge/tests-155%20passing-brightgreen?style=for-the-badge)](tests/)
+[![packagist](https://img.shields.io/badge/packagist-dev--main-blueviolet?style=for-the-badge)](https://packagist.org/packages/paider/paider)
+[![tests](https://img.shields.io/badge/tests-159%20passing-brightgreen?style=for-the-badge)](tests/)
 [![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
@@ -26,11 +27,12 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 |---|---|---|
 | 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `cost`, `config:provider`, `config:show` all register and run |
 | 🔧 six native tools | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `git`, `artisan` |
-| 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection |
-| 🧪 test suite | ✅ **155 passing**, 489 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
+| 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection; stored in `.paider/` (gitignored locally) |
+| 🧪 test suite | ✅ **159 passing**, 525 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
+| 📦 published on Packagist | ✅ **published** | `paider/paider` at https://packagist.org/packages/paider/paider · dev-main only |
 | 📦 `curl \| sh` installer | ⬜ **not built** | the binary is measured, the installer is not written |
-| 🏷️ tagged release | ⬜ **none** | no version has shipped |
+| 🏷️ tagged release | ⬜ **none** | only dev-main available (no minimum-stability:stable) |
 
 **Do not install this expecting a working agent.** The wiring is real and tested; the last
 mile — an actual API key, an actual model, an actual edit landing in your repo — is unproven.
@@ -123,8 +125,11 @@ $ paider cost
 
 > **Modelled session.** `paider cost` ships today and reads this straight off the event log, but
 > it prints only `tier | calls | tokens in | tokens out | spend` — the `share` column, the ratio
-> line, and the all-Opus comparison above are design, not built. And `spend` reads `$0.000` until
-> `tier_call` events carry real prices; today `cost_usd` is hardcoded to `0.0` at every write site.
+> line, and the all-Opus comparison above are design, not built. `spend` itself is real: each
+> `tier_call` event is priced at write time from [`config/prices.php`](config/prices.php) by exact
+> model id. A model with no entry there stores `cost_usd` as `NULL`, not `$0.00` — the command
+> reports those separately as unpriced calls, naming the specific model, instead of silently
+> undercounting the total.
 
 That last line is the product the design is aiming at. Most agent tools show you a total, if
 anything. Paider is meant to show you the **ratio** — and the ratio is the whole argument for
@@ -391,9 +396,14 @@ Startup, one machine, medians:
 Two channels, because there are exactly two users:
 
 ```bash
-composer require paider/paider          # inside your Laravel app — this is the thesis
-curl -fsSL paider.dev/install | sh      # planned: standalone binary, not built yet
+composer require paider/paider:dev-main      # inside your Laravel app — this is the thesis
+curl -fsSL paider.dev/install | sh           # planned: standalone binary, not built yet
 ```
+
+**Why `:dev-main`?** Paider is published on [Packagist](https://packagist.org/packages/paider/paider)
+but has no tagged releases yet — only the dev branch (`dev-main`) is available. Composer's default
+minimum-stability is `stable`, which means a bare `composer require paider/paider` will fail to
+resolve. Use `paider/paider:dev-main` until the first tagged release ships.
 
 The package is non-negotiable: an agent that turns *your* models and jobs into tools has to be a
 dependency of your app, and a compiled binary cannot be one.
@@ -510,7 +520,7 @@ grading against it honestly leaves one box unticked:
 | diff-apply staleness, syntax gate, `/undo`, secrets guard | ✅ built |
 | honest comparison table vs Maestro | ✅ **added above** |
 | live provider round-trips | ✅ **3 tests, ledger reconciles** |
-| installable via `composer global require` from a clean machine | ✅ **verified locally** — path repository tested; not yet published to Packagist |
+| published on Packagist | ✅ **published** — [`paider/paider`](https://packagist.org/packages/paider/paider) as dev-main |
 | end-to-end on a real repo with a real API key | ⬜ never attempted |
 
 The one remaining box — running a full session against a real repo with a real API key and watching an edit land — is the last blocker to shipping v0.1. Everything else is done. The rule

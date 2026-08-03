@@ -578,7 +578,7 @@ Things that need Jeremy's call, not a default guess:
 
 | channel | user | why |
 |---|---|---|
-| `composer require paider/paider` | Laravel dev, agent inside the app | **the thesis requires it** — a compiled binary cannot be a package dependency, and turning your models into tools means being one |
+| `composer require paider/paider:dev-main` | Laravel dev, agent inside the app | **the thesis requires it** — a compiled binary cannot be a package dependency, and turning your models into tools means being one; `:dev-main` suffix required until first tagged release |
 | FrankenPHP embed binary | anyone wanting the CLI standalone | no PHP install, extensions pinned at build |
 
 **PHAR is cut.** It requires PHP installed yet is not a composer dependency, so it is strictly
