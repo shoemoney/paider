@@ -11,7 +11,7 @@
         "cli"
     ],
     "homepage": "https://paider.dev",
-    "type": "project",
+    "type": "library",
     "license": "Apache-2.0",
     "support": {
         "issues": "https://github.com/shoemoney/paider/issues",
