@@ -72,8 +72,9 @@ it('names the unpriced model when a call has no cost_usd', function () {
     $output = $bufferedOutput->fetch();
 
     expect($output)
-        ->toContain('spend excludes 1 unpriced call')
-        ->toContain('nobody/knows-this-model');
+        ->toContain('1 of 1 coder calls not priced')
+        ->toContain('nobody/knows-this-model')
+        ->toContain('totals exclude them');
 });
 
 it('marks an unpriced tier row instead of printing a bare $0.000', function () {
@@ -112,5 +113,71 @@ it('shows a no-usage message and exits successfully when the ledger is empty', f
 
     $output = $bufferedOutput->fetch();
 
-    expect($output)->toContain('no usage recorded yet');
+    expect($output)
+        ->toContain('no usage recorded yet')
+        ->toContain('paider chat')
+        ->toContain('paider commit');
+});
+
+it('computes each tier\'s share of session spend to one decimal place', function () {
+    $log = new EventLog(Database::connect());
+
+    $log->append('tier_call', ['tier' => 'orchestrator', 'tokens_in' => 1000, 'tokens_out' => 200, 'cost_usd' => 0.75]);
+    $log->append('tier_call', ['tier' => 'coder', 'tokens_in' => 20000, 'tokens_out' => 5000, 'cost_usd' => 0.25]);
+
+    $bufferedOutput = new BufferedOutput;
+    $outputStyle = new OutputStyle(new ArrayInput([]), $bufferedOutput);
+
+    $exitCode = $this->app->make(Kernel::class)->call('cost', [], $outputStyle);
+
+    expect($exitCode)->toBe(0);
+
+    $output = $bufferedOutput->fetch();
+
+    // 0.75 / 1.00 = 75.0%, 0.25 / 1.00 = 25.0%
+    expect($output)->toContain('75.0%')->toContain('25.0%');
+});
+
+it('renders share as a dash and skips both summary lines when session spend is 0', function () {
+    $log = new EventLog(Database::connect());
+
+    $log->append('tier_call', ['tier' => 'coder', 'model' => 'nobody/knows-this-model', 'tokens_in' => 500, 'tokens_out' => 100, 'cost_usd' => null]);
+
+    $bufferedOutput = new BufferedOutput;
+    $outputStyle = new OutputStyle(new ArrayInput([]), $bufferedOutput);
+
+    $exitCode = $this->app->make(Kernel::class)->call('cost', [], $outputStyle);
+
+    expect($exitCode)->toBe(0);
+
+    $output = $bufferedOutput->fetch();
+
+    expect($output)
+        ->toContain('—')
+        ->not->toContain('of your tokens went through')
+        ->not->toContain('Same work on all-Opus 5');
+});
+
+it('emits the same computed arrays as JSON with --json', function () {
+    $log = new EventLog(Database::connect());
+
+    $log->append('tier_call', ['tier' => 'orchestrator', 'tokens_in' => 1000, 'tokens_out' => 200, 'cost_usd' => 0.75]);
+    $log->append('tier_call', ['tier' => 'coder', 'model' => 'nobody/knows-this-model', 'tokens_in' => 500, 'tokens_out' => 100, 'cost_usd' => null]);
+
+    $bufferedOutput = new BufferedOutput;
+    $outputStyle = new OutputStyle(new ArrayInput([]), $bufferedOutput);
+
+    $exitCode = $this->app->make(Kernel::class)->call('cost', ['--json' => true], $outputStyle);
+
+    expect($exitCode)->toBe(0);
+
+    $data = json_decode($bufferedOutput->fetch(), true, 512, JSON_THROW_ON_ERROR);
+
+    expect($data)->toHaveKeys(['tiers', 'session', 'unpriced_calls', 'comparison'])
+        ->and($data['tiers']['orchestrator']['spend_usd'])->toBe(0.75)
+        ->and($data['tiers']['orchestrator']['share_pct'])->toBe(100)
+        ->and($data['tiers']['coder']['unpriced_calls'])->toBe(1)
+        ->and($data['unpriced_calls'][0])->toBe(['tier' => 'coder', 'count' => 1, 'calls' => 1, 'models' => ['nobody/knows-this-model']])
+        ->and($data['session']['spend_usd'])->toBe(0.75)
+        ->and($data['comparison'])->toHaveKeys(['hypothetical_usd', 'saved_usd', 'token_share_pct', 'spend_share_pct']);
 });
