@@ -89,7 +89,7 @@ Named for what they are *for*, not aider's `main`/`weak`/`editor`/`agent`:
   50k to extract 500. This is where agent bills quietly go, and nobody else names it as a tier.
 - **fast** — commit messages, retries, one-liners.
 
-### The default: Opus 5 to think, qwen3.7-flash to do
+### The default: Opus 5 orchestrates, qwen3.7-flash codes, deepseek-v4-flash researches
 
 Jeremy's own working config. On a session that plans 50k/20k and does 2M/300k:
 
@@ -97,9 +97,9 @@ Jeremy's own working config. On a session that plans 50k/20k and does 2M/300k:
 |---|---|
 | all Opus 5 | $18.25 |
 | all Sonnet 5 | $7.30 |
-| **Opus 5 + qwen3.7-flash** | **$0.85** — 95.3% cheaper than all-Opus |
+| **Opus 5 + qwen3.7-flash + deepseek-v4-flash** | **$1.159** — 95.5% cheaper than all-Opus |
 
-qwen3.7-flash is $0.03/$0.13 per Mtok with **1M context** and tool support.
+qwen3.7-flash ($0.03/$0.13 per Mtok, 1M context) codes; deepseek-v4-flash ($0.14/$0.28 per Mtok, 1M context) handles research and fast calls.
 
 **Practitioner corrections that overrode the spec sheet:**
 
@@ -108,6 +108,12 @@ qwen3.7-flash is $0.03/$0.13 per Mtok with **1M context** and tool support.
   orchestrator and not fast enough to be your coder"* — a dead zone buying neither. Replaced
   with qwen3.7-flash. Caveat retained in the config: flash reports
   `structured_outputs=false`, so malformed diffs are the first thing to suspect if they appear.
+- **Research and fast tiers moved from qwen3.7-flash to deepseek-v4-flash** (2026-08-03),
+  Jeremy's call from using it. The research tier ingests the highest token volume (reusing the
+  same repo context per call — ideal for deepseek's $0.0028/Mtok cache HIT rate, 50x below
+  the $0.14 miss rate) and deepseek-v4-flash outperforms qwen at that workload. Break-even on
+  per-token cost lands near 82% cache-hit rate; at 90% this tier costs $0.039 against qwen's
+  $0.058 — cheaper *and* better.
 - Kimi's coder is `kimi-k2.7-code`, not k2.6 — newer and coding-specialised for 13c/Mtok more.
 
 **cecli's aliases for comparison**, all verified stale against the live OpenRouter catalogue:

@@ -148,7 +148,7 @@ That last line is the product in one sentence. Most agent tools show you a total
 anything. Paider shows you the **ratio** — and the ratio is the whole argument for
 routing, once it's wired up.
 
-It also keeps us honest. The 95.3% figure below is a modelled session; the ledger is what
+It also keeps us honest. The 95.5% figure below is a modelled session; the ledger is what
 confirms or refutes it on real work. A cost claim you cannot check is marketing, and this one is
 checkable by the person paying.
 

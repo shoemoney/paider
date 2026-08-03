@@ -35,7 +35,7 @@ What's still true, and still worth building on:
   fork's aliases are 1–4 generations stale (`cecli`'s `haiku` still points at an October 2024
   model). Paider already ships `config/presets.php` with four *named* tiers
   (orchestrator/coder/research/fast), verified-live model IDs and prices, and a documented
-  95.3%-cheaper default (Opus 5 + `qwen3.7-flash` vs. all-Opus) — that's built, not aspirational.
+  95.5%-cheaper default (Opus 5 orchestrates, qwen3.7-flash codes, deepseek-v4-flash researches) — that's built, not aspirational.
 - Aider died from **scope creep and abandoned stewardship**, not from a technical flaw (see
   Risks). The single most-repeated complaint mined from its own issue tracker isn't a missing
   feature — it's "where is Paul?" (#4613) and "what is the intended future of Aider?" (#4648,
@@ -53,7 +53,7 @@ shipped one that won't rot.
 
 **Model routing is a named feature, not a config detail.** Eleven presets ship in
 `config/presets.php`, every model ID and price verified live: eight single-provider stacks, a
-`balanced` default (Opus 5 to think, `qwen3.7-flash` to do — 95.3% cheaper than all-Opus), and
+`balanced` default (Opus 5 orchestrates, qwen3.7-flash codes, deepseek-v4-flash researches — 95.5% cheaper than all-Opus), and
 two open-weight stacks (`open` on kimi-k3, `open-frugal` on minimax-m3 at $0.30/$1.20 for a 1M
 context orchestrator) for developers who will not send their code to a US frontier lab. That
 last constituency is real and entirely unserved in PHP.
@@ -1693,10 +1693,10 @@ Three findings that affect Paider directly:
 `qwen3.7-plus`, `qwen3.6-plus`, `qwen3.5-plus`, `qwen3-max-2026-01-23`, plus third-party
 `kimi-k2.5`, `glm-5`, `MiniMax-M2.5`, `glm-4.7`.
 
-So the `balanced` default — Opus 5 to think, `qwen3.7-flash` to do — **cannot run on a Coding
-Plan**. A plan holder needs a different preset. That is a real gap: add a `qwen-plan` preset
-built only from allowlisted models, and have `paider config:provider` warn when a selected model
-is not on the user's plan.
+So the `balanced` default — Opus 5 orchestrates, qwen3.7-flash codes, deepseek-v4-flash researches
+— **cannot run on a Coding Plan** (qwen3.7-flash is not allowlisted). A plan holder needs a different
+preset. That is a real gap: add a `qwen-plan` preset built only from allowlisted models, and have
+`paider config:provider` warn when a selected model is not on the user's plan.
 
 **2. Wrong key silently bills pay-as-you-go.** Plan keys are prefixed `sk-sp-` and require a
 base URL containing `coding.dashscope`. Using the general Model Studio key and URL works fine
