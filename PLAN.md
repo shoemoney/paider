@@ -582,6 +582,47 @@ people cite, findings people can check against real diffs, and an item set that 
 training data. The rotation policy below is the backstop: even partial leakage shows up as a
 measurable old-vs-new gap rather than silently inflating the score.
 
+### Publishing constraints — the number must resist misreading, not carry a disclaimer
+
+A caveat in a methodology document protects the author. It does not protect the reader, because
+the reader never sees it — the headline number travels alone, and people take numbers literally,
+which is what numbers are for. **So these are constraints on what may be published, not guidance
+on how to interpret what is published.**
+
+**1. The interval is part of the number. Always, everywhere, inseparably.**
+Never `62`. Always `62 ± 4`. A bare total is never published in any medium, because a bare total
+is the thing that gets divided. If the interval is inconvenient to render, that is a reason to
+fix the rendering, not to drop the interval.
+
+**2. Precision is capped at what the measurement supports.**
+`30.16%` is four significant figures on a quantity whose uncertainty exceeds most of the
+leaderboard beneath it. Publishing that precision *is* the misleading act — it happens before
+anyone divides anything, and it signals a confidence the data does not contain. If it is 30 ± 6,
+it prints as `30 ± 6`.
+
+**3. The per-category breakdown ships with the total, never after it.**
+A single number for eight very different capabilities lets one saturated category carry the
+headline. The breakdown is not an appendix; it is part of the result.
+
+**4. Comparisons are published as item counts, never as multiples.**
+Not "1.8x better." Not "20x." **"Passed 62 of 100 vs 48 of 100."** The unit shapes the
+misreading: item counts invite subtraction — *14 more items* — which is true and stays true.
+Multiples invite division, and a ratio taken near a floor is meaningless (Opus 4.6 at 0.51% is
+"2.8x" its own successor Opus 4.7 at 0.18%, which is obviously nonsense). We will not publish a
+multiple, and we will not publish a chart whose visual encoding implies one.
+
+**5. Near-floor and near-ceiling results are reported as a band, not a value.**
+Below the level where the suite can discriminate, the honest output is "did not clear the floor",
+not a decimal. Three consecutive scores of 0.51%, 0.18% and 1.52% are not a capability gradient —
+they are three ways of writing "completed almost nothing", and printing them as distinct numbers
+manufactures a trend that is not there.
+
+**Why these are constraints and not suggestions:** every one of them costs us headline impact.
+An interval is less quotable than a point estimate, item counts are less dramatic than multiples,
+and "did not clear the floor" makes a worse chart than 0.18%. That cost is the point. A number
+designed to survive being quoted out of context is a different artefact from a number designed to
+be quoted.
+
 ### Publication policy — decided up front, because it is the whole design
 
 **Publish every run, including the errored ones, tagged as such.** Crashes, timeouts, refusals,
