@@ -109,3 +109,30 @@ it('throws when no API key is available at send time', function () {
 
     $client->send([['role' => 'user', 'content' => 'Hi']], 'gpt-x');
 })->throws(RuntimeException::class);
+
+it('forwards $options into the request body but never lets them override model or messages', function () {
+    $history = [];
+    $http = makeOpenAiHttp([
+        new Response(200, [], json_encode([
+            'choices' => [['message' => ['content' => 'ok']]],
+            'usage' => ['prompt_tokens' => 1, 'completion_tokens' => 1],
+        ])),
+    ], $history);
+
+    $client = new OpenAiCompatibleClient('https://api.example.com/v1', 'EXAMPLE_API_KEY', 'k', $http);
+
+    $client->send(
+        [['role' => 'user', 'content' => 'real']],
+        'real-model',
+        // `thinking` is the motivating case: DeepSeek defaults it on and bills reasoning as
+        // output. `model`/`messages` are the attack: an option that could swap either would
+        // bill one model's tokens at another's price.
+        ['thinking' => ['type' => 'disabled'], 'model' => 'impostor', 'messages' => []],
+    );
+
+    $body = json_decode((string) $history[0]['request']->getBody(), true);
+
+    expect($body['thinking'])->toBe(['type' => 'disabled']);
+    expect($body['model'])->toBe('real-model');
+    expect($body['messages'])->toBe([['role' => 'user', 'content' => 'real']]);
+});

@@ -34,11 +34,16 @@ class AnthropicClient implements ProviderClient
             array_filter($messages, fn (array $m) => $m['role'] === 'system'),
         ));
 
-        $body = [
+        // Merged UNDER the fixed keys — see OpenAiCompatibleClient for why `model` must not
+        // be overridable. `max_tokens` is the exception and reads through, since 4096 is a
+        // default rather than an invariant. `system` is asserted last: it is derived from
+        // the caller's own messages, and letting an option displace it would silently drop
+        // the instructions the loop believes it sent.
+        $body = array_merge($options, [
             'model' => $model,
-            'max_tokens' => 4096,
+            'max_tokens' => $options['max_tokens'] ?? 4096,
             'messages' => array_values(array_filter($messages, fn (array $m) => $m['role'] !== 'system')),
-        ];
+        ]);
 
         if ($system !== '') {
             $body['system'] = $system;

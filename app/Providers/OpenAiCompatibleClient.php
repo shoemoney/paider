@@ -34,10 +34,16 @@ class OpenAiCompatibleClient implements ProviderClient
             'headers' => [
                 'Authorization' => "Bearer {$this->apiKey}",
             ],
-            'json' => [
+            // $options carries provider-specific knobs (temperature, DeepSeek's
+            // `thinking`, response_format). It is merged UNDER the fixed keys, never over
+            // them: `model` is what the cost ledger prices and what the served-model
+            // mismatch check compares against, so an option able to swap it would book
+            // one model's tokens at another's rate — a false number printed confidently,
+            // which is the exact defect class §15 was written against.
+            'json' => array_merge($options, [
                 'model' => $model,
                 'messages' => $messages,
-            ],
+            ]),
         ]);
 
         // See AnthropicClient: a non-JSON body must fail loudly rather than decode to null and

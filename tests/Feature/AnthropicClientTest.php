@@ -101,3 +101,28 @@ it('throws when no API key is available at send time', function () {
 
     $client->send([['role' => 'user', 'content' => 'Hi']], 'claude-x');
 })->throws(RuntimeException::class);
+
+it('forwards $options, allows max_tokens through, and pins model, messages and system', function () {
+    $history = [];
+    $http = makeAnthropicHttp([
+        new Response(200, [], json_encode([
+            'content' => [['type' => 'text', 'text' => 'ok']],
+            'usage' => ['input_tokens' => 1, 'output_tokens' => 1],
+        ])),
+    ], $history);
+
+    $client = new AnthropicClient('k', 'https://api.example.com', $http);
+
+    $client->send(
+        [['role' => 'system', 'content' => 'real system'], ['role' => 'user', 'content' => 'real']],
+        'real-model',
+        ['temperature' => 0.2, 'max_tokens' => 128, 'model' => 'impostor', 'system' => 'injected'],
+    );
+
+    $body = json_decode((string) $history[0]['request']->getBody(), true);
+
+    expect($body['temperature'])->toBe(0.2);
+    expect($body['max_tokens'])->toBe(128);          // a default, so it reads through
+    expect($body['model'])->toBe('real-model');      // an invariant, so it does not
+    expect($body['system'])->toBe('real system');
+});
