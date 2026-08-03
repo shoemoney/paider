@@ -114,15 +114,15 @@ $ paider cost
 
   tier            calls      in        out       spend    share
   ───────────────────────────────────────────────────────────────
-  orchestrator       14    61.2k      19.8k     $0.801    84.9%
-  coder             203     1.4M     287.1k     $0.079     8.4%
-  research          118     1.8M      34.6k     $0.058     6.2%
-  fast               77    98.4k      12.2k     $0.005     0.5%
+  orchestrator       14    61.2k      19.8k     $0.801    69.1%
+  coder             203     1.4M     287.1k     $0.079     6.8%
+  research          118     1.8M      34.6k     $0.262    22.6%
+  fast               77    98.4k      12.2k     $0.017     1.5%
   ───────────────────────────────────────────────────────────────
-  session                  3.36M     353.7k     $0.943
+  session                  3.36M     353.7k     $1.159
 
-  97.8% of your tokens went through tiers costing 15.1% of your spend.
-  Same work on all-Opus 5: $25.64  ·  you saved $24.70
+  97.8% of your tokens went through tiers costing 30.9% of your spend.
+  Same work on all-Opus 5: $25.64  ·  you saved $24.48
 ```
 
 > **Modelled session, real command.** ✅ `paider cost` prints all of the above — every column, the

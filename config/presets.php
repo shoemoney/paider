@@ -151,8 +151,20 @@ return [
     'balanced' => [
         'orchestrator' => 'anthropic/claude-opus-5',      //  $5.00 /  $25.00   1M ctx
         'coder' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13   1M ctx
-        'research' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13   1M ctx
-        'fast' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13
+        // research and fast moved to deepseek-v4-flash 2026-08-03, Jeremy's call from using
+        // it. The modelled session below prices every input token as a CACHE MISS at $0.14,
+        // which is the honest worst case and raises it $0.943 -> $1.159. Real cost is very
+        // likely lower: DeepSeek charges $0.0028/Mtok on a context-cache HIT, 50x below the
+        // miss rate, and the research tier re-reads the same repo context on every call —
+        // the ideal hit profile. Break-even against qwen3.7-flash lands near an 82% hit
+        // rate; at 90% this tier costs $0.039 against qwen's $0.058.
+        //
+        // The README quotes the worst case on purpose. A default tuned to keep the headline
+        // number small rather than to do the job well is the same self-deception the Paider
+        // 100 section is written against, and quoting the cache-warm figure as if it were
+        // typical would be the same error pointed the other way.
+        'research' => 'deepseek/deepseek-v4-flash', //  $0.14 /   $0.28
+        'fast' => 'deepseek/deepseek-v4-flash',   //  $0.14 /   $0.28
     ],
 
     /*

@@ -137,13 +137,13 @@ test("the fast tier_call event is priced from \$route['model'], not the tier or 
     expect($tierCalls)->toHaveCount(1);
 
     // Default preset is 'balanced' (no .paider/settings.json in this fresh repo), whose
-    // fast tier is qwen/qwen3.7-flash at $0.03/$0.13 per Mtok (config/presets.php). The
-    // expected cost is computed independently here, not via ModelPricing::costFor(), so
+    // fast tier is deepseek/deepseek-v4-flash at $0.14/$0.28 per Mtok (config/presets.php).
+    // The expected cost is computed independently here, not via ModelPricing::costFor(), so
     // this fails if CommitCommand ever passes the wrong argument (e.g. the tier name
     // 'fast' or the preset name 'balanced') instead of $route['model'].
-    $expectedCost = 12 / 1e6 * 0.03 + 4 / 1e6 * 0.13;
+    $expectedCost = 12 / 1e6 * 0.14 + 4 / 1e6 * 0.28;
 
-    expect($tierCalls[0]['payload']['model'])->toBe('qwen/qwen3.7-flash')
+    expect($tierCalls[0]['payload']['model'])->toBe('deepseek/deepseek-v4-flash')
         ->and($tierCalls[0]['payload']['cost_usd'])->toBe($expectedCost);
 });
 
