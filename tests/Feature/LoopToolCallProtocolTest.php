@@ -48,11 +48,16 @@ class QueuedProviderClient implements ProviderClient
 {
     private int $cursor = 0;
 
+    /** @var array<int, array<int, array{role: string, content: string}>> every $messages it was sent */
+    public array $seenMessages = [];
+
     /** @param array<int, ProviderResponse> $responses */
     public function __construct(private readonly array $responses) {}
 
     public function send(array $messages, string $model, array $options = []): ProviderResponse
     {
+        $this->seenMessages[] = $messages;
+
         $response = $this->responses[$this->cursor] ?? end($this->responses);
         $this->cursor++;
 
@@ -66,6 +71,16 @@ function loopTestSession(): Session
     mkdir($root, recursive: true);
 
     return new Session(new ReadFileTool(realpath($root)), realpath($root));
+}
+
+/** @return array{0: Session, 1: string} */
+function loopTestSessionWithRoot(): array
+{
+    $root = sys_get_temp_dir().'/paider-loop-'.uniqid();
+    mkdir($root, recursive: true);
+    $root = realpath($root);
+
+    return [new Session(new ReadFileTool($root), $root), $root];
 }
 
 function neverApprove(): callable
@@ -126,4 +141,26 @@ test('a reply with no fenced block at all is plain prose and dispatches nothing'
     $loop->turn(loopTestSession(), 'what should we do?', neverApprove());
 
     expect($tool->callCount)->toBe(0);
+});
+
+test('an /add-ed file\'s content and stamp reach the messages sent to the provider', function () {
+    [$session, $root] = loopTestSessionWithRoot();
+    file_put_contents($root.'/notes.txt', 'hello world');
+    $session->addFile('notes.txt');
+    $stamp = $session->contextFiles()['notes.txt']['stamp'];
+
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(content: 'Sure, got it.', tokensIn: 3, tokensOut: 3, raw: []),
+    ]);
+
+    $loop = new Loop([], $provider, new TierRouter, new EventLog(Database::connect(':memory:')), new Gate);
+
+    $loop->turn($session, 'what is in notes.txt?', neverApprove());
+
+    $sent = $provider->seenMessages[0];
+    $fileMessage = implode("\n", array_column($sent, 'content'));
+
+    expect($fileMessage)->toContain('notes.txt');
+    expect($fileMessage)->toContain('hello world');
+    expect($fileMessage)->toContain($stamp);
 });

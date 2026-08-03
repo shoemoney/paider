@@ -196,6 +196,35 @@ test('a new file is created correctly from an all-+ diff with the __new_file__ s
     expect(file_get_contents($path))->toBe($expected);
 });
 
+test('creating a new sensitive-named file requires approval and is not written without it', function () {
+    $root = patchFileWorkspace();
+    $path = $root.DIRECTORY_SEPARATOR.'.env';
+
+    $diff = "@@ -0,0 +1,1 @@\n+SECRET=value\n";
+
+    $tool = new PatchFileTool($root);
+    $result = $tool->execute([
+        'path' => '.env',
+        'diff' => $diff,
+        'stamp' => PatchFileTool::NEW_FILE_STAMP,
+    ]);
+
+    expect($result->ok)->toBeFalse();
+    expect($result->meta['needs_approval'] ?? false)->toBeTrue();
+    expect($result->meta['reason'] ?? null)->toBe('secrets');
+    expect(is_file($path))->toBeFalse();
+
+    $approved = $tool->execute([
+        'path' => '.env',
+        'diff' => $diff,
+        'stamp' => PatchFileTool::NEW_FILE_STAMP,
+        'approved' => true,
+    ]);
+
+    expect($approved->ok)->toBeTrue();
+    expect(file_get_contents($path))->toBe("SECRET=value\n");
+});
+
 test('a diff that never touches the last line of a no-trailing-newline file does not gain one', function () {
     $root = patchFileWorkspace();
     $original = "line one\nline two\nline three";

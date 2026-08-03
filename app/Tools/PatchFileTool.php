@@ -3,6 +3,7 @@
 namespace App\Tools;
 
 use App\Support\PathGuard;
+use App\Support\SecretsGuard;
 use App\Tools\Contracts\Tool;
 
 class PatchFileTool implements Tool
@@ -31,6 +32,7 @@ class PatchFileTool implements Tool
                 'path' => ['type' => 'string'],
                 'diff' => ['type' => 'string'],
                 'stamp' => ['type' => 'string'],
+                'approved' => ['type' => 'boolean'],
             ],
             'required' => ['path', 'diff', 'stamp'],
         ];
@@ -52,6 +54,13 @@ class PatchFileTool implements Tool
 
         if (! PathGuard::containedIn($this->root, $absolute)) {
             return ToolResult::fail('path escapes the workspace root', ['denied' => true]);
+        }
+
+        if (SecretsGuard::isSensitive($absolute) && ! ($input['approved'] ?? false)) {
+            return ToolResult::fail('sensitive path requires approval', [
+                'needs_approval' => true,
+                'reason' => 'secrets',
+            ]);
         }
 
         $exists = is_file($absolute);

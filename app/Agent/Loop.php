@@ -215,11 +215,23 @@ class Loop
     {
         $messages = [['role' => 'system', 'content' => $this->systemInstruction()]];
 
+        // /add'ed files must be disclosed with the same sha256 stamp PatchFileTool checks —
+        // otherwise the model can never supply a stamp that will actually match on apply.
+        foreach ($session->contextFiles() as $path => $file) {
+            $messages[] = ['role' => 'system', 'content' => $this->contextFileMessage($path, $file)];
+        }
+
         foreach ($session->history() as $turn) {
             $messages[] = ['role' => $turn['role'], 'content' => $turn['content']];
         }
 
         return $messages;
+    }
+
+    /** @param array{stamp: string, content: string} $file */
+    private function contextFileMessage(string $path, array $file): string
+    {
+        return "Context file: {$path}\nstamp: {$file['stamp']}\n```\n{$file['content']}\n```";
     }
 
     private function systemInstruction(): string
