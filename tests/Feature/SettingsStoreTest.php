@@ -59,3 +59,17 @@ it('falls back to balanced when a stale settings file holds an unknown preset', 
 
     expect(SettingsStore::activePreset())->toBe('balanced');
 });
+
+it('falls back to the default preset when the settings file is corrupt', function () {
+    mkdir(getcwd().'/.paider');
+    file_put_contents(getcwd().'/.paider/settings.json', '{"preset": "balanc');
+
+    expect(SettingsStore::activePreset())->toBe('balanced');
+});
+
+it('falls back to the default preset when the settings file holds valid JSON of the wrong shape', function () {
+    mkdir(getcwd().'/.paider');
+    file_put_contents(getcwd().'/.paider/settings.json', '"just a string"');
+
+    expect(SettingsStore::activePreset())->toBe('balanced');
+});

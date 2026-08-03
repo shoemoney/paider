@@ -35,7 +35,11 @@ class EventLog
         $stmt->execute([
             'id' => $id,
             'type' => $type,
-            'payload' => json_encode($payload),
+            // Without JSON_THROW_ON_ERROR an unencodable payload (invalid UTF-8 from file
+            // contents or shell output) returns false, binds as '', and writes an event with
+            // no payload. An audit log that silently loses what it was auditing is worse than
+            // one that fails loudly.
+            'payload' => json_encode($payload, JSON_THROW_ON_ERROR),
             'created_at' => gmdate('c'),
         ]);
 
@@ -53,7 +57,7 @@ class EventLog
             $events[] = [
                 'id' => $row['id'],
                 'type' => $row['type'],
-                'payload' => json_decode($row['payload'], true),
+                'payload' => json_decode($row['payload'], true, 512, JSON_THROW_ON_ERROR),
                 'created_at' => $row['created_at'],
             ];
         }

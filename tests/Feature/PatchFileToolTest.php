@@ -196,6 +196,86 @@ test('a new file is created correctly from an all-+ diff with the __new_file__ s
     expect(file_get_contents($path))->toBe($expected);
 });
 
+test('a diff that never touches the last line of a no-trailing-newline file does not gain one', function () {
+    $root = patchFileWorkspace();
+    $original = "line one\nline two\nline three";
+    $path = writeFixture($root, 'no-eol.txt', $original);
+
+    $diff = <<<DIFF
+    @@ -1,3 +1,3 @@
+     line one
+    -line two
+    +line TWO
+     line three
+    DIFF."\n";
+
+    $tool = new PatchFileTool($root);
+    $result = $tool->execute([
+        'path' => 'no-eol.txt',
+        'diff' => $diff,
+        'stamp' => stampOf($original),
+    ]);
+
+    expect($result->ok)->toBeTrue();
+
+    $expected = "line one\nline TWO\nline three";
+    expect(file_get_contents($path))->toBe($expected);
+});
+
+test('a standard "\ No newline at end of file" marker is honoured, not rejected as a parse error', function () {
+    $root = patchFileWorkspace();
+    $original = "line one\nline two\nline three";
+    $path = writeFixture($root, 'no-eol-marker.txt', $original);
+
+    $diff = <<<DIFF
+    @@ -1,3 +1,3 @@
+     line one
+    -line two
+    +line TWO
+     line three
+    \ No newline at end of file
+    DIFF."\n";
+
+    $tool = new PatchFileTool($root);
+    $result = $tool->execute([
+        'path' => 'no-eol-marker.txt',
+        'diff' => $diff,
+        'stamp' => stampOf($original),
+    ]);
+
+    expect($result->ok)->toBeTrue();
+
+    $expected = "line one\nline TWO\nline three";
+    expect(file_get_contents($path))->toBe($expected);
+});
+
+test('a marker on an added line replacing the no-trailing-newline last line is honoured', function () {
+    $root = patchFileWorkspace();
+    $original = "line one\nline two\nline three";
+    $path = writeFixture($root, 'no-eol-last-line.txt', $original);
+
+    $diff = <<<DIFF
+    @@ -1,3 +1,3 @@
+     line one
+     line two
+    -line three
+    +line THREE
+    \ No newline at end of file
+    DIFF."\n";
+
+    $tool = new PatchFileTool($root);
+    $result = $tool->execute([
+        'path' => 'no-eol-last-line.txt',
+        'diff' => $diff,
+        'stamp' => stampOf($original),
+    ]);
+
+    expect($result->ok)->toBeTrue();
+
+    $expected = "line one\nline two\nline THREE";
+    expect(file_get_contents($path))->toBe($expected);
+});
+
 test('a path that escapes the workspace root is denied', function () {
     $root = patchFileWorkspace();
 

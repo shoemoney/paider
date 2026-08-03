@@ -53,7 +53,10 @@ class AnthropicClient implements ProviderClient
             'json' => $body,
         ]);
 
-        $raw = json_decode((string) $response->getBody(), true);
+        // A gateway or proxy error returns HTML, not JSON. Decoding that leniently yields null,
+        // which flows on as empty content and zero tokens — a failed call that looks like a
+        // successful empty one, and quietly books $0.00 into the cost ledger.
+        $raw = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
 
         $content = implode('', array_map(
             fn (array $block) => $block['text'] ?? '',

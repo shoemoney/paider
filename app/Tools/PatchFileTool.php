@@ -219,6 +219,23 @@ class PatchFileTool implements Tool
 
                 $marker = $line[0];
 
+                // '\ No newline at end of file' tags the immediately preceding body line as
+                // lacking a trailing EOL on the side that line belongs to. It is not itself a
+                // content line, so fold it into the previous entry instead of storing it.
+                if ($marker === '\\') {
+                    if ($hunkLines === []) {
+                        return ToolResult::fail('malformed diff line', [
+                            'parse_error' => true,
+                            'detail' => "'\\ No newline at end of file' marker with no preceding line",
+                        ]);
+                    }
+
+                    $hunkLines[count($hunkLines) - 1]['no_eol'] = true;
+                    $i++;
+
+                    continue;
+                }
+
                 if ($marker !== ' ' && $marker !== '+' && $marker !== '-') {
                     return ToolResult::fail('malformed diff line', [
                         'parse_error' => true,
@@ -226,7 +243,7 @@ class PatchFileTool implements Tool
                     ]);
                 }
 
-                $hunkLines[] = ['type' => $marker, 'text' => substr($line, 1)];
+                $hunkLines[] = ['type' => $marker, 'text' => substr($line, 1), 'no_eol' => false];
                 $i++;
             }
 
@@ -251,8 +268,15 @@ class PatchFileTool implements Tool
             array_pop($currentLines);
         }
 
+        // Whether the original file's own last line was terminated by $eol. Ground truth comes
+        // from the file's bytes, not from the diff — a hand-crafted diff can omit the
+        // '\ No newline at end of file' marker and we must still not invent a newline.
+        $originalHadTrailingEol = $currentLines !== [] && str_ends_with($current, $eol);
+        $lastOriginalIndex = count($currentLines) - 1;
+
         $result = [];
         $cursor = 0; // 0-indexed position in $currentLines already emitted into $result
+        $lastEmittedHasEol = true; // trailing-EOL status of the most recently appended $result line
 
         foreach ($hunks as $hunk) {
             // '@@ -0,0 +c,d @@' is the standard convention for "insert at the very start of an
@@ -276,11 +300,13 @@ class PatchFileTool implements Tool
                 }
 
                 $result[] = $currentLines[$cursor];
+                $lastEmittedHasEol = ! ($cursor === $lastOriginalIndex && ! $originalHadTrailingEol);
             }
 
             foreach ($hunk['lines'] as $line) {
                 if ($line['type'] === '+') {
                     $result[] = $line['text'];
+                    $lastEmittedHasEol = ! ($line['no_eol'] ?? false);
 
                     continue;
                 }
@@ -302,6 +328,7 @@ class PatchFileTool implements Tool
 
                 if ($line['type'] === ' ') {
                     $result[] = $line['text'];
+                    $lastEmittedHasEol = ! ($cursor === $lastOriginalIndex && ! $originalHadTrailingEol);
                 }
 
                 $cursor++;
@@ -311,8 +338,9 @@ class PatchFileTool implements Tool
         // Copy any remaining untouched tail.
         for (; $cursor < count($currentLines); $cursor++) {
             $result[] = $currentLines[$cursor];
+            $lastEmittedHasEol = ! ($cursor === $lastOriginalIndex && ! $originalHadTrailingEol);
         }
 
-        return implode($eol, $result).($result === [] ? '' : $eol);
+        return implode($eol, $result).($result === [] ? '' : ($lastEmittedHasEol ? $eol : ''));
     }
 }

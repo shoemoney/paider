@@ -40,7 +40,9 @@ class OpenAiCompatibleClient implements ProviderClient
             ],
         ]);
 
-        $raw = json_decode((string) $response->getBody(), true);
+        // See AnthropicClient: a non-JSON body must fail loudly rather than decode to null and
+        // masquerade as a successful empty completion costing nothing.
+        $raw = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
 
         return new ProviderResponse(
             content: $raw['choices'][0]['message']['content'] ?? '',

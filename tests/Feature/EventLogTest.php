@@ -48,3 +48,14 @@ it('declares no update or delete shaped public method — append-only is structu
         }
     }
 });
+
+it('refuses to append an event whose payload cannot be encoded, rather than writing it empty', function () {
+    $log = new EventLog(Database::connect(':memory:'));
+
+    // Lone continuation byte — invalid UTF-8, exactly what raw file contents or shell output
+    // can carry. Leniently encoded this returns false and silently stores an empty payload.
+    expect(fn () => $log->append('tool_result', ['stdout' => "\xB1\x31"]))
+        ->toThrow(JsonException::class);
+
+    expect($log->all())->toBeEmpty();
+});
