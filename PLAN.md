@@ -1127,6 +1127,266 @@ command drives end-to-end, non-interactively, bounded by the allow-list above.
 
 ---
 
+## ⬜ v0.3 — Session identity, spec only
+
+*Planned. Written 2026-08-03 as an implementation-ready spec — **no schema and no code changed in
+this pass.** `paider cost` has always labelled its aggregate row "session," but there is no
+session-boundary concept anywhere in storage: `Session.php` is documented as not persisting past
+process exit, no `session_start` event exists, and `CostLedger::summary()`'s "session" row is
+actually an all-time total over every event the log has ever recorded. The flagship cost feature
+cannot answer the question a user actually asks — "what did **this conversation** cost" — because
+nothing marks where one conversation ends and the next begins. This section is that boundary,
+specified down to the file list, so an implementer makes zero further architectural calls.*
+
+### The shape of the fix, in one line
+
+Every event's `payload` gets a `session_id` key, stamped by `EventLog` itself at write time, with
+a `session_start` event marking each new one. **No column, no new table, no `ALTER TABLE`.** The
+`events` table (`id`, `type`, `payload`, `created_at`) does not change at all — `session_id` is
+just another field inside the existing JSON `payload` blob, the same way `tier`, `model`, and
+`hypothetical_usd` already live there rather than as columns. That is the answer to "session_start
+event vs a column vs a separate table": a column would need an `ALTER TABLE` against rows already
+on users' disks (exactly the migration this job's envelope forbids doing unattended, and a real
+risk even attended — SQLite's `ALTER TABLE ADD COLUMN` is safe, but the discipline of "the events
+table never needs a migration" is worth more than the marginal query convenience); a separate
+table duplicates the append-only guarantee `EventLog` already has and needs its own reasoning
+about join consistency. Reusing `payload` needs neither.
+
+### Decision 1 — what identifies a session, and how it becomes addressable
+
+- **One process invocation = one session.** `paider chat` from start to `/quit` (or the process
+  dying) is one session; each one-shot `paider commit` invocation is also its own session — the
+  same rule, no special case for "conversational" vs "one-shot" commands. This matches the
+  existing shape of the code: `ChatCommand` and `CommitCommand` each construct their own `EventLog`
+  once per process, and nothing today correlates events across two separate `EventLog` instances
+  or two separate process runs.
+- **Session id = `Uuid::uuid7()->toString()`**, generated once, in-process, no I/O — the same UUID
+  version `EventLog::append()` already uses for event ids (`app/Storage/EventLog.php:29`), for the
+  same reason: time-ordered, so a session id sorts the same way its events do without needing an
+  index. ramsey/uuid 4.9.3 is already a dependency; nothing new to install.
+- **`EventLog` owns the boundary, not its callers.** Add an optional constructor parameter
+  `?string $origin = null` (e.g. `'chat'`, `'commit'`) and generate `session_id` in the
+  constructor. **Do not write the `session_start` event eagerly in the constructor** — `CostCommand`
+  also constructs an `EventLog` on every `paider cost` run (`app/Commands/CostCommand.php:30`) but
+  never calls `append()`; an eager write would mint a throwaway session on every read-only `cost`
+  invocation. Instead, track `private bool $sessionStarted = false` and write `session_start`
+  lazily, the first time `append()` is actually called:
+
+  ```php
+  public function append(string $type, array $payload): string
+  {
+      $payload['session_id'] = $this->sessionId;
+      $encoded = json_encode($payload, JSON_THROW_ON_ERROR);   // validates BEFORE any write —
+                                                                  // see the atomicity note below
+
+      if (! $this->sessionStarted) {
+          $this->sessionStarted = true;
+          $this->insert('session_start', ['session_id' => $this->sessionId, 'origin' => $this->origin]);
+      }
+
+      return $this->insert($type, $encoded);   // existing INSERT body, factored out
+  }
+  ```
+
+  **Ordering matters and is not optional:** `json_encode(..., JSON_THROW_ON_ERROR)` on the real
+  event's payload must run and be allowed to throw *before* the `session_start` row is written.
+  `tests/Feature/EventLogTest.php`'s `'refuses to append an event whose payload cannot be encoded,
+  rather than writing it empty'` test asserts the log is completely empty after a throwing
+  `append()` call (invalid-UTF-8 payload) — if `session_start` were written first, that test would
+  see one leftover row instead of zero. Validate-then-write-both keeps the append-or-nothing
+  guarantee that test exists to protect.
+- **Both commands that talk to a model construct `EventLog` with an origin tag:**
+  `ChatCommand::handle()` → `new EventLog(Database::connect(), origin: 'chat')`;
+  `CommitCommand::handle()` → `new EventLog(Database::connect(), origin: 'commit')`. `CostCommand`
+  passes no origin (it never starts a session). The origin exists solely so `--list-sessions`
+  (below) can show a human something more useful than a bare UUID.
+
+### Decision 2 — backward compatibility with rows already on disk
+
+Every `tier_call`/`tool_call` event written before this change has a `payload` JSON object with no
+`session_id` key at all — not `null`, **absent**. Every reader must use `$payload['session_id'] ??
+null` and treat the missing case as "predates session tracking," never crash on it and never fold
+it silently into whichever session happens to be selected. This is the exact discipline
+`CostLedger::summary()` already applies to `hypothetical_usd` one field over
+(`app/Storage/CostLedger.php:50`) — same pattern, reused, not invented. Concretely: a
+session-scoped query (`CostLedger::summary($sessionId)`) simply never matches a legacy row (its
+`session_id` is null, never equal to the requested id), so old data is invisible to a session
+filter but still fully counted by the unscoped, all-time query — nothing is lost, nothing needs a
+backfill migration.
+
+Every existing call site that constructs `new EventLog($pdo)` with no second argument keeps
+compiling and behaving as it does today (the new parameter is optional and defaults to `null`) —
+`CostCommand`, and the two `tests/Feature/*Test.php` files that build a bare `EventLog` for
+fixtures, need no code change on this point alone.
+
+### Decision 3 — the CLI surface, and which behaviour is the default
+
+`paider cost` **with no flags keeps its current all-time behaviour, unchanged.** That is the
+reversible, non-breaking choice — anyone scripting `paider cost --json` today gets the same shape
+back tomorrow. Session scoping is opt-in via new flags on the existing `cost` command (no new
+command class — this is a filter on data `CostCommand` already renders, not a new capability):
+
+| flag | behaviour |
+|---|---|
+| *(none)* | unchanged: aggregate over every event ever recorded — **the row's label changes from "session" to "total"; see Decision 4.** |
+| `--session=<id>` | scope to one session, by full UUID or an unambiguous prefix |
+| `--last-session` | shorthand for the most recently started session — resolved via a new, cheap, targeted query (below), not a full-log scan — this is the direct answer to "what did this conversation cost" |
+| `--list-sessions` | print a small table: session id (short, 8 chars), origin, started-at, call count, spend — enumerates every `session_start` event, each looked up through `CostLedger::summary($sessionId)` for its numbers |
+
+- `--session`, `--last-session`, and `--list-sessions` are mutually exclusive; passing more than
+  one is a usage error, not a silent pick-one.
+- `--session=<id>` or `--last-session` matching zero events (bad id, or a project with no sessions
+  recorded yet) renders the existing "no usage recorded yet" empty-state message
+  (`app/Commands/CostCommand.php:40-46`), reworded to name the session, not a crash or a blank
+  table.
+- Resolving `--last-session` needs one new `EventLog` method,
+  `latestSessionId(): ?string` — `SELECT payload FROM events WHERE type = 'session_start' ORDER BY
+  rowid DESC LIMIT 1`, decode, return the `session_id` field, or `null` if none exist. `O(1)`
+  against an index-free table this size; no reason to route it through `CostLedger`'s full-stream
+  projection. `--list-sessions` similarly needs `EventLog::sessions(): array` — every
+  `session_start` event in insertion order, id/origin/`created_at` — both are small, targeted
+  additions to `EventLog`, not to `CostLedger`.
+- `CostLedger::summary()` gains an optional parameter: `summary(?string $sessionId = null): array`.
+  When given, every event is filtered to `($event['payload']['session_id'] ?? null) === $sessionId`
+  before the existing per-tier accumulation runs — the accumulation logic itself does not change.
+
+### Decision 4 — the "session" row rename, and its full blast radius
+
+`CostLedger::summary()`'s aggregate row is renamed from the array key `'session'` to `'total'`,
+**unconditionally** — whether the caller asked for the whole log or one scoped session, the
+returned array's total-across-tiers row is always keyed `'total'`. (Not two different key names
+depending on scope: one name, always, is simpler to implement and impossible to get wrong at the
+call site.) The CLI is free to print a different *label* depending on mode — "total" for the
+unscoped table, "session" for `--session`/`--last-session` output — that is `CostCommand::row()`
+choosing a string, not a second data key.
+
+This is a genuinely wide rename — grep the codebase before touching anything, do not assume the
+list below is exhaustive by the time this is implemented. As of this spec, every one of these
+needs the literal string `'session'` (as an array key or a matched word) changed to `'total'`:
+
+- `app/Storage/CostLedger.php:82` — `$tiers['session'] = $session;` → `$tiers['total'] = $session;`
+  (rename the local variable too, for readability, not required for correctness).
+- `app/Support/CostComparison.php:25` — `$session = $summary['session'];` → `$summary['total']`.
+- `app/Commands/CostCommand.php:33,48-49` — `array_diff_key($summary, ['session' => null])` and
+  the two `$summary['session']` reads.
+- `README.md`'s `` $ paider cost `` mockup (around line 122) — the bottom row's `session` label,
+  plus the surrounding prose that calls it "the session total."
+- `tests/Feature/CostTableTest.php` — the regex `/session\s+[\d.]+[kM]\s+[\d.]+[kM]\s+\$([\d.]+)/`
+  in `rows()`'s sibling check (the function itself matches tier names, unaffected) needs its
+  literal `session` → `total`. This is the test the job evidence specifically flagged — it
+  regex-parses the README block containing this label, so the README edit and this test edit are
+  one atomic change, not two.
+- `tests/Feature/CostLedgerTest.php` — every `$summary['session']` (9 occurrences as of this spec).
+- `tests/Feature/CostCommandTest.php` — every `$data['session']`/`toHaveKeys([..., 'session', ...])`
+  (6 occurrences), **including** the assertion at line 55 that the rendered table `->toContain('session')`
+  — that one flips to asserting `'total'` for the default (unscoped) render, and a *new* assertion
+  is needed that `--last-session`/`--session=` output *does* still contain the word `session`
+  (the CLI label, not the data key).
+- `tests/Feature/CostComparisonTest.php` — every fixture array's `'session' => [...]` key and every
+  `$summary['session'][...]` read (multiple occurrences across several test cases).
+- `tests/Feature/EventLogTest.php:90` — `$summary['session']['calls']` → `$summary['total']['calls']`
+  in the 50k-row memory-bound test; **this file also needs the index-shift fix below, independent
+  of the rename.**
+- `tests/Feature/CostReadmeGoldenTest.php` — checked against this spec and found to need **no
+  change**: it asserts on numeric substrings in rendered output, never on the word "session" or a
+  data key, so it is unaffected by the rename. Confirm this still holds at implementation time
+  rather than trusting this note blindly (house rule: verify the probe).
+
+### A second, independent break in `EventLogTest.php`
+
+Separate from the rename: `EventLogTest.php`'s first two tests append events and then assert
+`$log->all()[0]` is the *first real event* they appended (`toHaveCount(3)`, `$all[0]['id']` equals
+the first returned id, etc. — `tests/Feature/EventLogTest.php:8-30`). Once `append()` lazily writes
+a leading `session_start` row, `$all[0]` becomes that row instead, and every index in those two
+tests shifts by one. These need one of: (a) update the two tests' indices/counts to account for the
+leading `session_start` row and add an explicit assertion that it looks right (`type ===
+'session_start'`, `payload['session_id']` is a valid uuid7), or (b) filter `session_start` rows out
+before asserting positions. (a) is preferable — it turns an incidental side effect into a tested
+contract, matching the project's "a test that would still pass if the logic under test were
+deleted is not a test" rule (`app/Storage/EventLog.php`'s own docblock references this standard).
+
+### Decision 5 — interaction with `/undo`
+
+**Today: none, and that is safe to leave alone.** `Session::undo()` (`app/Agent/Session.php:124-162`)
+never touches `EventLog` — it is a purely in-memory stack plus direct filesystem reads/writes. This
+spec adds no coupling there and needs none.
+
+**The real interaction point is v0.2's planned `Replay::fold()`**, not anything shipped today.
+This PLAN's own v0.2 section notes `Replay::fold()` "rebuilds open-todo/round state from `EventLog`
+on start" (line ~1122, above) precisely *because* `Session` is memory-only and a killed process
+loses everything — i.e. `Replay::fold()` is the mechanism that will eventually "replay over the
+log." Once it exists, it must not replay the *entire* event history to reconstruct "current" state
+for a resumed process — it must scope to one session (most naturally, take a `session_id` and
+filter the same way `CostLedger::summary($sessionId)` does). **This is a coordination note for
+whoever builds `Replay::fold()`, not something this spec builds** — flagging it now so v0.2 doesn't
+ship a whole-log replay and need retrofitting the moment session scoping lands, or ship session
+scoping and need retrofitting the moment `Replay::fold()` lands, whichever comes second.
+
+### Implementation checklist, in order
+
+1. `EventLog`: add `?string $origin = null` constructor param, `session_id` generation
+   (`Uuid::uuid7()`), lazy `session_start` write inside `append()` with the validate-before-any-write
+   ordering above; add `latestSessionId(): ?string` and `sessions(): array`.
+2. Fix `tests/Feature/EventLogTest.php`'s index-shift (independent of, and before, the rename —
+   smaller diff to review on its own).
+3. `CostLedger::summary()`: rename the aggregate key to `'total'`; add the optional `?string
+   $sessionId` filter parameter.
+4. Rename ripple: `CostComparison.php`, `CostCommand.php`'s two existing reads, then every test file
+   in Decision 4's list, then `README.md`'s mockup and prose. Run the full suite after this step
+   alone, before adding any new CLI flags — isolates "did the rename break something" from "did the
+   new feature break something."
+5. `CostCommand`: add `--session=`, `--last-session`, `--list-sessions`, the mutual-exclusion check,
+   the "no session found" empty state, and the scoped-vs-unscoped row label.
+6. `ChatCommand`/`CommitCommand`: pass `origin: 'chat'` / `origin: 'commit'` to their `EventLog`
+   constructors.
+7. New tests (none of these exist today — write them, don't just extend fixtures): two `EventLog`
+   instances produce two different `session_id`s and neither's events are visible to the other's
+   `CostLedger::summary($sessionId)`; a legacy-shaped row (payload with no `session_id` key at all)
+   is excluded from every scoped query and still counted in the unscoped one; `--last-session`
+   resolves to the most recently started session, not the first; `--list-sessions` renders one row
+   per `session_start`; the atomicity fix (a throwing `append()` leaves zero rows, session_start
+   included, not one).
+8. `README.md`: mention `--session`/`--last-session`/`--list-sessions` in the cost section's prose
+   (not required by any test, but leaving the flagship feature undocumented the day it ships is how
+   the original "session" mislabel survived this long in the first place).
+
+### Risks
+
+- **The rename is the largest surface, not the session feature itself.** ~25 individual assertions
+  across 5 test files reference the literal key `'session'` today (counted while writing this
+  spec — recount at implementation time). Doing the rename as its own commit, fully green, before
+  layering the new flags on top (checklist step 4 before step 5) keeps a failing assertion
+  attributable to one change, not two.
+- **The atomicity ordering in `EventLog::append()` is easy to get backwards.** Writing
+  `session_start` before validating the real payload silently reintroduces exactly the
+  "logs a partial, misleading record instead of failing clean" class of bug `EventLog`'s own
+  docblock and `tests/Feature/EventLogTest.php`'s UTF-8 test exist to prevent. This is the single
+  highest-value thing for whoever implements this to get right and test explicitly, not just infer
+  from prose.
+- **Hermetic guarantee:** `Uuid::uuid7()` is already called from `EventLog::append()` today with no
+  network or filesystem dependency beyond the sqlite file already opened — adding one more call to
+  the same static method for `session_id` introduces no new hermeticity risk. Confirm this
+  assumption holds (it should) rather than taking it on faith, per house rule.
+- **`--list-sessions` will include every `paider commit` as its own one-event "session."** This is
+  an accepted consequence of "one process invocation = one session" (Decision 1), not a bug — a
+  commit-message generation call really did cost real money and deserves to be addressable — but on
+  a repo with frequent commits the list could get long fast. No filtering is specified here
+  (ASSUMPTION below); revisit only if it turns out to matter in practice.
+
+### Assumptions recorded (house rule: pick reversible, record, continue)
+
+- ASSUMPTION: the renamed aggregate key is `'total'`, not e.g. `'all'` or `'log'` — correct by a
+  one-line `git grep -l "'session'"` sweep plus a search-and-replace if a different word is
+  preferred; nothing in this spec depends on the specific word chosen.
+- ASSUMPTION: `--list-sessions` shows every session unfiltered, including single-event `commit`
+  runs — correct by adding a `--min-calls=N` filter or an origin filter later if this proves noisy
+  in practice; not worth speculatively building now (see Risks, above).
+- ASSUMPTION: one process invocation defines one session, with no lower-level notion of "resuming"
+  a prior session's `session_id` inside a new process. `paider run --resume=<session_id>` (or
+  similar) is a v0.2/`Replay::fold()`-era concern, not this spec's — flagged in Decision 5, not
+  designed here, because it depends on a capability (`Replay::fold()`) that does not exist yet.
+
+---
 
 ## The Laravel-native angle (added 2026-08-02, Jeremy's input)
 
