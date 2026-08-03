@@ -3,6 +3,7 @@
 namespace App\Tools;
 
 use App\Support\SecretsGuard;
+use App\Support\ShellEnv;
 use App\Tools\Contracts\Tool;
 
 /**
@@ -107,7 +108,7 @@ class GitTool implements Tool
             2 => ['pipe', 'w'],
         ];
 
-        $process = proc_open($command, $descriptors, $pipes, $this->projectRoot);
+        $process = proc_open($command, $descriptors, $pipes, $this->projectRoot, ShellEnv::build());
 
         if (! is_resource($process)) {
             return [1, '', 'failed to start git'];

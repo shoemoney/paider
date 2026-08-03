@@ -541,14 +541,9 @@ field names.
 4. **A NUL byte in a path crashed the process** — `fnmatch()` throws `ValueError` when a NUL
    appears. Unhandled, this is a model-triggerable zero-approval DoS. Caught and fail-safe now.
 
-**Two residual risks, recorded honestly:**
+**One residual risk, recorded honestly (the other is now fixed — see §17):**
 
-1. **Approved shell commands inherit the parent environment**, including live provider API keys.
-   The gate holds — the user has to approve something — but it is real. A rubber-stamped diagnostic
-   script can hand a credential back into the model's context. This needs deeper sandboxing
-   (separate `env`, drop capabilities, chroot-like isolation) which is out of scope for v0.1.
-
-2. **Architectural caveat:** tools still trust the `approved` key if called directly, not through
+1. **Architectural caveat:** tools still trust the `approved` key if called directly, not through
    `dispatch()`. Defence is a single chokepoint, so any future code path reaching a tool without
    going through `dispatch()` reopens all four bypasses at once. Document the rule, lint for it,
    code-review for it.
@@ -612,3 +607,31 @@ decision (no Windows for a compiled binary) stands on its own, but it is worth n
 
 Commit: `db8b8f1`. Test suite: 186 passing, 647 assertions (hermetic); 3 live tests (real API calls),
 currently failing due to credential config but skip cleanly in sandboxes.
+
+## 17. Shell environment scrub — 2026-08-03
+
+Fixed the residual risk recorded in §15: `ShellTool::execute()` and `GitTool::run()` both called
+`proc_open()` with no `$env` argument, so every approved shell command and every git subprocess
+inherited the FULL parent environment — including live provider API keys
+(`OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY`). An approved diagnostic script, or an
+ordinary `git commit`, could hand a live credential straight back into the model's own context.
+
+**Fix:** `App\Support\ShellEnv::build()` — a single shared helper, used by both call sites —
+constructs an explicit env array from an ALLOWLIST, not a denylist: `PATH`, `HOME`, `LANG`,
+`TERM`, `TMPDIR`, `USER`, `SHELL`. A denylist of secret-shaped names will always miss one; an
+allowlist can only ever be too narrow, which fails safe. A user who genuinely needs another
+variable passed through opts it back in with `PAIDER_SHELL_ENV_ALLOW` (comma-separated names),
+read fresh on every command — nothing is cached, so it can be changed mid-session.
+
+**What this covers:** every `run_shell` tool call (and, since `ArtisanTool` routes all its work
+through `ShellTool`, every `run_artisan` call too) and every `git` tool call. All three routes
+now see only the seven allowlisted variables plus whatever the user explicitly opted back in.
+
+**What this does NOT cover:** this scrubs the *environment*, nothing else. It is not a sandbox —
+an approved command can still read the filesystem, make network calls, or read a credential from
+some OTHER source (a config file, `~/.netrc`, a keychain) that isn't environment-variable-shaped.
+The §15 architectural caveat (tools calling `proc_open` directly instead of through `ShellEnv`
+reopen this) still applies to any future proc_open call site — lint or code-review for it.
+Regression test: `ShellToolTest.php` — sets a sentinel via `putenv()`, echoes it through
+`run_shell`, asserts it does not appear in output; confirmed to fail if the `$env` argument is
+removed.
