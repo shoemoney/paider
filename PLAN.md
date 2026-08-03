@@ -617,6 +617,17 @@ keep most of the value:
   disclosure mechanism eventually leaks, and one leak is permanent: an item that reaches a
   training corpus cannot be recalled.
 
+  **Visitors sign an NDA covering the techniques and the items — never their findings or their
+  opinions.** The protected thing is the *contents*: item text, generation methods, scoring
+  internals, the rotation mechanism. What a visitor concluded is theirs, unconditionally, and
+  they may publish it anywhere, in any tone, including "I went, I looked, and I am not convinced."
+
+  That carve-out is not generosity, it is the entire point. An NDA that could silence a critic
+  would make the visit worthless as evidence — a verification nobody is permitted to fail is not a
+  verification. **A visitor's freedom to publish "this is sloppy" is precisely what makes their
+  publishing "this is rigorous" worth anything.** Any agreement that does not preserve that has
+  bought silence and called it trust.
+
   This is the honest answer to "then how do we know you are not making it up." You come and look.
   It is a real verification path, and a deliberately inconvenient one — inconvenience is the
   security property, not a side effect.
