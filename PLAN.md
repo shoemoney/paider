@@ -472,8 +472,14 @@ specialized optimization for that specific benchmark format"*
 The full ARC-AGI-3 board makes the shape clearer, and also complicates it honestly. Opus 5
 30.16%, Fable 5 16.6%, GPT-5.6 Sol 7.78%, **Opus 4.8 1.52%**, and nine of twelve listed systems
 under 1% ([BenchLM](https://benchlm.ai/benchmarks/arcagi3)). The eye-catching number is not Opus 5
-against its sibling — it is Opus 4.8 to Opus 5, **1.52% to 30.16%, a 20x jump inside one family in
-one generation** (how this gap has been characterized in published analysis; Paider's publishing constraints below forbid such multiples for its own results), with the whole 4.x line beneath 2%.
+against its sibling — it is Opus 4.8 to Opus 5, **1.52% to 30.16%**, with the whole 4.x line
+beneath 2%.
+
+That gap is widely characterised as a "20x jump". Quoting it that way here is deliberate: it is
+how the result travels in practice, and it is exactly the framing the publishing constraints below
+forbid for our own scores. A multiple taken against 1.52% is meaningless — by the same arithmetic
+Opus 4.6 (0.51%) is "2.8x" its own successor Opus 4.7 (0.18%). The multiple is quoted to be
+criticised, not adopted.
 
 **That discontinuity is not itself evidence of gaming, and it is worth being precise about why.**
 ARC-AGI-3 is interactive: an environment is completed or it is not. Below some capability floor
