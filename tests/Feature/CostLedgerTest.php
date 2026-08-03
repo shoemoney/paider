@@ -82,6 +82,23 @@ it('counts unpriced_calls per tier and at the session level, naming the model', 
         ->and($summary['session']['unpriced_models'])->toBe(['nobody/knows-this']);
 });
 
+it('sums hypothetical_usd per tier/session and counts events missing the field as hypothetical_unknown', function () {
+    $log = new EventLog(Database::connect(':memory:'));
+
+    $log->append('tier_call', ['tier' => 'coder', 'tokens_in' => 100, 'tokens_out' => 10, 'cost_usd' => 0.01, 'hypothetical_usd' => 0.05]);
+    $log->append('tier_call', ['tier' => 'coder', 'tokens_in' => 100, 'tokens_out' => 10, 'cost_usd' => 0.02, 'hypothetical_usd' => 0.06]);
+    // A legacy row written before hypothetical_usd existed -- no key at all, must
+    // count as unknown, never as a silent 0.0 (same nullability rule as cost_usd).
+    $log->append('tier_call', ['tier' => 'coder', 'tokens_in' => 100, 'tokens_out' => 10, 'cost_usd' => 0.03]);
+
+    $summary = (new CostLedger($log))->summary();
+
+    expect($summary['coder']['hypothetical_usd'])->toEqualWithDelta(0.11, 1e-9)
+        ->and($summary['coder']['hypothetical_unknown'])->toBe(1)
+        ->and($summary['session']['hypothetical_usd'])->toEqualWithDelta(0.11, 1e-9)
+        ->and($summary['session']['hypothetical_unknown'])->toBe(1);
+});
+
 it('never re-prices: two calls to the same model with different stored cost_usd sum as stored', function () {
     // Simulates a provider price change between two calls to the same model. summary()
     // must sum whatever was written at call time, never re-derive from current prices.

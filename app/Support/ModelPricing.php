@@ -13,11 +13,25 @@ namespace App\Support;
  */
 class ModelPricing
 {
+    /**
+     * The README's "same work on all-Opus 5" reference model. One shared constant so
+     * Loop.php, CommitCommand.php, and CostCommand.php's write-time hypothetical_usd
+     * and read-time rendering can't drift onto different models.
+     */
+    public const REFERENCE_MODEL = 'anthropic/claude-opus-5';
+
     public static function costFor(string $model, int $tokensIn, int $tokensOut): ?float
     {
         $price = config('prices')[$model] ?? null;
 
         if ($price === null) {
+            return null;
+        }
+
+        // A completion is never free. 0 in AND 0 out means the usage block was never
+        // parsed (differently-keyed provider response, or a 200-with-error body) --
+        // that is unknown, not a real $0.00 call (LOCKED decision #3, one field over).
+        if ($tokensIn === 0 && $tokensOut === 0) {
             return null;
         }
 

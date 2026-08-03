@@ -7,11 +7,19 @@ beforeEach(function () {
 });
 
 it('prices a known model at several token volumes', function () {
-    expect(ModelPricing::costFor('known/model-x', 0, 0))->toBe(0.0)
-        ->and(ModelPricing::costFor('known/model-x', 1_000_000, 0))->toBe(1.0)
+    expect(ModelPricing::costFor('known/model-x', 1_000_000, 0))->toBe(1.0)
         ->and(ModelPricing::costFor('known/model-x', 0, 1_000_000))->toBe(5.0)
         ->and(ModelPricing::costFor('known/model-x', 500_000, 200_000))
             ->toBe(500_000 / 1e6 * 1.00 + 200_000 / 1e6 * 5.00);
+});
+
+it('returns null, not 0.0, for a known model with zero usage on both sides -- a completion is never free', function () {
+    // 0 in AND 0 out means the usage block was never parsed (differently-keyed
+    // provider response, or a 200-with-error body), not a genuinely free call.
+    $cost = ModelPricing::costFor('known/model-x', 0, 0);
+
+    expect($cost)->toBeNull()
+        ->and($cost)->not->toBe(0.0);
 });
 
 it('returns null, not 0.0, for an unknown model', function () {

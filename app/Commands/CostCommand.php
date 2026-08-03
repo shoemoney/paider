@@ -21,9 +21,6 @@ use function Termwind\render;
  */
 class CostCommand extends Command
 {
-    /** README says "all-Opus 5" specifically — a fixed reference, not preset-derived. */
-    private const COMPARISON_MODEL = 'anthropic/claude-opus-5';
-
     protected $signature = 'cost {--json : Emit machine-readable JSON instead of a table}';
 
     protected $description = 'Show token/spend usage per tier from the event log';
@@ -37,8 +34,10 @@ class CostCommand extends Command
 
         // Empty ledger (no tier_call events at all) is a distinct branch from "calls
         // exist but none priced" — the latter falls through to the table below with
-        // a real (empty) session spend and per-tier caveats.
-        if ($tiers === []) {
+        // a real (empty) session spend and per-tier caveats. --json still needs the
+        // real (zeroed) shape below, not human prose, so only short-circuit for the
+        // table render.
+        if ($tiers === [] && ! $this->option('json')) {
             render(<<<'HTML'
                 <div class="px-1 my-1">no usage recorded yet — run `paider chat` or `paider commit` to start one</div>
             HTML);
@@ -49,8 +48,16 @@ class CostCommand extends Command
         $session = $summary['session'];
         $sessionSpend = $session['spend_usd'];
 
+        // Session spend already excludes unpriced calls by construction (LOCKED #3),
+        // so with ANY unpriced call anywhere in the session, every row's share_pct
+        // would be a fraction of a total known to be wrong -- not an estimate, a
+        // number that can read as an inverted ratio (a tier that ate most of the real
+        // spend showing 0%, a tier that ate almost none showing 100%). Null it session-
+        // wide rather than only marking the offending row.
+        $sharable = $sessionSpend > 0.0 && $session['unpriced_calls'] === 0;
+
         foreach ($tiers as &$row) {
-            $row['share_pct'] = $sessionSpend > 0.0 ? round($row['spend_usd'] / $sessionSpend * 100, 1) : null;
+            $row['share_pct'] = $sharable ? round($row['spend_usd'] / $sessionSpend * 100, 1) : null;
         }
         unset($row);
 
@@ -66,11 +73,11 @@ class CostCommand extends Command
             }
         }
 
-        $comparison = CostComparison::compare($summary, self::COMPARISON_MODEL);
+        $comparison = CostComparison::compare($summary);
 
         if ($this->option('json')) {
             $this->line(json_encode([
-                'tiers' => $tiers,
+                'tiers' => (object) $tiers,
                 'session' => $session,
                 'unpriced_calls' => $unpriced,
                 'comparison' => $comparison,
@@ -98,10 +105,17 @@ class CostCommand extends Command
             </div>
         HTML);
 
+        $prices = config('prices');
         foreach ($unpriced as $entry) {
-            $models = implode(', ', $entry['models']);
+            // A known model with 0/0 tokens (usage block never parsed) and a genuinely
+            // unknown model id are different failures -- name the one that happened
+            // instead of always blaming "unknown model" (ModelPricing::costFor()).
+            $parts = array_map(
+                fn ($model) => (array_key_exists($model, $prices) ? 'no usage reported' : 'unknown model').": {$model}",
+                $entry['models']
+            );
             render('<div class="px-1">'.e(
-                "{$entry['count']} of {$entry['calls']} {$entry['tier']} calls not priced (unknown model: {$models}) — totals exclude them."
+                "{$entry['count']} of {$entry['calls']} {$entry['tier']} calls not priced (".implode(', ', $parts).') — totals exclude them.'
             ).'</div>');
         }
 
@@ -118,11 +132,15 @@ class CostCommand extends Command
             }
 
             if ($comparison['hypothetical_usd'] !== null && $comparison['saved_usd'] !== null) {
-                render('<div class="px-1">'.e(sprintf(
-                    'Same work on all-Opus 5: $%.2f · you saved $%.2f',
-                    $comparison['hypothetical_usd'],
-                    $comparison['saved_usd']
-                )).'</div>');
+                // Float residue (e.g. -1e-13 from a 100%-Opus session) must not print as
+                // "$-0.00", and a session pricier than the reference model per-token is a
+                // real, reachable negative saving that reads backwards under "you saved".
+                $saved = abs($comparison['saved_usd']) < 0.005 ? 0.0 : $comparison['saved_usd'];
+
+                render('<div class="px-1">'.e($saved >= 0
+                    ? sprintf('Same work on all-Opus 5: $%.2f · you saved $%.2f', $comparison['hypothetical_usd'], $saved)
+                    : sprintf('Same work on all-Opus 5: $%.2f · this session cost $%.2f more', $comparison['hypothetical_usd'], -$saved)
+                ).'</div>');
             }
         }
 

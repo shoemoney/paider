@@ -49,19 +49,26 @@ class EventLog
     /** Every event, in insertion order. */
     public function all(): array
     {
+        return iterator_to_array($this->stream());
+    }
+
+    /**
+     * Every event, streamed straight off the PDO cursor — constant memory regardless
+     * of log size. PDO_SQLite steps row-by-row (unlike mysqlnd it does not client-
+     * buffer the whole result set), so a projection like CostLedger::summary() that
+     * only ever needs running totals can iterate this without materializing the log.
+     */
+    public function stream(): \Generator
+    {
         $stmt = $this->pdo->query('SELECT id, type, payload, created_at FROM events ORDER BY rowid ASC');
 
-        $events = [];
-
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $events[] = [
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            yield [
                 'id' => $row['id'],
                 'type' => $row['type'],
                 'payload' => json_decode($row['payload'], true, 512, JSON_THROW_ON_ERROR),
                 'created_at' => $row['created_at'],
             ];
         }
-
-        return $events;
     }
 }

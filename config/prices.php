@@ -34,18 +34,18 @@ return [
     'moonshotai/kimi-k2.7-code' => ['in' => 0.73, 'out' => 3.50],
     'moonshotai/kimi-k2' => ['in' => 0.57, 'out' => 2.30],
 
-    'deepseek/deepseek-v4-pro' => ['in' => 0.43, 'out' => 0.87],
-    'deepseek/deepseek-v3.2' => ['in' => 0.27, 'out' => 0.40],
+    'deepseek/deepseek-v4-pro' => ['in' => 0.435, 'out' => 0.87],
+    'deepseek/deepseek-v3.2' => ['in' => 0.269, 'out' => 0.40],
     'deepseek/deepseek-v4-flash' => ['in' => 0.14, 'out' => 0.28],
 
     'x-ai/grok-4.5' => ['in' => 2.00, 'out' => 6.00],
     'x-ai/grok-4.3' => ['in' => 1.25, 'out' => 2.50],
     'x-ai/grok-build-0.1' => ['in' => 1.00, 'out' => 2.00],
 
-    'qwen/qwen3.7-max' => ['in' => 1.48, 'out' => 4.42],
+    'qwen/qwen3.7-max' => ['in' => 1.475, 'out' => 4.425],
     'qwen/qwen3.7-flash' => ['in' => 0.03, 'out' => 0.13],
 
-    'z-ai/glm-5.1' => ['in' => 0.97, 'out' => 3.04],
+    'z-ai/glm-5.1' => ['in' => 0.966, 'out' => 3.036],
     'z-ai/glm-5' => ['in' => 0.95, 'out' => 2.55],
     'z-ai/glm-4.7-flash' => ['in' => 0.06, 'out' => 0.40],
 

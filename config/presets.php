@@ -68,8 +68,8 @@ return [
     ],
 
     'deepseek' => [
-        'orchestrator' => 'deepseek/deepseek-v4-pro',     //  $0.43 /   $0.87  1.05M ctx
-        'coder'        => 'deepseek/deepseek-v3.2',       //  $0.27 /   $0.40
+        'orchestrator' => 'deepseek/deepseek-v4-pro',     //  $0.435 /   $0.87  1.05M ctx
+        'coder'        => 'deepseek/deepseek-v3.2',       //  $0.269 /   $0.40
         'research'     => 'deepseek/deepseek-v4-flash', //  $0.14 /   $0.28
         'fast'         => 'deepseek/deepseek-v4-flash',   //  $0.14 /   $0.28
     ],
@@ -82,7 +82,7 @@ return [
     ],
 
     'qwen' => [
-        'orchestrator' => 'qwen/qwen3.7-max',             //  $1.48 /   $4.42     1M ctx
+        'orchestrator' => 'qwen/qwen3.7-max',             //  $1.475 /   $4.425     1M ctx
         // NOT qwen3-coder-plus ($0.65/$3.25). Jeremy's call from using it:
         // it is not smart enough to orchestrate and not fast enough to be the
         // coder -- a dead zone that buys neither intelligence nor speed. The
@@ -95,7 +95,7 @@ return [
     ],
 
     'glm' => [
-        'orchestrator' => 'z-ai/glm-5.1',                 //  $0.97 /   $3.04
+        'orchestrator' => 'z-ai/glm-5.1',                 //  $0.966 /   $3.036
         'coder'        => 'z-ai/glm-5',                   //  $0.95 /   $2.55
         'research'     => 'z-ai/glm-4.7-flash',      //  $0.06 /   $0.40
         'fast'         => 'z-ai/glm-4.7-flash',           //  $0.06 /   $0.40

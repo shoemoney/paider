@@ -52,6 +52,10 @@ class Loop
                 'tokens_in' => $response->tokensIn,
                 'tokens_out' => $response->tokensOut,
                 'cost_usd' => ModelPricing::costFor($resolved['model'], $response->tokensIn, $response->tokensOut),
+                // Frozen at write time, same as cost_usd (LOCKED decision #2, one field
+                // over) -- so a later config/prices.php edit can't silently move the
+                // "same work on all-Opus 5" comparison onto a different price basis.
+                'hypothetical_usd' => ModelPricing::costFor(ModelPricing::REFERENCE_MODEL, $response->tokensIn, $response->tokensOut),
             ]);
 
             $call = $this->parseToolCall($response->content);

@@ -72,6 +72,8 @@ class CommitCommand extends Command
                 'tokens_in' => $response->tokensIn,
                 'tokens_out' => $response->tokensOut,
                 'cost_usd' => ModelPricing::costFor($route['model'], $response->tokensIn, $response->tokensOut),
+                // Frozen at write time, same as cost_usd -- see Loop.php's identical field.
+                'hypothetical_usd' => ModelPricing::costFor(ModelPricing::REFERENCE_MODEL, $response->tokensIn, $response->tokensOut),
             ]);
 
             $message = trim($response->content);

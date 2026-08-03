@@ -53,6 +53,11 @@ function seedTier(EventLog $log, string $tier, string $model, int $calls, int $t
             'tokens_in' => $in,
             'tokens_out' => $out,
             'cost_usd' => ModelPricing::costFor($model, $in, $out),
+            // Mirrors Loop.php/CommitCommand.php's write-time-frozen hypothetical_usd
+            // field -- without it every event here would count as pre-migration
+            // "legacy" and CostComparison would (correctly) suppress the comparison
+            // line this golden test exists to check.
+            'hypothetical_usd' => ModelPricing::costFor(ModelPricing::REFERENCE_MODEL, $in, $out),
         ]);
     }
 }

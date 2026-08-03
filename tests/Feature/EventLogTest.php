@@ -1,5 +1,6 @@
 <?php
 
+use App\Storage\CostLedger;
 use App\Storage\Database;
 use App\Storage\EventLog;
 use Ramsey\Uuid\Uuid;
@@ -59,3 +60,37 @@ it('refuses to append an event whose payload cannot be encoded, rather than writ
 
     expect($log->all())->toBeEmpty();
 });
+
+it('streams events via a generator that yields the same shape as all()', function () {
+    $log = new EventLog(Database::connect(':memory:'));
+
+    $log->append('tier_call', ['tier' => 'coder', 'n' => 1]);
+    $log->append('note', ['text' => 'hello']);
+
+    $stream = $log->stream();
+
+    expect($stream)->toBeInstanceOf(Generator::class)
+        ->and(iterator_to_array($stream))->toBe($log->all());
+});
+
+it('keeps memory bounded while a large event log is summed -- no full-log materialization', function () {
+    $log = new EventLog(Database::connect(':memory:'));
+
+    for ($i = 0; $i < 50_000; $i++) {
+        $log->append('tier_call', [
+            'tier' => 'coder', 'model' => 'anthropic/claude-haiku-4.5',
+            'tokens_in' => 100, 'tokens_out' => 20, 'cost_usd' => 0.0002, 'hypothetical_usd' => 0.001,
+        ]);
+    }
+
+    $before = memory_get_peak_usage(true);
+    $summary = (new CostLedger($log))->summary();
+    $after = memory_get_peak_usage(true);
+
+    expect($summary['session']['calls'])->toBe(50_000);
+    // Materializing 50k rows into one PHP array costs tens of MB (measured ~1.7-1.8KB
+    // per event); a streaming projection that only keeps running totals should cost
+    // a few. Generous bound to avoid flaking on slower machines, but tight enough to
+    // fail hard if EventLog::all() ever comes back into CostLedger's read path.
+    expect($after - $before)->toBeLessThan(20 * 1024 * 1024);
+})->group('slow');

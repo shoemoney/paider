@@ -15,7 +15,7 @@ class CostLedger
     {
         $tiers = [];
 
-        foreach ($this->events->all() as $event) {
+        foreach ($this->events->stream() as $event) {
             if ($event['type'] !== 'tier_call') {
                 continue;
             }
@@ -26,6 +26,7 @@ class CostLedger
             $tiers[$tier] ??= [
                 'calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0, 'spend_usd' => 0.0,
                 'unpriced_calls' => 0, 'unpriced_models' => [],
+                'hypothetical_usd' => 0.0, 'hypothetical_unknown' => 0,
             ];
 
             $tiers[$tier]['calls']++;
@@ -41,11 +42,24 @@ class CostLedger
             } else {
                 $tiers[$tier]['spend_usd'] += $payload['cost_usd'];
             }
+
+            // Same nullability rule as cost_usd, one field over: a legacy row written
+            // before this field existed has no key at all, and `?? null` must count
+            // that as unknown too, never as a silent 0.0 (CostComparison::compare()
+            // relies on this to refuse a mixed old/new-basis comparison).
+            $hypothetical = $payload['hypothetical_usd'] ?? null;
+
+            if ($hypothetical === null) {
+                $tiers[$tier]['hypothetical_unknown']++;
+            } else {
+                $tiers[$tier]['hypothetical_usd'] += $hypothetical;
+            }
         }
 
         $session = [
             'calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0, 'spend_usd' => 0.0,
             'unpriced_calls' => 0, 'unpriced_models' => [],
+            'hypothetical_usd' => 0.0, 'hypothetical_unknown' => 0,
         ];
 
         foreach ($tiers as $tier) {
@@ -55,6 +69,8 @@ class CostLedger
             $session['spend_usd'] += $tier['spend_usd'];
             $session['unpriced_calls'] += $tier['unpriced_calls'];
             $session['unpriced_models'] += $tier['unpriced_models'];
+            $session['hypothetical_usd'] += $tier['hypothetical_usd'];
+            $session['hypothetical_unknown'] += $tier['hypothetical_unknown'];
         }
 
         foreach ($tiers as &$tier) {
