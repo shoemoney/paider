@@ -55,14 +55,18 @@ test('OpenAiCompatibleClient completes a real round-trip through OpenRouter', fu
 
 test('AnthropicClient completes a real round-trip against an Anthropic-compatible endpoint', function () {
     /*
-     * No Anthropic key exists on this machine, but the Anthropic WIRE FORMAT is what needs
-     * proving, not the vendor. xAI serves it at https://api.x.ai/v1/messages, so an XAI_API_KEY
-     * exercises the same code path: the `system` hoist, `content` block filtering, and
-     * usage.input_tokens/output_tokens placement.
+     * Runs against the real api.anthropic.com when ANTHROPIC_API_KEY is set, and falls back to
+     * xAI — which serves the same Anthropic wire format at https://api.x.ai/v1/messages — when
+     * it is not. Both paths exercise the identical code: the `system` hoist, `content` block
+     * filtering, and usage.input_tokens/output_tokens placement.
      *
-     * Prefers a real ANTHROPIC_API_KEY when one is present. Moonshot was tried first and does
-     * not work here — the vaulted kimi credential is an `sk-kim…` kimi.com coding-subscription
-     * key, which 401s against both api.moonshot.ai and api.moonshot.cn (probed, not assumed).
+     * Keeping the xAI fallback deliberately: it is what proved this path before an Anthropic
+     * key existed, and it means a contributor without one can still run the suite. It also
+     * happens to be the harsher test — see the block-type assertion below.
+     *
+     * Moonshot was tried first and does not work here: the vaulted kimi credential is an
+     * `sk-kim…` kimi.com coding-subscription key, which 401s against both api.moonshot.ai and
+     * api.moonshot.cn (probed directly, not assumed).
      */
     [$key, $base, $model] = getenv('ANTHROPIC_API_KEY')
         ? [getenv('ANTHROPIC_API_KEY'), 'https://api.anthropic.com', 'claude-haiku-4-5-20251001']
