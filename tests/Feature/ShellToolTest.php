@@ -67,3 +67,19 @@ test('a command that traps SIGTERM is still killed within roughly the timeout wi
     expect($result->meta['timed_out'])->toBeTrue();
     expect($elapsed)->toBeLessThan(5.0);
 });
+
+test('a shell command cannot read an unlisted parent environment variable', function () {
+    $root = shellToolRoot();
+    $sentinelName = 'PAIDER_TEST_SECRET_'.str_replace('.', '', uniqid('', true));
+    putenv($sentinelName.'=totally-secret-value');
+
+    try {
+        $tool = new ShellTool($root);
+        $result = $tool->execute(['command' => 'echo $'.$sentinelName, 'approval' => 'allow-once']);
+    } finally {
+        putenv($sentinelName);
+    }
+
+    expect($result->ok)->toBeTrue();
+    expect($result->output)->not->toContain('totally-secret-value');
+});

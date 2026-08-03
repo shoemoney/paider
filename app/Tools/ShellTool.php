@@ -2,6 +2,7 @@
 
 namespace App\Tools;
 
+use App\Support\ShellEnv;
 use App\Tools\Contracts\Tool;
 
 /**
@@ -64,7 +65,7 @@ class ShellTool implements Tool
             2 => ['pipe', 'w'],
         ];
 
-        $process = proc_open($input['command'], $descriptors, $pipes, $this->projectRoot);
+        $process = proc_open($input['command'], $descriptors, $pipes, $this->projectRoot, ShellEnv::build());
 
         if (! is_resource($process)) {
             return ToolResult::fail('failed to start command');
