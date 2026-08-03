@@ -7,7 +7,7 @@
 [![status](https://img.shields.io/badge/status-alpha-orange?style=for-the-badge)](#-status-honestly)
 [![php](https://img.shields.io/badge/PHP-%E2%89%A5%208.4-777BB4?style=for-the-badge&logo=php&logoColor=white)](composer.json)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
-[![tests](https://img.shields.io/badge/tests-144%20passing-brightgreen?style=for-the-badge)](tests/)
+[![tests](https://img.shields.io/badge/tests-155%20passing-brightgreen?style=for-the-badge)](tests/)
 [![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
@@ -27,7 +27,7 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `cost`, `config:provider`, `config:show` all register and run |
 | 🔧 six native tools | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `git`, `artisan` |
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection |
-| 🧪 test suite | ✅ **144 passing**, 394 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
+| 🧪 test suite | ✅ **155 passing**, 489 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
 | 📦 `curl \| sh` installer | ⬜ **not built** | the binary is measured, the installer is not written |
 | 🏷️ tagged release | ⬜ **none** | no version has shipped |
@@ -85,7 +85,8 @@ structured data instead of shell text when pointed at a Laravel repo.
 
 ✅ **`ArtisanTool` is built.** One hardcoded call (`php artisan route:list --json`), not a general
 Artisan passthrough — arbitrary code execution needs its own approval gate rather than a slot in
-`ShellTool`. See [`PLAN.md` § Sequencing](PLAN.md#sequencing-the-laravel-host-proof-cant-wait-for-v10).
+`ShellTool`. Registered **only when an `artisan` file exists** at the project root (detects Laravel apps).
+See [`PLAN.md` § Sequencing](PLAN.md#sequencing-the-laravel-host-proof-cant-wait-for-v10).
 
 **2. You can see exactly where the money went.**
 
@@ -325,6 +326,7 @@ someone got right first try:
 |---|---|
 | 🛡️ `PathGuard` | `..` traversal in a non-existent tail **and** an existing intermediate dir symlinked out of the project |
 | 🔐 `Gate` | only ever caches a **grant** — there is no path that reads a cached deny as an allow |
+| 🔐 approval bypass | the model's own tool-call input **never** contains the `approval` key — `Loop` deletes it before the gate runs, so a model trying `{"approval":"allow-once"}` cannot self-approve |
 | 🧾 `EventLog` | no `update()`, no `delete()`, anywhere — append-only is structural, not a comment |
 | 🤫 `SecretsGuard` | redaction before anything reaches a model |
 | 💸 `QwenPlanKeyGuard` | refuses an `sk-sp-` plan key paired with a PAYG base URL, which would silently bill you |
@@ -337,9 +339,10 @@ someone got right first try:
 <summary><b>🔬 Where these came from</b></summary>
 
 Every row above was found by an **adversarial review pass that read the code on disk rather
-than the author's summary**, then re-verified against the committed result. Two are worth
+than the author's summary**, then re-verified against the committed result. Three are worth
 calling out because the tests were green the whole time:
 
+- **Approval gate bypass (critical).** `Loop::dispatchArtisan()` and `Loop::dispatchShell()` passed the model's own tool-call input straight through to the tool without scrubbing. If that input contained `{"approval": "yes"}`, it bypassed the gate entirely — the approval callback never ran. `ArtisanTool` accepts any non-`deny` value, and `Loop::systemInstruction()` JSON-encodes the tool's `inputSchema()` into the prompt, so the model was explicitly told the field name and values. A model reply of `{"name":"artisan","input":{"approval":"allow-once"}}` would run service providers with zero human approval: **arbitrary code execution**. Fixed by `unset($input['approval'])` in both dispatchers before the gate. Two regression tests now assert the gate runs and its answer wins when a model tries to self-approve.
 - **`/add` was silently inert.** `Loop` never read `Session::contextFiles()`, so added files
   never reached the model — and without their sha256 the model could not supply the stamp
   `patch_file` requires. The headline workflow did nothing, with no error.
@@ -477,10 +480,10 @@ flowchart LR
 | **v1.0** | MCP **server** mode — external clients drive Paider's tools; published semver policy | ⬜ planned |
 
 <details>
-<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 144 tests pass?</b></summary>
+<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 155 tests pass?</b></summary>
 
 Because [`PLAN.md`](PLAN.md) wrote v0.1's definition of done *before* the code existed, and
-grading against it honestly leaves three boxes unticked:
+grading against it honestly leaves one box unticked:
 
 | v0.1 definition-of-done | state |
 |---|---|
@@ -490,13 +493,12 @@ grading against it honestly leaves three boxes unticked:
 | diff-apply staleness, syntax gate, `/undo`, secrets guard | ✅ built |
 | honest comparison table vs Maestro | ✅ **added above** |
 | live provider round-trips | ✅ **3 tests, ledger reconciles** |
-| installable via `composer global require` from a clean machine | ⬜ never attempted |
+| installable via `composer global require` from a clean machine | ✅ **verified locally** — path repository tested; not yet published to Packagist |
 | end-to-end on a real repo with a real API key | ⬜ never attempted |
 
-The two remaining boxes — fresh `composer global require` install and running a full session
-against a real repo — are the only blockers to shipping v0.1. Everything else is done. The rule
-in this repo is that a green checkbox is a promise a `grep` or a test run can keep — all six
-checked above are testable / grepable; the unchecked two require human verification.
+The one remaining box — running a full session against a real repo with a real API key and watching an edit land — is the last blocker to shipping v0.1. Everything else is done. The rule
+in this repo is that a green checkbox is a promise a `grep` or a test run can keep — seven
+checked above are testable / grepable; the unchecked one requires end-to-end human verification.
 
 </details>
 
