@@ -118,7 +118,21 @@ return [
     */
     'open' => [
         'orchestrator' => 'moonshotai/kimi-k3',           //  $3.00 /  $15.00   1.05M ctx
-        'coder' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
+        // k2.6 over qwen3.7-flash 2026-08-03, Jeremy's call from use. This is the one
+        // tier in this file where the cheap option is NOT taken: 20x the input rate and
+        // 26x the output ($0.60/$3.41 vs $0.03/$0.13), on the tier that runs in a loop.
+        // Deliberate — the coder writes the diff, and a wrong diff costs more reruns
+        // than the token delta saves.
+        //
+        // It also drops this tier to 262k context while orchestrator and research keep
+        // ~1M, so on this preset the coder IS the tier that has to summarise. If large
+        // files start getting truncated here, that is the reason.
+        //
+        // Moonshot's own coding endpoint (api.kimi.com/coding/v1) serves
+        // `kimi-for-coding-highspeed`, a faster variant absent from OpenRouter — prefer
+        // it when the user has a kimi.com coding subscription rather than an aggregator
+        // key, same as the k2.7-code-HIGHSPEED note on the `kimi` preset above.
+        'coder' => 'moonshotai/kimi-k2.6',      //  $0.60 /   $3.41   262k ctx
         // research/fast on deepseek-v4-flash 2026-08-03, Jeremy's call from use.
         // NOTE it is 4.7x qwen3.7-flash on input ($0.14 vs $0.03), so this is not a
         // cost cut on paper — it is a quality-per-dollar call on the tier that reads

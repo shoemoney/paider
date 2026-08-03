@@ -32,6 +32,7 @@ return [
 
     'moonshotai/kimi-k3' => ['in' => 3.00, 'out' => 15.00],
     'moonshotai/kimi-k2.7-code' => ['in' => 0.73, 'out' => 3.50],
+    'moonshotai/kimi-k2.6' => ['in' => 0.60, 'out' => 3.41],
     'moonshotai/kimi-k2' => ['in' => 0.57, 'out' => 2.30],
 
     'deepseek/deepseek-v4-pro' => ['in' => 0.435, 'out' => 0.87],
