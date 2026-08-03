@@ -68,6 +68,9 @@ class AnthropicClient implements ProviderClient
             tokensIn: $raw['usage']['input_tokens'] ?? 0,
             tokensOut: $raw['usage']['output_tokens'] ?? 0,
             raw: $raw,
+            // Anthropic's Messages API echoes the model that actually served the request —
+            // an undated alias in the request can resolve to a dated snapshot here.
+            servedModel: is_string($raw['model'] ?? null) ? $raw['model'] : null,
         );
     }
 }

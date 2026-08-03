@@ -65,13 +65,19 @@ class CommitCommand extends Command
                 ['role' => 'user', 'content' => "Write a concise, conventional commit message for this diff:\n\n{$staged->output}"],
             ], $route['model']);
 
+            // See Loop.php's identical comment: 'model' names what was actually billed,
+            // the served id, not the requested one — frozen at write time.
+            $requestedModel = $route['model'];
+            $servedModel = $response->servedModel ?? $requestedModel;
+
             (new EventLog(Database::connect()))->append('tier_call', [
                 'tier' => 'fast',
                 'provider' => $route['provider'],
-                'model' => $route['model'],
+                'model' => $servedModel,
+                'requested_model' => $requestedModel,
                 'tokens_in' => $response->tokensIn,
                 'tokens_out' => $response->tokensOut,
-                'cost_usd' => ModelPricing::costFor($route['model'], $response->tokensIn, $response->tokensOut),
+                'cost_usd' => ModelPricing::costFor($servedModel, $response->tokensIn, $response->tokensOut),
                 // Frozen at write time, same as cost_usd -- see Loop.php's identical field.
                 'hypothetical_usd' => ModelPricing::costFor(ModelPricing::REFERENCE_MODEL, $response->tokensIn, $response->tokensOut),
             ]);

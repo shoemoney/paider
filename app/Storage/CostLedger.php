@@ -27,11 +27,20 @@ class CostLedger
                 'calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0, 'spend_usd' => 0.0,
                 'unpriced_calls' => 0, 'unpriced_models' => [],
                 'hypothetical_usd' => 0.0, 'hypothetical_unknown' => 0,
+                'mismatched_calls' => 0, 'mismatched_models' => [],
             ];
 
             $tiers[$tier]['calls']++;
             $tiers[$tier]['tokens_in'] += $payload['tokens_in'];
             $tiers[$tier]['tokens_out'] += $payload['tokens_out'];
+
+            // Only counted when 'requested_model' is PRESENT -- a legacy row written
+            // before this field existed has no key at all and contributes nothing, same
+            // "absence is unknown, not false" discipline as hypothetical_unknown above.
+            if (array_key_exists('requested_model', $payload) && $payload['requested_model'] !== $payload['model']) {
+                $tiers[$tier]['mismatched_calls']++;
+                $tiers[$tier]['mismatched_models']["{$payload['requested_model']} -> {$payload['model']}"] = true;
+            }
 
             // NULL cost_usd (LOCKED decision #3) marks an unpriced model, never $0.00 —
             // fold it only into unpriced_calls, not spend_usd, so a mixed session can't
@@ -60,6 +69,7 @@ class CostLedger
             'calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0, 'spend_usd' => 0.0,
             'unpriced_calls' => 0, 'unpriced_models' => [],
             'hypothetical_usd' => 0.0, 'hypothetical_unknown' => 0,
+            'mismatched_calls' => 0, 'mismatched_models' => [],
         ];
 
         foreach ($tiers as $tier) {
@@ -71,13 +81,17 @@ class CostLedger
             $session['unpriced_models'] += $tier['unpriced_models'];
             $session['hypothetical_usd'] += $tier['hypothetical_usd'];
             $session['hypothetical_unknown'] += $tier['hypothetical_unknown'];
+            $session['mismatched_calls'] += $tier['mismatched_calls'];
+            $session['mismatched_models'] += $tier['mismatched_models'];
         }
 
         foreach ($tiers as &$tier) {
             $tier['unpriced_models'] = array_keys($tier['unpriced_models']);
+            $tier['mismatched_models'] = array_keys($tier['mismatched_models']);
         }
         unset($tier);
         $session['unpriced_models'] = array_keys($session['unpriced_models']);
+        $session['mismatched_models'] = array_keys($session['mismatched_models']);
 
         $tiers['session'] = $session;
 

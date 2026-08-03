@@ -49,6 +49,10 @@ class OpenAiCompatibleClient implements ProviderClient
             tokensIn: $raw['usage']['prompt_tokens'] ?? 0,
             tokensOut: $raw['usage']['completion_tokens'] ?? 0,
             raw: $raw,
+            // OpenAI-compatible/OpenRouter chat-completions responses echo the model that
+            // actually served the request — OpenRouter documents this can differ from the
+            // requested id under routing/fallback.
+            servedModel: is_string($raw['model'] ?? null) ? $raw['model'] : null,
         );
     }
 }

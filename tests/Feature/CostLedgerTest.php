@@ -99,6 +99,34 @@ it('sums hypothetical_usd per tier/session and counts events missing the field a
         ->and($summary['session']['hypothetical_unknown'])->toBe(1);
 });
 
+it('counts mismatched_calls only when requested_model is present and differs from the served model', function () {
+    $log = new EventLog(Database::connect(':memory:'));
+
+    // A served-vs-requested mismatch -- must be counted.
+    $log->append('tier_call', [
+        'tier' => 'orchestrator', 'model' => 'anthropic/claude-sonnet-5', 'requested_model' => 'anthropic/claude-opus-5',
+        'tokens_in' => 100, 'tokens_out' => 10, 'cost_usd' => 0.01,
+    ]);
+    // A legacy row with no 'requested_model' key at all -- must contribute nothing,
+    // same "absence is unknown, not false" discipline as unpriced/hypothetical fields.
+    $log->append('tier_call', [
+        'tier' => 'orchestrator', 'model' => 'anthropic/claude-opus-5',
+        'tokens_in' => 100, 'tokens_out' => 10, 'cost_usd' => 0.02,
+    ]);
+    // requested_model present but equal to model -- not a mismatch.
+    $log->append('tier_call', [
+        'tier' => 'orchestrator', 'model' => 'anthropic/claude-opus-5', 'requested_model' => 'anthropic/claude-opus-5',
+        'tokens_in' => 100, 'tokens_out' => 10, 'cost_usd' => 0.03,
+    ]);
+
+    $summary = (new CostLedger($log))->summary();
+
+    expect($summary['orchestrator']['mismatched_calls'])->toBe(1)
+        ->and($summary['orchestrator']['mismatched_models'])->toBe(['anthropic/claude-opus-5 -> anthropic/claude-sonnet-5'])
+        ->and($summary['session']['mismatched_calls'])->toBe(1)
+        ->and($summary['session']['mismatched_models'])->toBe(['anthropic/claude-opus-5 -> anthropic/claude-sonnet-5']);
+});
+
 it('never re-prices: two calls to the same model with different stored cost_usd sum as stored', function () {
     // Simulates a provider price change between two calls to the same model. summary()
     // must sum whatever was written at call time, never re-derive from current prices.

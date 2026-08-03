@@ -334,6 +334,52 @@ it('clamps float residue so a near-zero saving never prints "you saved $-0.00"',
         ->and($output)->not->toContain('cost more');
 });
 
+it('names a served-vs-requested model mismatch in the table', function () {
+    $log = new EventLog(Database::connect());
+
+    $log->append('tier_call', [
+        'tier' => 'orchestrator', 'model' => 'anthropic/claude-sonnet-5', 'requested_model' => 'anthropic/claude-opus-5',
+        'tokens_in' => 1000, 'tokens_out' => 200, 'cost_usd' => 0.45,
+    ]);
+
+    $bufferedOutput = new BufferedOutput;
+    $outputStyle = new OutputStyle(new ArrayInput([]), $bufferedOutput);
+
+    $exitCode = $this->app->make(Kernel::class)->call('cost', [], $outputStyle);
+    expect($exitCode)->toBe(0);
+
+    $output = $bufferedOutput->fetch();
+
+    expect($output)
+        ->toContain('served a different model than requested')
+        ->toContain('anthropic/claude-opus-5 -> anthropic/claude-sonnet-5');
+});
+
+it('surfaces model_mismatches in the --json payload', function () {
+    $log = new EventLog(Database::connect());
+
+    $log->append('tier_call', [
+        'tier' => 'orchestrator', 'model' => 'anthropic/claude-sonnet-5', 'requested_model' => 'anthropic/claude-opus-5',
+        'tokens_in' => 1000, 'tokens_out' => 200, 'cost_usd' => 0.45,
+    ]);
+
+    $bufferedOutput = new BufferedOutput;
+    $outputStyle = new OutputStyle(new ArrayInput([]), $bufferedOutput);
+
+    $exitCode = $this->app->make(Kernel::class)->call('cost', ['--json' => true], $outputStyle);
+    expect($exitCode)->toBe(0);
+
+    $data = json_decode($bufferedOutput->fetch(), true, 512, JSON_THROW_ON_ERROR);
+
+    expect($data)->toHaveKey('model_mismatches')
+        ->and($data['model_mismatches'])->toBe([[
+            'tier' => 'orchestrator',
+            'count' => 1,
+            'calls' => 1,
+            'models' => ['anthropic/claude-opus-5 -> anthropic/claude-sonnet-5'],
+        ]]);
+});
+
 it('says a session cost more, rather than "saved" a negative number, when it ran pricier than the reference model', function () {
     $log = new EventLog(Database::connect());
 
