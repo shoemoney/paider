@@ -136,6 +136,13 @@ $ paider cost
 > table and recomputes it from `config/prices.php`, and `CostReadmeGoldenTest` seeds the event log
 > with these volumes, runs the real command, and asserts the output matches. The table cannot drift
 > from the code in either direction without a failing test.
+>
+> **`--json` shape.** Same data, machine-readable: `{tiers, session, unpriced_calls, comparison}`.
+> Each entry under `tiers` (and the `session` row, minus `share_pct`) carries `calls, tokens_in,
+> tokens_out, spend_usd, unpriced_calls, unpriced_models, hypothetical_usd, hypothetical_unknown,
+> share_pct`. `unpriced_calls` is a list of `{tier, count, calls, models}`. `comparison` is
+> `{hypothetical_usd, saved_usd, token_share_pct, spend_share_pct}`. Pinned by `CostJsonGoldenTest`
+> — an added, removed, or renamed key fails the suite, including on an empty ledger.
 
 That last line is the product in one sentence. Most agent tools show you a total, if
 anything. Paider shows you the **ratio** — and the ratio is the whole argument for
