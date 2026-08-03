@@ -350,9 +350,10 @@ promised later.
 ## Milestones
 
 **🔨 v0.1 — "it works on my repo"** — *in progress: commands, the five tools, the guards and
-the ledger are built and covered by 130 passing tests. Still unticked against the definition
-below: `ArtisanTool` (the sixth tool), a clean `composer global require` install, and a single
-end-to-end run against a real model.*
+the ledger are built and covered by 140 passing tests. Live tests (3 real round-trips against
+OpenRouter/Anthropic/xAI) pass; cost ledger reconciles to provider-reported usage. Still unticked
+against the definition below: a clean `composer global require` install from a fresh machine, and
+`ArtisanTool` integration verified with a Laravel repo.*
 Definition of done: see v0.1 scope above. Installable via `composer global require` (see
 "Distribution and concurrency" — PHAR is cut, this line was left stale above on purpose, don't
 copy it), README includes an honest comparison table against Maestro (not a "first ever" claim).

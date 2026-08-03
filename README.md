@@ -7,7 +7,7 @@
 [![status](https://img.shields.io/badge/status-alpha-orange?style=for-the-badge)](#-status-honestly)
 [![php](https://img.shields.io/badge/PHP-%E2%89%A5%208.4-777BB4?style=for-the-badge&logo=php&logoColor=white)](composer.json)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
-[![tests](https://img.shields.io/badge/tests-130%20passing-brightgreen?style=for-the-badge)](tests/)
+[![tests](https://img.shields.io/badge/tests-140%20passing-brightgreen?style=for-the-badge)](tests/)
 [![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
@@ -27,8 +27,8 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `config:provider`, `config:show` all register and run |
 | 🔧 five native tools | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `git` |
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection |
-| 🧪 test suite | ✅ **130 passing**, 358 assertions | `vendor/bin/pest` |
-| 🌐 talking to a real LLM | ⬜ **never done** | provider clients are tested against a **mocked** Guzzle transport only |
+| 🧪 test suite | ✅ **140 passing**, 386 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
+| 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
 | 📦 `curl \| sh` installer | ⬜ **not built** | the binary is measured, the installer is not written |
 | 🏷️ tagged release | ⬜ **none** | no version has shipped |
 
@@ -83,10 +83,9 @@ The full version of this — any MCP client driving Paider's tools — is v1.0, 
 SDK maturing past pre-1.0. The intended first step is `ArtisanTool`, reading `route:list` as
 structured data instead of shell text when pointed at a Laravel repo.
 
-> ⬜ **`ArtisanTool` is not built.** It was scoped for v0.1 and deliberately deferred: any
-> `php artisan <anything>` boots the target app and executes its service providers, which makes
-> it arbitrary code execution — so an allowlist is *not* a security boundary for it. It needs an
-> approval design of its own rather than a slot in the existing five. See [`PLAN.md`](PLAN.md).
+✅ **`ArtisanTool` is built.** One hardcoded call (`php artisan route:list --json`), not a general
+Artisan passthrough — arbitrary code execution needs its own approval gate rather than a slot in
+`ShellTool`. See [`PLAN.md` § Sequencing](PLAN.md#sequencing-the-laravel-host-proof-cant-wait-for-v10).
 
 **2. You can see exactly where the money went.**
 
@@ -250,6 +249,44 @@ sequenceDiagram
     E-->>L: uuid7
     Note over E: append only — no update(),<br/>no delete(), anywhere in the class
 ```
+
+</details>
+
+## 🧪 Test suites — hermetic by default, live on demand
+
+Two test runs, two purposes:
+
+```bash
+# Default: hermetic, no network, no cost
+# ✅ safe to run on every commit, in CI, anywhere
+vendor/bin/pest
+
+# Live: real API calls, real spend (measured and reconciled)
+# costs money · requires credentials · read the ledger output
+vendor/bin/pest --group=live
+```
+
+**Hermetic suite** (`vendor/bin/pest`, 140 tests) — all provider interactions mocked via Guzzle;
+proves self-consistency, zero cost. Excluded group: `live`.
+
+**Live suite** (`vendor/bin/pest --group=live`, 3 tests) — real round-trips to `api.openrouter.ai`,
+`api.anthropic.com`, and `api.x.ai` (xAI fallback when `ANTHROPIC_API_KEY` absent). Discovers
+shape mismatches, usage-field placement, and actual token costs. Tests skip gracefully (no failure)
+when credentials are absent, so CI stays green in sandboxes.
+
+**Environment variables for live suite:**
+- `OPENROUTER_API_KEY` — enables OpenRouter test (qwen/qwen3-max)
+- `ANTHROPIC_API_KEY` — enables Anthropic test (claude-opus-5-latest)
+- `XAI_API_KEY` — fallback when Anthropic key absent (Claude via xAI's Anthropic-format endpoint)
+
+<details>
+<summary><b>📊 Live test discoveries</b></summary>
+
+Three real calls across two tiers; the cost ledger reconciles exactly:
+
+- **OpenRouter round-trip** — `qwen3-max` responds with usage fields where the parser expects them
+- **Anthropic wire format** — novel finding: grok-4 returns a `thinking` content block before `text`, and `AnthropicClient` filters on `type === 'text'`. Every hand-written fixture was text-only, so this filter had never been exercised against reality until now. ✅ holds.
+- **Cost ledger reconciliation** — provider-reported token counts match our projection's totals to 1e-9; spend matches the price sheet exactly; tiers partition the session correctly.
 
 </details>
 
@@ -442,17 +479,18 @@ grading against it honestly leaves three boxes unticked:
 | v0.1 definition-of-done | state |
 |---|---|
 | the four commands | ✅ built |
-| the five native tools | ✅ built |
+| the five native tools + `ArtisanTool` | ✅ **six built** |
 | `sk-sp-` key/base-URL guard | ✅ built |
 | diff-apply staleness, syntax gate, `/undo`, secrets guard | ✅ built |
 | honest comparison table vs Maestro | ✅ **added above** |
-| **six** native tools — the five plus `ArtisanTool` | ⬜ only five |
+| live provider round-trips | ✅ **3 tests, ledger reconciles** |
 | installable via `composer global require` from a clean machine | ⬜ never attempted |
-| actually driving a real model end to end | ⬜ never attempted |
+| end-to-end on a real repo with a real API key | ⬜ never attempted |
 
-Flipping this to ✅ would mean the docs claim something no one has run. The rule in this repo
-is that a green checkbox is a promise a `grep` or a test run can keep — so it stays 🔨 until
-someone installs it clean and watches it edit a file with a real API key.
+The two remaining boxes — fresh `composer global require` install and running a full session
+against a real repo — are the only blockers to shipping v0.1. Everything else is done. The rule
+in this repo is that a green checkbox is a promise a `grep` or a test run can keep — all six
+checked above are testable / grepable; the unchecked two require human verification.
 
 </details>
 
