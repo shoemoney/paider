@@ -12,5 +12,10 @@ interface Tool
 
     public function inputSchema(): array;
 
-    public function execute(array $input): ToolResult;
+    /**
+     * $approved is set only by the caller's own PHP code after Gate::decide() (or Loop's
+     * internal bookkeeping reads) — never derived from $input. Tools must not read an
+     * 'approved'/'approval' key out of $input as a substitute for this parameter.
+     */
+    public function execute(array $input, bool $approved = false): ToolResult;
 }

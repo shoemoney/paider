@@ -38,7 +38,8 @@ class RecordingTool implements Tool
         return ['type' => 'object'];
     }
 
-    public function execute(array $input): ToolResult
+    // ponytail: unused, only read/write/patch/git use the out-of-band signal — see Tool::execute() doc
+    public function execute(array $input, bool $approved = false): ToolResult
     {
         $this->callCount++;
         $this->lastInput = $input;
@@ -69,7 +70,8 @@ class RecordingArtisanTool implements Tool
         return ['type' => 'object'];
     }
 
-    public function execute(array $input): ToolResult
+    // ponytail: unused, only read/write/patch/git use the out-of-band signal — see Tool::execute() doc
+    public function execute(array $input, bool $approved = false): ToolResult
     {
         $this->callCount++;
         $this->lastInput = $input;
@@ -100,7 +102,8 @@ class RecordingShellTool implements Tool
         return ['type' => 'object'];
     }
 
-    public function execute(array $input): ToolResult
+    // ponytail: unused, only read/write/patch/git use the out-of-band signal — see Tool::execute() doc
+    public function execute(array $input, bool $approved = false): ToolResult
     {
         $this->callCount++;
         $this->lastInput = $input;

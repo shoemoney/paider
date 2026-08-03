@@ -80,14 +80,25 @@ test('rejects sensitive path without approval and does not write', function () {
     expect(file_exists($root.'/.env'))->toBeFalse();
 });
 
-test('writes sensitive path when approved', function () {
+test('writes sensitive path when approved via the execute() parameter', function () {
+    $root = writeFileToolRoot();
+    $tool = new WriteFileTool($root);
+
+    $result = $tool->execute(['path' => '.env', 'content' => 'SECRET=1'], true);
+
+    expect($result->ok)->toBeTrue();
+    expect(file_get_contents($root.'/.env'))->toBe('SECRET=1');
+});
+
+test('a model-shaped approved=true inside $input cannot self-approve, called directly with no Loop involved', function () {
     $root = writeFileToolRoot();
     $tool = new WriteFileTool($root);
 
     $result = $tool->execute(['path' => '.env', 'content' => 'SECRET=1', 'approved' => true]);
 
-    expect($result->ok)->toBeTrue();
-    expect(file_get_contents($root.'/.env'))->toBe('SECRET=1');
+    expect($result->ok)->toBeFalse();
+    expect($result->meta['needs_approval'] ?? null)->toBeTrue();
+    expect(file_exists($root.'/.env'))->toBeFalse();
 });
 
 test('rejects a write through a symlinked directory that escapes root', function () {

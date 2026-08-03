@@ -77,7 +77,20 @@ test('diff on a sensitive path requires approval and withholds contents', functi
     expect($result->output)->not->toContain('leaked-value');
 });
 
-test('diff on a sensitive path with approved returns the content', function () {
+test('diff on a sensitive path with approved via the execute() parameter returns the content', function () {
+    file_put_contents($this->root.'/.env', 'SECRET=original');
+    $this->tool->execute(['op' => 'add', 'path' => '.env']);
+    $this->tool->execute(['op' => 'commit', 'message' => 'seed env']);
+
+    file_put_contents($this->root.'/.env', 'SECRET=leaked-value');
+
+    $result = $this->tool->execute(['op' => 'diff'], true);
+
+    expect($result->ok)->toBeTrue();
+    expect($result->output)->toContain('leaked-value');
+});
+
+test('a model-shaped approved=true inside $input cannot self-approve, called directly with no Loop involved', function () {
     file_put_contents($this->root.'/.env', 'SECRET=original');
     $this->tool->execute(['op' => 'add', 'path' => '.env']);
     $this->tool->execute(['op' => 'commit', 'message' => 'seed env']);
@@ -86,6 +99,7 @@ test('diff on a sensitive path with approved returns the content', function () {
 
     $result = $this->tool->execute(['op' => 'diff', 'approved' => true]);
 
-    expect($result->ok)->toBeTrue();
-    expect($result->output)->toContain('leaked-value');
+    expect($result->ok)->toBeFalse();
+    expect($result->meta['needs_approval'] ?? null)->toBeTrue();
+    expect($result->output)->not->toContain('leaked-value');
 });

@@ -218,11 +218,29 @@ test('creating a new sensitive-named file requires approval and is not written w
         'path' => '.env',
         'diff' => $diff,
         'stamp' => PatchFileTool::NEW_FILE_STAMP,
-        'approved' => true,
-    ]);
+    ], true);
 
     expect($approved->ok)->toBeTrue();
     expect(file_get_contents($path))->toBe("SECRET=value\n");
+});
+
+test('a model-shaped approved=true inside $input cannot self-approve, called directly with no Loop involved', function () {
+    $root = patchFileWorkspace();
+    $path = $root.DIRECTORY_SEPARATOR.'.env';
+
+    $diff = "@@ -0,0 +1,1 @@\n+SECRET=value\n";
+
+    $tool = new PatchFileTool($root);
+    $result = $tool->execute([
+        'path' => '.env',
+        'diff' => $diff,
+        'stamp' => PatchFileTool::NEW_FILE_STAMP,
+        'approved' => true,
+    ]);
+
+    expect($result->ok)->toBeFalse();
+    expect($result->meta['needs_approval'] ?? false)->toBeTrue();
+    expect(is_file($path))->toBeFalse();
 });
 
 test('a diff that never touches the last line of a no-trailing-newline file does not gain one', function () {

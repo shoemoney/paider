@@ -46,13 +46,23 @@ test('rejects sensitive path without approval and leaks no content', function ()
     expect($result->output)->not->toContain('SECRET=1');
 });
 
-test('reads sensitive path when approved', function () {
+test('reads sensitive path when approved via the execute() parameter', function () {
+    $tool = new ReadFileTool(readFileToolRoot());
+
+    $result = $tool->execute(['path' => '.env'], true);
+
+    expect($result->ok)->toBeTrue();
+    expect($result->output)->toBe('SECRET=1');
+});
+
+test('a model-shaped approved=true inside $input cannot self-approve, called directly with no Loop involved', function () {
     $tool = new ReadFileTool(readFileToolRoot());
 
     $result = $tool->execute(['path' => '.env', 'approved' => true]);
 
-    expect($result->ok)->toBeTrue();
-    expect($result->output)->toBe('SECRET=1');
+    expect($result->ok)->toBeFalse();
+    expect($result->meta['needs_approval'] ?? null)->toBeTrue();
+    expect($result->output)->not->toContain('SECRET=1');
 });
 
 test('rejects a read through a symlinked directory that escapes root', function () {

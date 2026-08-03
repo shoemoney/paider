@@ -32,13 +32,12 @@ class PatchFileTool implements Tool
                 'path' => ['type' => 'string'],
                 'diff' => ['type' => 'string'],
                 'stamp' => ['type' => 'string'],
-                'approved' => ['type' => 'boolean'],
             ],
             'required' => ['path', 'diff', 'stamp'],
         ];
     }
 
-    public function execute(array $input): ToolResult
+    public function execute(array $input, bool $approved = false): ToolResult
     {
         $path = $input['path'] ?? null;
         $diff = $input['diff'] ?? null;
@@ -56,7 +55,7 @@ class PatchFileTool implements Tool
             return ToolResult::fail('path escapes the workspace root', ['denied' => true]);
         }
 
-        if (SecretsGuard::isSensitive($absolute) && ! ($input['approved'] ?? false)) {
+        if (SecretsGuard::isSensitive($absolute) && ! $approved) {
             return ToolResult::fail('sensitive path requires approval', [
                 'needs_approval' => true,
                 'reason' => 'secrets',

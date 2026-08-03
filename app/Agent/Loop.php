@@ -123,10 +123,12 @@ class Loop
             return ToolResult::fail("unknown tool: {$name}");
         }
 
-        // 'approval' and 'approved' are Loop-internal fields, set only after Gate::decide()
-        // actually runs (dispatchShell/dispatchArtisan/retryWithApproval below) — never
-        // trust either one supplied in the model's own tool-call input, or the model can
-        // self-approve a gated read/write/patch/git call and skip the gate entirely.
+        // 'approval' (run_shell/artisan) and 'approved' (read_file/write_file/patch_file/git,
+        // legacy — those four now take approval via Tool::execute()'s second parameter, which
+        // $input can never reach) are Loop-internal fields, set only after Gate::decide()
+        // actually runs. This unset() remains the sole defence for run_shell/artisan; for the
+        // four it's a second, independent belt-and-suspenders layer on top of the tools' own
+        // refusal to read approval out of $input at all.
         unset($input['approval'], $input['approved']);
 
         if ($name === 'run_shell') {
@@ -224,9 +226,7 @@ class Loop
             return ToolResult::fail('denied', ['needs_approval' => true]);
         }
 
-        $input['approved'] = true;
-
-        return $tool->execute($input);
+        return $tool->execute($input, true);
     }
 
     private function previousContentFor(string $path): ?string
@@ -237,9 +237,10 @@ class Loop
             return null;
         }
 
-        // approved=true: this is Loop's own bookkeeping read for the undo stack, not
-        // content being disclosed to the model, so the secrets gate doesn't apply here.
-        $result = $readTool->execute(['path' => $path, 'approved' => true]);
+        // approved=true (2nd execute() param, not an $input key): this is Loop's own
+        // bookkeeping read for the undo stack, not content being disclosed to the model,
+        // so the secrets gate doesn't apply here.
+        $result = $readTool->execute(['path' => $path], true);
 
         return $result->ok ? $result->output : null;
     }

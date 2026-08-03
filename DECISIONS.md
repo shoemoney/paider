@@ -635,3 +635,30 @@ reopen this) still applies to any future proc_open call site — lint or code-re
 Regression test: `ShellToolTest.php` — sets a sentinel via `putenv()`, echoes it through
 `run_shell`, asserts it does not appear in output; confirmed to fail if the `$env` argument is
 removed.
+## 18. Approval defence in depth — §15's residual risk #2 closed, 2026-08-03
+
+§15 flagged that `read_file`, `write_file`, `patch_file`, and `git` trusted an `approved` key
+if called directly, not through `Loop::dispatch()` — the entire defence against self-approval
+rested on a single `unset()` at that one chokepoint.
+
+Closed for those four tools by moving the approval decision off `$input` entirely: `Tool::execute()`
+now takes a second `bool $approved = false` parameter that only the caller's own PHP can set — the
+model's JSON tool-call payload becomes `$input` and never reaches it. The four tools' `inputSchema()`
+no longer advertises `approved`, matching the convention `ArtisanTool` already used for `approval`.
+`Loop::retryWithApproval()` and the undo-bookkeeping read in `Loop::previousContentFor()` pass the
+decision as `execute($input, true)` instead of splicing `'approved' => true` into `$input`.
+
+A future code path that reaches one of these four tools directly with model-shaped JSON — bypassing
+`Loop::dispatch()` entirely — can no longer self-approve: there is no `$input` key left to trust.
+`Loop::dispatch()`'s existing `unset($input['approval'], $input['approved'])` stays in place
+unchanged; for these four it is now genuinely redundant-but-harmless insurance (real defence in
+depth — two independent mechanisms, not one) rather than the sole defence.
+
+`run_shell` and `artisan` are explicitly out of scope: they use a different, tri-state `approval`
+key (`allow-once` / `allow-session` / `deny`) with an existing test contract, and were not named
+in §15's residual risk #2. `Loop::dispatch()`'s `unset()` remains their sole defence.
+
+New regression tests construct each of the four tools directly (no `Loop`) and pass a model-shaped
+`$input` asserting `'approved' => true`; each must refuse. Verified these fail red if the fix is
+reverted (temporarily read `$input['approved']` again in `ReadFileTool`, confirmed the new test
+failed, restored). Test suite: 190 passing (hermetic), up from 186.
