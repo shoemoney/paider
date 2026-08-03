@@ -1,0 +1,136 @@
+name: tests
+
+# Paider auto-updates to Packagist on every push to main, so anything that lands here
+# is immediately installable by anyone on dev-main. This workflow is the only thing
+# standing between a broken commit and those users.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# `pull_request` (NOT pull_request_target) runs fork PRs without repository secrets.
+# That is deliberate: the live suite costs real money and holds provider credentials,
+# so a fork must never be able to reach them. See the `live` job's absence below —
+# there isn't one, on purpose.
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: pest · php ${{ matrix.php }} ${{ matrix.deps }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # composer.json requires ^8.4. 8.4 is the floor we promise; 8.5 is what
+        # development actually happens on. Both must stay green or the constraint is a lie.
+        php: ['8.4', '8.5']
+        deps: ['locked']
+        include:
+          # One job resolves the lowest versions every constraint allows. Without it,
+          # composer.lock hides an over-permissive constraint until a consumer — who has
+          # no lock file, because this ships as a library — resolves something older and breaks.
+          - php: '8.4'
+            deps: 'lowest'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          # The eleven extensions Paider actually ships with (EXTENSIONS.md). Testing against
+          # a fatter PHP than we distribute would hide a missing-extension bug until runtime —
+          # which is exactly how the ext-phar trap was found the hard way.
+          extensions: mbstring, tokenizer, ctype, fileinfo, iconv, curl, openssl, zlib, pdo_sqlite, phar, filter
+          coverage: none
+          ini-values: error_reporting=E_ALL
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Cache composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ matrix.php }}-${{ matrix.deps }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-${{ matrix.deps }}-
+
+      - name: Install dependencies (locked)
+        if: matrix.deps == 'locked'
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Install dependencies (lowest)
+        if: matrix.deps == 'lowest'
+        run: composer update --no-interaction --no-progress --prefer-dist --prefer-lowest --prefer-stable
+
+      # The default suite excludes the `live` group (phpunit.xml.dist), so this is hermetic:
+      # no network, no provider credentials, no spend. If this step ever needs a secret,
+      # something has leaked out of tests/Live and that is the bug, not the missing secret.
+      - name: Run the hermetic suite
+        run: vendor/bin/pest
+
+      - name: Prove the live suite is genuinely opt-in
+        # With no credentials present the live tests must SKIP, not fail — otherwise every
+        # fork PR and every contributor without keys sees a red build for no reason.
+        # This asserts the guard, and costs nothing because nothing is called.
+        run: |
+          set -euo pipefail
+          out="$(vendor/bin/pest --group=live 2>&1)"
+          echo "$out"
+          echo "$out" | grep -qE '3 skipped' \
+            || { echo "::error::live tests did not skip cleanly without credentials"; exit 1; }
+
+  cli:
+    name: the binary actually runs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, tokenizer, ctype, fileinfo, iconv, curl, openssl, zlib, pdo_sqlite, phar, filter
+          coverage: none
+
+      - run: composer install --no-interaction --no-progress --prefer-dist
+
+      # A green unit suite does not prove the entry point boots. It boots through a different
+      # path than the tests do, and Laravel Zero has already broken there once (Phar::running()
+      # at bootstrap, which a trimmed build could not satisfy).
+      - name: Smoke-test the CLI
+        run: |
+          set -euo pipefail
+          ./paider --version
+          ./paider list | tee /tmp/list.txt
+          for c in chat commit cost config:provider config:show; do
+            grep -qE "^[[:space:]]+$c( |$)" /tmp/list.txt \
+              || { echo "::error::command '$c' is not registered"; exit 1; }
+          done
+
+      - name: Cost ledger reports real money, end to end
+        # Seeds an event log, runs the real binary, and asserts a non-zero total. This is the
+        # product's flagship claim; a regression that silently returns to $0.000 would otherwise
+        # only be caught by someone reading the output.
+        run: |
+          set -euo pipefail
+          export WORK="$(mktemp -d)"
+          mkdir -p "$WORK/.paider"
+          php -r '
+            $d = new PDO("sqlite:" . getenv("WORK") . "/.paider/paider.db");
+            $d->exec("CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, type TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL)");
+            $d->prepare("INSERT INTO events VALUES (?,?,?,?)")->execute([
+                "e1", "tier_call",
+                json_encode(["tier" => "orchestrator", "model" => "anthropic/claude-opus-5", "tokens_in" => 61200, "tokens_out" => 19800, "cost_usd" => 0.801]),
+                gmdate("c"),
+            ]);
+          '
+          cd "$WORK" && "$GITHUB_WORKSPACE/paider" cost | tee /tmp/cost.txt
+          grep -q '0\.801' /tmp/cost.txt \
+            || { echo "::error::cost command did not report the seeded spend"; exit 1; }
