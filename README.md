@@ -7,7 +7,7 @@
 [![status](https://img.shields.io/badge/status-alpha-orange?style=for-the-badge)](#-status-honestly)
 [![php](https://img.shields.io/badge/PHP-%E2%89%A5%208.4-777BB4?style=for-the-badge&logo=php&logoColor=white)](composer.json)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
-[![tests](https://img.shields.io/badge/tests-128%20passing-brightgreen?style=for-the-badge)](tests/)
+[![tests](https://img.shields.io/badge/tests-130%20passing-brightgreen?style=for-the-badge)](tests/)
 [![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
@@ -27,7 +27,7 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `config:provider`, `config:show` all register and run |
 | 🔧 five native tools | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `git` |
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection |
-| 🧪 test suite | ✅ **128 passing**, 349 assertions | `vendor/bin/pest` |
+| 🧪 test suite | ✅ **130 passing**, 358 assertions | `vendor/bin/pest` |
 | 🌐 talking to a real LLM | ⬜ **never done** | provider clients are tested against a **mocked** Guzzle transport only |
 | 📦 `curl \| sh` installer | ⬜ **not built** | the binary is measured, the installer is not written |
 | 🏷️ tagged release | ⬜ **none** | no version has shipped |
@@ -37,14 +37,38 @@ mile — an actual API key, an actual model, an actual edit landing in your repo
 
 ---
 
-## What this is not
+## 🙅 What this is not
 
 It is not the first PHP coding agent — [`neuron-core/maestro`](https://github.com/neuron-core/maestro)
 got there first and its README says so correctly. It is not faster than a Go or Rust agent; PHP's
 interpreter floor is 48.6ms against Python's 21.5ms and ripgrep's 3.7ms, and no amount of care
 changes that. If raw startup is what you want, use something compiled.
 
-## What it is
+### 📊 Honest comparison
+
+Stars and dates pulled live from the GitHub API on **2026-08-02**:
+
+| | 🐘 **Paider** | [`neuron-core/maestro`](https://github.com/neuron-core/maestro) | [`Aider-AI/aider`](https://github.com/Aider-AI/aider) |
+|---|---|---|---|
+| language | PHP | PHP | Python |
+| stars | *unreleased* | **38★** | **47,886★** |
+| last pushed | active | 2026-06-19 | **2026-05-22** ☠️ |
+| open issues | — | 0 | **1,770** |
+| first PHP agent? | ❌ no | ✅ **yes, and says so** | n/a |
+| shipping today? | ❌ **not yet** | ✅ yes | ⚠️ stalled |
+| named cost tiers | ✅ 4, with a ledger | ❌ | ❌ `main`/`weak`/`editor`, unlabeled |
+| open-weight presets | ✅ 2 | ❌ | ❌ |
+| commercial coupling | none | [Inspector.dev](https://inspector.dev) SaaS | none |
+
+**Read that table honestly:** Maestro ships today and Paider does not. Maestro is also 38 stars
+beside its own 2,038-star underlying SDK — so "PHP developers want an agent CLI in PHP" is
+*unproven*, not confirmed, even by the one entrant that exists. Aider proves the opposite risk:
+48k stars mean nothing once the maintainer goes quiet.
+
+What Paider bets on is the two columns nobody else fills in — **named cost tiers with a
+checkable ledger**, and an agent that lives *inside* your Laravel app.
+
+## 💡 What it is
 
 Two bets.
 
@@ -127,9 +151,9 @@ paider config:provider kimi      # single-provider stacks for all the majors
 paider config:show               # what am I actually running?
 ```
 
-## Why build it at all
+## 🕳️ Why build it at all
 
-[`Aider-AI/aider`](https://github.com/Aider-AI/aider) has 47,883 stars, 1,770 open issues, and no
+[`Aider-AI/aider`](https://github.com/Aider-AI/aider) has 47,886 stars, 1,770 open issues, and no
 commit since 2026-05-22. Its most-repeated issues are not feature requests — they are
 [#4613 "where is Paul?"](https://github.com/Aider-AI/aider/issues/4613) and
 [#4648 "what is the intended future of Aider?"](https://github.com/Aider-AI/aider/issues/4648),
@@ -139,7 +163,7 @@ one holds 0.8% of upstream's stars.
 It died of abandoned stewardship, not a technical flaw. That is the thing worth designing
 against, and it is why [`PLAN.md`](PLAN.md) has a Non-goals section longer than its feature list.
 
-## On the terminal UI
+## 🖥️ On the terminal UI
 
 The fashionable agent CLIs render with [Ink](https://github.com/vadimdemedes/ink), React for the
 terminal. It is good, and it is not obviously better than what PHP already has for this shape of
@@ -262,8 +286,27 @@ someone got right first try:
 | 🤫 `SecretsGuard` | redaction before anything reaches a model |
 | 💸 `QwenPlanKeyGuard` | refuses an `sk-sp-` plan key paired with a PAYG base URL, which would silently bill you |
 | 🚫 strict JSON | six paths where a lenient decode turned a failed call into a successful-looking empty one |
+| ⏱️ `ShellTool` timeout | SIGTERM then **SIGKILL** after 0.5s — `proc_close()` blocks until the child exits, so a `trap '' TERM` command ran the full 20s against a 1s timeout and reported exit 0 |
+| 📎 `patch_file` + secrets | creating a **new** `.env`/`id_rsa` skipped approval entirely, because `stamp='__new_file__'` needs no prior read — which is where the gate used to catch it |
+| ✅ result checking | `paider commit` returned SUCCESS when nothing was committed, and fed a SecretsGuard *refusal* to the model as though it were a diff |
 
-## Read the thinking
+<details>
+<summary><b>🔬 Where these came from</b></summary>
+
+Every row above was found by an **adversarial review pass that read the code on disk rather
+than the author's summary**, then re-verified against the committed result. Two are worth
+calling out because the tests were green the whole time:
+
+- **`/add` was silently inert.** `Loop` never read `Session::contextFiles()`, so added files
+  never reached the model — and without their sha256 the model could not supply the stamp
+  `patch_file` requires. The headline workflow did nothing, with no error.
+- **`PathGuard` had two independent escapes**, found by two different reviewers. The first was
+  `..` in a non-existent tail. The second was an *existing* intermediate directory symlinked
+  out of the project, which the first fix said nothing about.
+
+</details>
+
+## 📚 Read the thinking
 
 - **[STORAGE.md](STORAGE.md)** — one SQLite file, no services. Why not Redis.
 - **[EXTENSIONS.md](EXTENSIONS.md)** — the eleven extensions that ship, and what was cut.
@@ -272,7 +315,7 @@ someone got right first try:
   recommending the wrong repo, picking a model off a spec sheet that a practitioner knew was a
   dead zone, and asserting a gap that turned out to be occupied.
 
-## Measured, not estimated
+## 📏 Measured, not estimated
 
 Startup, one machine, medians:
 
@@ -285,7 +328,7 @@ Startup, one machine, medians:
 | **Laravel Zero, lean ini** | **95.9ms** |
 | cecli (1,548 modules) | ~710ms |
 
-## Distribution
+## 📦 Distribution
 
 Two channels, because there are exactly two users:
 
@@ -386,9 +429,32 @@ flowchart LR
 
 | milestone | scope | state |
 |---|---|---|
-| **v0.1** | 4 commands, 5 tools, approval gate, event log, cost ledger, tier router | ✅ built · unproven against a live model |
-| **v0.2** | `mcp/sdk` client, `laravel/mcp` server-side, the multi-agent roster | 🔨 next |
-| **v1.0** | any MCP client drives Paider's tools; `ArtisanTool` against a real Laravel app | ⬜ planned |
+| **v0.1** | 4 commands, 5 tools, approval gate, event log, cost ledger, tier router | 🔨 **in progress** |
+| **v0.2** | `mcp/sdk` client, `paider run --yes`, repo-map on the research tier, test-feedback loop | ⬜ planned |
+| **v1.0** | MCP **server** mode — external clients drive Paider's tools; published semver policy | ⬜ planned |
+
+<details>
+<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 130 tests pass?</b></summary>
+
+Because [`PLAN.md`](PLAN.md) wrote v0.1's definition of done *before* the code existed, and
+grading against it honestly leaves three boxes unticked:
+
+| v0.1 definition-of-done | state |
+|---|---|
+| the four commands | ✅ built |
+| the five native tools | ✅ built |
+| `sk-sp-` key/base-URL guard | ✅ built |
+| diff-apply staleness, syntax gate, `/undo`, secrets guard | ✅ built |
+| honest comparison table vs Maestro | ✅ **added above** |
+| **six** native tools — the five plus `ArtisanTool` | ⬜ only five |
+| installable via `composer global require` from a clean machine | ⬜ never attempted |
+| actually driving a real model end to end | ⬜ never attempted |
+
+Flipping this to ✅ would mean the docs claim something no one has run. The rule in this repo
+is that a green checkbox is a promise a `grep` or a test run can keep — so it stays 🔨 until
+someone installs it clean and watches it edit a file with a real API key.
+
+</details>
 
 ## 📜 License
 

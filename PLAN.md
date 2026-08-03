@@ -349,7 +349,10 @@ promised later.
 
 ## Milestones
 
-**v0.1 — "it works on my repo"**
+**🔨 v0.1 — "it works on my repo"** — *in progress: commands, the five tools, the guards and
+the ledger are built and covered by 130 passing tests. Still unticked against the definition
+below: `ArtisanTool` (the sixth tool), a clean `composer global require` install, and a single
+end-to-end run against a real model.*
 Definition of done: see v0.1 scope above. Installable via `composer global require` (see
 "Distribution and concurrency" — PHAR is cut, this line was left stale above on purpose, don't
 copy it), README includes an honest comparison table against Maestro (not a "first ever" claim).
@@ -358,7 +361,7 @@ Single-provider sessions only, interactive-only, six native tools (the usual fiv
 `sk-sp-` key/base-URL guard and the diff-apply staleness, `php -l`, `/undo`, and secrets-guard
 designs above ship, not v0.2.
 
-**v0.2 — "it doesn't need me watching it"**
+**⬜ v0.2 — "it doesn't need me watching it"** — *planned.*
 - MCP client support via `modelcontextprotocol/php-sdk` (consume external tool servers)
 - `paider run "<prompt>" --yes` — bounded non-interactive mode for scripting/CI, with an
   explicit allow-list of tools it may auto-approve (never unrestricted)
@@ -372,7 +375,7 @@ designs above ship, not v0.2.
 - Definition of done: a CI job can run `paider run` against a failing test and get a passing
   commit without a human in the loop, bounded by a retry cap and a tool allow-list.
 
-**v1.0 — "safe to depend on"**
+**⬜ v1.0 — "safe to depend on"** — *planned.*
 - MCP **server** mode: generalizes v0.1's single hardcoded `ArtisanTool` into the real thing —
   Paider exposes its own read/write/patch/shell/git/Artisan tools, and arbitrary host-app jobs and
   models, to external MCP clients (Claude Code, others) over the actual protocol — dogfoods
@@ -558,7 +561,7 @@ Things that need Jeremy's call, not a default guess:
    trap, see EXTENSIONS.md) — so the required set is now eleven, not nine. Distribution is
    confirmed on both axes. Full numbers: DECISIONS.md §9.
 
-8. **🔨 CLI-only FrankenPHP build, Caddy-free.** `build-static.sh` always links the full Caddy
+8. **⬜ CLI-only FrankenPHP build, Caddy-free.** `build-static.sh` always links the full Caddy
    server and Go HTTP stack even when the binary will only ever run as `php-cli`, which is why
    111MB overshoots the maintainer's 20–30MB estimate by 3.7–5.5x. Worth checking whether a
    Caddy-free build mode exists or is patchable — it's the only remaining path to that estimate.
