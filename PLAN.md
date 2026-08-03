@@ -447,6 +447,44 @@ the event log records every call, and the cost ledger prices it. A bench that re
 **verified-findings-per-dollar** is a number nobody else publishes, and it is the number that
 should actually pick a tier.
 
+### The Paider 100
+
+A single score out of 100, backed by **100 individually authored tests** — inspired by existing
+benchmarks, never cloned from them.
+
+**"Inspired, not cloned" is a contamination requirement, not a style preference.** A copied item
+carries the contamination of its original: if an item is lifted from ARC-AGI, every model already
+trained on ARC-AGI has effectively seen it, and the item measures recall rather than capability
+on day one. Authoring fresh items in the same *shape* is the only way to keep the shape's
+diagnostic value without inheriting its exposure.
+
+100 is chosen deliberately: small enough that every item can be hand-built and argued over,
+large enough that a single lucky or unlucky item moves the score by one point, and legible —
+"Paider 100: 62" needs no explanation to be cited.
+
+Roughly a dozen items per category across the eight benches above, weighted by how much each
+category actually predicts real agent usefulness rather than split evenly for symmetry.
+
+### The tension this is designed around
+
+Every benchmark author faces the same trade and most pick a side by default rather than on purpose:
+
+| | publish everything | publish nothing |
+|---|---|---|
+| exposure | high — adopted and cited fast | none — nobody knows it exists |
+| lifespan | **short** — becomes a training target, then a marketing number | long |
+| credibility | decays with the score's meaning | high, but unverifiable and unread |
+
+Publishing everything buys adoption and spends validity. Publishing nothing preserves validity
+and buys nothing. **The resolution is that these are separable: exposure comes from the score and
+the findings, contamination comes from the items.** So publish the first two loudly and withhold
+the third — which is exactly the policy below.
+
+That split is what makes the Paider 100 worth maintaining for years rather than months. A number
+people cite, findings people can check against real diffs, and an item set that never becomes
+training data. The rotation policy below is the backstop: even partial leakage shows up as a
+measurable old-vs-new gap rather than silently inflating the score.
+
 ### Publication policy — decided up front, because it is the whole design
 
 **Publish every run, including the errored ones, tagged as such.** Crashes, timeouts, refusals,
