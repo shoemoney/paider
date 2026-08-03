@@ -45,10 +45,15 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          # The eleven extensions Paider actually ships with (EXTENSIONS.md). Testing against
-          # a fatter PHP than we distribute would hide a missing-extension bug until runtime —
-          # which is exactly how the ext-phar trap was found the hard way.
-          extensions: mbstring, tokenizer, ctype, fileinfo, iconv, curl, openssl, zlib, pdo_sqlite, phar, filter
+          # The twelve extensions Paider ships with (EXTENSIONS.md).
+          #
+          # HONEST LIMITATION: setup-php ADDS these to the runner's default PHP, it does not
+          # RESTRICT to them. So this job does not prove Paider runs on only-these-twelve — a
+          # thirteenth dependency would pass here and fail in the static binary. That is exactly
+          # how ext-dom was missed: nothing declares it (Termwind instantiates DOMDocument and
+          # its own composer.json omits ext-dom), CI has it by default, and only an actual
+          # trimmed FrankenPHP build surfaced it. The build is the real check; this is a floor.
+          extensions: mbstring, tokenizer, ctype, fileinfo, iconv, curl, openssl, zlib, pdo_sqlite, phar, filter, dom
           coverage: none
           ini-values: error_reporting=E_ALL
 
@@ -96,7 +101,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: mbstring, tokenizer, ctype, fileinfo, iconv, curl, openssl, zlib, pdo_sqlite, phar, filter
+          extensions: mbstring, tokenizer, ctype, fileinfo, iconv, curl, openssl, zlib, pdo_sqlite, phar, filter, dom
           coverage: none
 
       - run: composer install --no-interaction --no-progress --prefer-dist

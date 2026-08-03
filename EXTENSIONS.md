@@ -31,7 +31,27 @@ clean and then couldn't boot the app.
 Free — compiled into PHP core, not separate extensions: `json`, `pcre`, `date`,
 `spl`, `reflection`, `hash`, `random`.
 
-Add `pdo_sqlite` (opt-in, v0.2, below) and the real required count is **eleven**, not nine.
+Add `pdo_sqlite` (opt-in, v0.2, below) and `dom`, and the real required count is **twelve**.
+
+### 🪤 The `ext-dom` trap — nobody declares it
+
+`dom` was the twelfth, and it was found the expensive way: a trimmed FrankenPHP build with the
+"documented eleven" passed `paider --version` and `paider list`, then died on `paider cost` with
+`Class "DOMDocument" not found`.
+
+The reason nothing caught it earlier is that **nothing declares it anywhere in the chain**.
+Termwind's `HtmlRenderer` does `new DOMDocument` (`vendor/nunomaduro/termwind/src/HtmlRenderer.php:32`)
+while Termwind's own `composer.json` requires only `php` and `ext-mbstring`. So
+`composer check-platform-reqs` cannot know, CI has `dom` in its default PHP anyway, and every
+development machine has it. The only environment that could reveal it is the one we actually
+distribute — a build containing exactly what we asked for and nothing else.
+
+Paider now declares `ext-dom` in its own `composer.json`, since the package that needs it does not.
+
+**The general lesson, which cost this project twice:** a command that only prints a version
+string exercises almost none of the app. `--version` and `list` both passed on the broken build.
+It took running a command that renders real output through Termwind to fail. Smoke-test with
+something that does work, not something that proves the binary starts.
 
 ### 🪤 The Laravel Zero `Phar::running()` trap
 
@@ -120,7 +140,7 @@ are not wanted anywhere in this document: `imagick`, `ldap`, `amqp`, `memcached`
 `pgsql`, `pdo_pgsql`, `mysqli`, `pdo_mysql`, `soap`, `tidy`, `xsl`, `gd`, `intl`, `redis`, `ssh2`,
 `protobuf`, `xlswriter`, and more.
 
-That bloat is why the off-the-shelf binary is **178MB**. Trimming those 68 down to the eleven
+That bloat is why the off-the-shelf binary is **178MB**. Trimming those 68 down to the twelve
 above is exactly what a custom static build (`build-static.sh`, run natively) is for — see
 [`DECISIONS.md` §9](DECISIONS.md) and [`README.md`](README.md#distribution).
 
@@ -131,7 +151,7 @@ on macOS with FrankenPHP's own `build-static.sh` (**not** Docker — the Docker 
 emits Linux binaries only). PHP 8.5.9, Caddy v2.11.4, Go 1.26.5. Build time: **~7 minutes**.
 
 The first attempt used the "documented nine" and **could not boot** — the `Phar::running()` trap
-above. With all eleven extensions
+above. With all twelve extensions
 (`PHP_EXTENSIONS="mbstring,tokenizer,ctype,fileinfo,iconv,curl,openssl,zlib,pdo_sqlite,phar,filter"`)
 it works:
 
