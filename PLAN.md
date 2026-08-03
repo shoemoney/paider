@@ -469,9 +469,29 @@ puzzle benchmark showed narrower gains, suggesting the large ARC-AGI-3 advantage
 specialized optimization for that specific benchmark format"*
 ([The Decoder](https://the-decoder.com/anthropics-opus-5-blows-past-fable-5-and-gpt-5-6-sol-on-the-benchmark-designed-to-measure-real-intelligence/)).
 
+The full ARC-AGI-3 board makes the shape clearer, and also complicates it honestly. Opus 5
+30.16%, Fable 5 16.6%, GPT-5.6 Sol 7.78%, **Opus 4.8 1.52%**, and nine of twelve listed systems
+under 1% ([BenchLM](https://benchlm.ai/benchmarks/arcagi3)). The eye-catching number is not Opus 5
+against its sibling — it is Opus 4.8 to Opus 5, **1.52% to 30.16%, a 20x jump inside one family in
+one generation**, with the whole 4.x line beneath 2%.
+
+**That discontinuity is not itself evidence of gaming, and it is worth being precise about why.**
+ARC-AGI-3 is interactive: an environment is completed or it is not. Below some capability floor
+everything piles up near zero because nothing can be finished, and crossing that floor produces a
+leap. Nine of twelve systems under 1% is the signature of a floor effect, not of a smooth curve.
+A threshold story and a benchmaxxing story predict the same jump, so the jump cannot distinguish
+them.
+
+**What discriminates is the independent cross-check** — the alternative puzzle benchmark on which
+the same models showed narrower gains. A genuine threshold effect reproduces across comparable
+benchmarks; optimisation for one format does not. That single independent measurement carries more
+information than the entire public leaderboard it sits beside.
+
 Same models, different ruler, different answer. That is the entire argument for a private item
 set in one data point: the public number could not distinguish capability from exposure, and an
-independent one could.
+independent one could. The correct read is also the unexciting one — Opus 5 genuinely leads, and
+not by the magnitude the headline number implies. Both halves are true, and no public benchmark
+can tell you which part is which.
 
 ### Rotation and fairness — two rules that pull against each other
 
@@ -590,8 +610,22 @@ keep most of the value:
   versions and routes — everything except the items themselves.
 - Publish **per-run traces** with the item redacted, so the reasoning and failure mode are
   visible even when the prompt is not.
-- Offer **audited third-party access** to the items under an agreement not to redistribute, so
-  the suite can be checked without becoming public training data.
+- **Open the door, never the wire.** Anyone is invited on site to inspect everything: the items,
+  the harness, the raw runs, the scoring code, the rotation log. Full transparency in person, to
+  anyone who asks. **Nothing is ever disclosed over the internet** — no NDA'd downloads, no
+  "trusted partner" API, no encrypted archive with a key emailed separately. Every remote
+  disclosure mechanism eventually leaks, and one leak is permanent: an item that reaches a
+  training corpus cannot be recalled.
+
+  This is the honest answer to "then how do we know you are not making it up." You come and look.
+  It is a real verification path, and a deliberately inconvenient one — inconvenience is the
+  security property, not a side effect.
+
+  **State its limits plainly, because they are real:** it privileges people who can travel, it
+  does not scale, and a visitor's report is only worth that visitor's own credibility. It is
+  strictly weaker than "download it and rerun it yourself." It is also strictly stronger than
+  every private benchmark that offers no verification path at all, and it is the only design
+  where the audit trail and the item set can both survive.
 - **Rotate a held-out slice** every publication and report scores on old-vs-new items separately.
   If a model's score on rotated-in items is materially lower than on older ones, that gap IS the
   contamination measurement — publish it.
