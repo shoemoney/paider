@@ -349,18 +349,20 @@ promised later.
 
 ## Milestones
 
-**🔨 v0.1 — "it works on my repo"** — *in progress: commands, the five tools, the guards and
-the ledger are built and covered by 140 passing tests. Live tests (3 real round-trips against
-OpenRouter/Anthropic/xAI) pass; cost ledger reconciles to provider-reported usage. Still unticked
-against the definition below: a clean `composer global require` install from a fresh machine, and
-`ArtisanTool` integration verified with a Laravel repo.*
-Definition of done: see v0.1 scope above. Installable via `composer global require` (see
-"Distribution and concurrency" — PHAR is cut, this line was left stale above on purpose, don't
-copy it), README includes an honest comparison table against Maestro (not a "first ever" claim).
-Single-provider sessions only, interactive-only, six native tools (the usual five plus
-`ArtisanTool` when run against a Laravel repo — see "Sequencing" above) — this is also where the
-`sk-sp-` key/base-URL guard and the diff-apply staleness, `php -l`, `/undo`, and secrets-guard
-designs above ship, not v0.2.
+**🔨 M1 — "it works on my repo"** — *in progress.*
+
+> **Naming, so two different things stop sharing a label.** The **v0.1.0 tag** is a release
+> number: it exists, it is on Packagist, and it means "the package installs and the commands
+> work." **M1** is a capability milestone and is NOT met — nobody has yet watched Paider drive
+> an end-to-end multi-file edit in a repo that is not this one. Cutting the tag did not close
+> the milestone, and the milestone closing will not require a new tag name. They were called
+> the same thing, which made "is v0.1 done?" unanswerable.
+
+*Shipped: five commands, six native tools, the approval gate, PathGuard and SecretsGuard, the
+append-only event log, and a cost ledger that reports real money and reconciles against
+provider-reported usage. CI runs the hermetic suite on PHP 8.4 and 8.5. Still open for M1: the
+end-to-end edit in someone else's repo, the `curl | sh` installer, and the FrankenPHP binary,
+which has no embed step yet.*
 
 **⬜ v0.2 — "it doesn't need me watching it"** — *planned.*
 - MCP client support via `modelcontextprotocol/php-sdk` (consume external tool servers)
@@ -578,7 +580,7 @@ Things that need Jeremy's call, not a default guess:
 
 | channel | user | why |
 |---|---|---|
-| `composer require paider/paider:dev-main` | Laravel dev, agent inside the app | **the thesis requires it** — a compiled binary cannot be a package dependency, and turning your models into tools means being one; `:dev-main` suffix required until first tagged release |
+| `composer require paider/paider` | Laravel dev, agent inside the app | **the thesis requires it** — a compiled binary cannot be a package dependency, and turning your models into tools means being one. Resolves without a stability flag as of the v0.1.0 tag. |
 | FrankenPHP embed binary | anyone wanting the CLI standalone | no PHP install, extensions pinned at build |
 
 **PHAR is cut.** It requires PHP installed yet is not a composer dependency, so it is strictly

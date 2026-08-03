@@ -7,8 +7,8 @@
 [![status](https://img.shields.io/badge/status-alpha-orange?style=for-the-badge)](#-status-honestly)
 [![php](https://img.shields.io/badge/PHP-%E2%89%A5%208.4-777BB4?style=for-the-badge&logo=php&logoColor=white)](composer.json)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
-[![packagist](https://img.shields.io/badge/packagist-dev--main-blueviolet?style=for-the-badge)](https://packagist.org/packages/paider/paider)
-[![tests](https://img.shields.io/badge/tests-164%20passing-brightgreen?style=for-the-badge)](tests/)
+[![packagist](https://img.shields.io/badge/packagist-v0.1.0-blueviolet?style=for-the-badge)](https://packagist.org/packages/paider/paider)
+[![tests](https://img.shields.io/badge/tests-175%20passing-brightgreen?style=for-the-badge)](tests/)
 [![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
@@ -29,11 +29,11 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `cost`, `config:provider`, `config:show` all register and run |
 | 🔧 six native tools | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `git`, `artisan` |
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection; stored in `.paider/` (gitignored locally) |
-| 🧪 test suite | ✅ **164 passing**, 579 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
+| 🧪 test suite | ✅ **175 passing**, 630 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
-| 📦 published on Packagist | ✅ **published** | `paider/paider` at https://packagist.org/packages/paider/paider · dev-main only |
+| 📦 published on Packagist | ✅ **published** | `paider/paider` at https://packagist.org/packages/paider/paider |
 | 📦 `curl \| sh` installer | ⬜ **not built** | the binary is measured, the installer is not written |
-| 🏷️ tagged release | ⬜ **none** | only dev-main available (no minimum-stability:stable) |
+| 🏷️ tagged release | ✅ **v0.1.0** | `composer require paider/paider` resolves without a stability flag |
 
 **Do not install this expecting a working agent.** The wiring is real and tested; the last
 mile — an actual API key, an actual model, an actual edit landing in your repo — is unproven.
@@ -402,14 +402,14 @@ Startup, one machine, medians:
 Two channels, because there are exactly two users:
 
 ```bash
-composer require paider/paider:dev-main      # inside your Laravel app — this is the thesis
+composer require paider/paider               # inside your Laravel app — this is the thesis
+composer global require paider/paider        # as a standalone CLI
 curl -fsSL paider.dev/install | sh           # planned: standalone binary, not built yet
 ```
 
-**Why `:dev-main`?** Paider is published on [Packagist](https://packagist.org/packages/paider/paider)
-but has no tagged releases yet — only the dev branch (`dev-main`) is available. Composer's default
-minimum-stability is `stable`, which means a bare `composer require paider/paider` will fail to
-resolve. Use `paider/paider:dev-main` until the first tagged release ships.
+Tagged releases start at **v0.1.0**, so a bare `composer require` resolves under Composer's default
+`minimum-stability: stable`. Track the branch with `paider/paider:dev-main` if you want unreleased
+work — that is where the sharp edges live.
 
 The package is non-negotiable: an agent that turns *your* models and jobs into tools has to be a
 dependency of your app, and a compiled binary cannot be one.
@@ -526,7 +526,7 @@ grading against it honestly leaves one box unticked:
 | diff-apply staleness, syntax gate, `/undo`, secrets guard | ✅ built |
 | honest comparison table vs Maestro | ✅ **added above** |
 | live provider round-trips | ✅ **3 tests, ledger reconciles** |
-| published on Packagist | ✅ **published** — [`paider/paider`](https://packagist.org/packages/paider/paider) as dev-main |
+| published on Packagist | ✅ **published** — [`paider/paider`](https://packagist.org/packages/paider/paider), tagged v0.1.0 |
 | end-to-end on a real repo with a real API key | ⬜ never attempted |
 
 The one remaining box — running a full session against a real repo with a real API key and watching an edit land — is the last blocker to shipping v0.1. Everything else is done. The rule
