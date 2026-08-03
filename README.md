@@ -294,7 +294,7 @@ vendor/bin/pest
 vendor/bin/pest --group=live
 ```
 
-**Hermetic suite** (`vendor/bin/pest`, 157 tests) — all provider interactions mocked via Guzzle;
+**Hermetic suite** (`vendor/bin/pest`, 161 tests) — all provider interactions mocked via Guzzle;
 proves self-consistency, zero cost. Excluded group: `live`.
 
 **Live suite** (`vendor/bin/pest --group=live`, 3 tests) — real round-trips to `api.openrouter.ai`,
@@ -512,7 +512,7 @@ flowchart LR
 | **v1.0** | MCP **server** mode — external clients drive Paider's tools; published semver policy | ⬜ planned |
 
 <details>
-<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 160 tests pass?</b></summary>
+<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 164 tests pass?</b></summary>
 
 Because [`PLAN.md`](PLAN.md) wrote v0.1's definition of done *before* the code existed, and
 grading against it honestly leaves one box unticked:
