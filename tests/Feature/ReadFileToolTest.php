@@ -54,3 +54,22 @@ test('reads sensitive path when approved', function () {
     expect($result->ok)->toBeTrue();
     expect($result->output)->toBe('SECRET=1');
 });
+
+test('rejects a read through a symlinked directory that escapes root', function () {
+    $root = readFileToolRoot();
+    $outside = sys_get_temp_dir().DIRECTORY_SEPARATOR.'paider-readfile-outside-'.uniqid();
+    mkdir($outside, recursive: true);
+    file_put_contents($outside.'/secret.txt', 'top secret');
+
+    $link = $root.'/linked-dir';
+    if (! file_exists($link)) {
+        symlink($outside, $link);
+    }
+
+    $tool = new ReadFileTool($root);
+
+    $result = $tool->execute(['path' => 'linked-dir/secret.txt']);
+
+    expect($result->ok)->toBeFalse();
+    expect($result->output)->toBe('path escapes project root');
+});

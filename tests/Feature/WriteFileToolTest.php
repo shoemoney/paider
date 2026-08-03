@@ -89,3 +89,20 @@ test('writes sensitive path when approved', function () {
     expect($result->ok)->toBeTrue();
     expect(file_get_contents($root.'/.env'))->toBe('SECRET=1');
 });
+
+test('rejects a write through a symlinked directory that escapes root', function () {
+    $root = writeFileToolRoot();
+    $outside = sys_get_temp_dir().DIRECTORY_SEPARATOR.'paider-writefile-outside-'.uniqid();
+    mkdir($outside, recursive: true);
+
+    $link = $root.'/linked-dir';
+    symlink($outside, $link);
+
+    $tool = new WriteFileTool($root);
+
+    $result = $tool->execute(['path' => 'linked-dir/pwned.txt', 'content' => 'pwned']);
+
+    expect($result->ok)->toBeFalse();
+    expect($result->output)->toBe('path escapes project root');
+    expect(file_exists($outside.'/pwned.txt'))->toBeFalse();
+});

@@ -54,6 +54,36 @@ class PathGuard
             ? $rootReal
             : $rootReal.DIRECTORY_SEPARATOR.implode(DIRECTORY_SEPARATOR, $stack);
 
-        return $normalized === $rootReal || str_starts_with($normalized, $rootReal.DIRECTORY_SEPARATOR);
+        if ($normalized !== $rootReal && ! str_starts_with($normalized, $rootReal.DIRECTORY_SEPARATOR)) {
+            return false;
+        }
+
+        // Lexical normalization above only catches '..' in the tail. It says nothing about
+        // an EXISTING intermediate directory being a symlink that points outside root (e.g.
+        // project/linked-dir -> /etc), which would let a contained-looking path read/write
+        // straight through it. Walk up from the normalized path to the deepest segment that
+        // actually exists, and realpath() just that prefix — never the possibly-nonexistent
+        // leaf — to resolve any such symlink and re-check containment.
+        $existing = $normalized;
+
+        while (! file_exists($existing)) {
+            $parent = dirname($existing);
+
+            if ($parent === $existing) {
+                break;
+            }
+
+            $existing = $parent;
+        }
+
+        $existingReal = realpath($existing);
+
+        if ($existingReal === false) {
+            return false;
+        }
+
+        $existingReal = rtrim($existingReal, DIRECTORY_SEPARATOR);
+
+        return $existingReal === $rootReal || str_starts_with($existingReal, $rootReal.DIRECTORY_SEPARATOR);
     }
 }

@@ -82,7 +82,22 @@ class ShellTool implements Tool
             }
 
             if (microtime(true) >= $deadline) {
-                proc_terminate($process);
+                proc_terminate($process); // SIGTERM — a well-behaved child dies here
+
+                $killDeadline = microtime(true) + 0.5;
+                while (proc_get_status($process)['running'] && microtime(true) < $killDeadline) {
+                    usleep(20_000);
+                }
+
+                if (proc_get_status($process)['running']) {
+                    proc_terminate($process, 9); // SIGKILL — cannot be trapped or ignored
+
+                    $reapDeadline = microtime(true) + 2.0;
+                    while (proc_get_status($process)['running'] && microtime(true) < $reapDeadline) {
+                        usleep(20_000);
+                    }
+                }
+
                 fclose($pipes[1]);
                 fclose($pipes[2]);
                 proc_close($process);

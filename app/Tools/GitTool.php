@@ -2,11 +2,13 @@
 
 namespace App\Tools;
 
+use App\Support\SecretsGuard;
 use App\Tools\Contracts\Tool;
 
 /**
- * Not approval-gated: git operations on the user's own repo are lower-risk than
- * free-form shell per PLAN.md. Only ShellTool is gated.
+ * add/commit are not approval-gated: metadata operations on the user's own repo are
+ * lower-risk than free-form shell per PLAN.md. diff is a content-disclosure operation
+ * (like ReadFileTool), so it is gated on SecretsGuard the same way.
  */
 class GitTool implements Tool
 {
@@ -33,6 +35,7 @@ class GitTool implements Tool
                 'staged' => ['type' => 'boolean'],
                 'path' => ['type' => 'string'],
                 'message' => ['type' => 'string'],
+                'approved' => ['type' => 'boolean'],
             ],
             'required' => ['op'],
         ];
@@ -41,22 +44,35 @@ class GitTool implements Tool
     public function execute(array $input): ToolResult
     {
         return match ($input['op'] ?? null) {
-            'diff' => $this->diff($input['staged'] ?? false),
+            'diff' => $this->diff($input['staged'] ?? false, $input['approved'] ?? false),
             'add' => $this->add($input['path'] ?? '.'),
             'commit' => $this->commit($input['message'] ?? ''),
             default => ToolResult::fail('unknown op'),
         };
     }
 
-    private function diff(bool $staged): ToolResult
+    private function diff(bool $staged, bool $approved): ToolResult
     {
-        $command = ['git', 'diff'];
+        $flags = $staged ? ['--staged'] : [];
 
-        if ($staged) {
-            $command[] = '--staged';
+        [$nameCode, $nameStdout] = $this->run(['git', 'diff', ...$flags, '--name-only']);
+
+        if ($nameCode === 0) {
+            foreach (preg_split('/\r?\n/', trim($nameStdout)) as $relative) {
+                if ($relative === '') {
+                    continue;
+                }
+
+                if (SecretsGuard::isSensitive($this->projectRoot.'/'.$relative) && ! $approved) {
+                    return ToolResult::fail('diff includes a sensitive path: '.$relative, [
+                        'needs_approval' => true,
+                        'reason' => 'secrets',
+                    ]);
+                }
+            }
         }
 
-        [$code, $stdout, $stderr] = $this->run($command);
+        [$code, $stdout, $stderr] = $this->run(['git', 'diff', ...$flags]);
 
         return $code === 0 ? ToolResult::ok($stdout) : ToolResult::fail($stderr);
     }

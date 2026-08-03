@@ -255,7 +255,9 @@ class PatchFileTool implements Tool
         $cursor = 0; // 0-indexed position in $currentLines already emitted into $result
 
         foreach ($hunks as $hunk) {
-            $pos = $hunk['old_start'] - 1;
+            // '@@ -0,0 +c,d @@' is the standard convention for "insert at the very start of an
+            // empty/new file" — old_start=0 means zero old lines, not a negative offset.
+            $pos = $hunk['old_start'] === 0 ? 0 : $hunk['old_start'] - 1;
 
             if ($pos < 0 || $pos < $cursor) {
                 return ToolResult::fail('hunk out of order or before start of file', [

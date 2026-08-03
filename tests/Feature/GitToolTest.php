@@ -62,3 +62,30 @@ test('diff returns non-empty output for an unstaged change', function () {
     expect($result->ok)->toBeTrue();
     expect($result->output)->toContain('changed');
 });
+
+test('diff on a sensitive path requires approval and withholds contents', function () {
+    file_put_contents($this->root.'/.env', 'SECRET=original');
+    $this->tool->execute(['op' => 'add', 'path' => '.env']);
+    $this->tool->execute(['op' => 'commit', 'message' => 'seed env']);
+
+    file_put_contents($this->root.'/.env', 'SECRET=leaked-value');
+
+    $result = $this->tool->execute(['op' => 'diff']);
+
+    expect($result->ok)->toBeFalse();
+    expect($result->meta['needs_approval'])->toBeTrue();
+    expect($result->output)->not->toContain('leaked-value');
+});
+
+test('diff on a sensitive path with approved returns the content', function () {
+    file_put_contents($this->root.'/.env', 'SECRET=original');
+    $this->tool->execute(['op' => 'add', 'path' => '.env']);
+    $this->tool->execute(['op' => 'commit', 'message' => 'seed env']);
+
+    file_put_contents($this->root.'/.env', 'SECRET=leaked-value');
+
+    $result = $this->tool->execute(['op' => 'diff', 'approved' => true]);
+
+    expect($result->ok)->toBeTrue();
+    expect($result->output)->toContain('leaked-value');
+});

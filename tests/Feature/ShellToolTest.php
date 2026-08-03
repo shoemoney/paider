@@ -54,3 +54,16 @@ test('a command exceeding the timeout is killed and reports timed_out', function
     expect($result->ok)->toBeFalse();
     expect($result->meta['timed_out'])->toBeTrue();
 });
+
+test('a command that traps SIGTERM is still killed within roughly the timeout window', function () {
+    $root = shellToolRoot();
+    $tool = new ShellTool($root, timeoutSeconds: 1);
+
+    $start = microtime(true);
+    $result = $tool->execute(['command' => "trap '' TERM; sleep 20", 'approval' => 'allow-once']);
+    $elapsed = microtime(true) - $start;
+
+    expect($result->ok)->toBeFalse();
+    expect($result->meta['timed_out'])->toBeTrue();
+    expect($elapsed)->toBeLessThan(5.0);
+});
