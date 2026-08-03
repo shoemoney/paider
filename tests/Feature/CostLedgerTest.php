@@ -65,3 +65,34 @@ it('is a pure projection: two summary() calls after no new events match exactly'
 
     expect($ledger->summary())->toBe($ledger->summary());
 });
+
+it('counts unpriced_calls per tier and at the session level, naming the model', function () {
+    $log = new EventLog(Database::connect(':memory:'));
+
+    $log->append('tier_call', ['tier' => 'coder', 'model' => 'nobody/knows-this', 'tokens_in' => 100, 'tokens_out' => 10, 'cost_usd' => null]);
+    $log->append('tier_call', ['tier' => 'coder', 'model' => 'qwen/qwen3.7-flash', 'tokens_in' => 100, 'tokens_out' => 10, 'cost_usd' => 0.01]);
+    $log->append('tier_call', ['tier' => 'research', 'model' => 'nobody/knows-this', 'tokens_in' => 100, 'tokens_out' => 10, 'cost_usd' => null]);
+
+    $summary = (new CostLedger($log))->summary();
+
+    expect($summary['coder']['unpriced_calls'])->toBe(1)
+        ->and($summary['coder']['unpriced_models'])->toBe(['nobody/knows-this'])
+        ->and($summary['research']['unpriced_calls'])->toBe(1)
+        ->and($summary['session']['unpriced_calls'])->toBe(2)
+        ->and($summary['session']['unpriced_models'])->toBe(['nobody/knows-this']);
+});
+
+it('never re-prices: two calls to the same model with different stored cost_usd sum as stored', function () {
+    // Simulates a provider price change between two calls to the same model. summary()
+    // must sum whatever was written at call time, never re-derive from current prices.
+    $log = new EventLog(Database::connect(':memory:'));
+
+    $log->append('tier_call', ['tier' => 'fast', 'model' => 'qwen/qwen3.7-flash', 'tokens_in' => 1000, 'tokens_out' => 100, 'cost_usd' => 0.10]);
+    $log->append('tier_call', ['tier' => 'fast', 'model' => 'qwen/qwen3.7-flash', 'tokens_in' => 1000, 'tokens_out' => 100, 'cost_usd' => 0.25]);
+
+    $summary = (new CostLedger($log))->summary();
+
+    expect($summary['fast']['spend_usd'])->toEqualWithDelta(0.35, 1e-9)
+        ->and($summary['fast']['unpriced_calls'])->toBe(0)
+        ->and($summary['session']['spend_usd'])->toEqualWithDelta(0.35, 1e-9);
+});

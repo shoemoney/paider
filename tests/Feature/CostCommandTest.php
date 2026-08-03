@@ -57,10 +57,10 @@ it('shows per-tier calls, tokens, and spend plus a session total', function () {
         ->toContain('$0.480');
 });
 
-it('flags spend as not priced yet when calls are logged with zero cost_usd', function () {
+it('names the unpriced model when a call has no cost_usd', function () {
     $log = new EventLog(Database::connect());
 
-    $log->append('tier_call', ['tier' => 'coder', 'tokens_in' => 500, 'tokens_out' => 100, 'cost_usd' => 0.0]);
+    $log->append('tier_call', ['tier' => 'coder', 'model' => 'nobody/knows-this-model', 'tokens_in' => 500, 'tokens_out' => 100, 'cost_usd' => null]);
 
     $bufferedOutput = new BufferedOutput;
     $outputStyle = new OutputStyle(new ArrayInput([]), $bufferedOutput);
@@ -71,7 +71,35 @@ it('flags spend as not priced yet when calls are logged with zero cost_usd', fun
 
     $output = $bufferedOutput->fetch();
 
-    expect($output)->toContain('spend not priced yet');
+    expect($output)
+        ->toContain('spend excludes 1 unpriced call')
+        ->toContain('nobody/knows-this-model');
+});
+
+it('marks an unpriced tier row instead of printing a bare $0.000', function () {
+    $log = new EventLog(Database::connect());
+
+    $log->append('tier_call', ['tier' => 'orchestrator', 'tokens_in' => 1000, 'tokens_out' => 200, 'cost_usd' => 0.801]);
+    $log->append('tier_call', ['tier' => 'coder', 'model' => 'nobody/knows-this-model', 'tokens_in' => 1_400_000, 'tokens_out' => 287_100, 'cost_usd' => null]);
+
+    $bufferedOutput = new BufferedOutput;
+    $outputStyle = new OutputStyle(new ArrayInput([]), $bufferedOutput);
+
+    $exitCode = $this->app->make(Kernel::class)->call('cost', [], $outputStyle);
+
+    expect($exitCode)->toBe(0);
+
+    $output = $bufferedOutput->fetch();
+
+    // The coder row is entirely unpriced, so its spend cell must be marked, not a bare $0.000
+    // that reads as a real measured zero. Match on the unmarked form specifically — the marked
+    // form '$0.000*' is a valid substring superset of it.
+    expect(preg_match('/\$0\.000(?!\*)/', $output))->toBe(0);
+    expect($output)->toContain('$0.000*');
+
+    // The session total silently omits the unpriced coder spend too, so it must carry the
+    // same marker rather than reading as a complete $0.801.
+    expect($output)->toContain('$0.801*');
 });
 
 it('shows a no-usage message and exits successfully when the ledger is empty', function () {

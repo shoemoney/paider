@@ -173,6 +173,33 @@ test('a well-formed fenced tool block dispatches the matching tool with the pars
     expect($tool->lastInput)->toBe(['foo' => 'bar']);
 });
 
+test('the orchestrator tier_call event is priced from the resolved model id, not the tier or preset name', function () {
+    $tool = new RecordingTool;
+
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(content: 'All done.', tokensIn: 1000, tokensOut: 200, raw: []),
+    ]);
+
+    $log = new EventLog(Database::connect(':memory:'));
+    $loop = new Loop([$tool], $provider, new TierRouter, $log, new Gate);
+
+    $loop->turn(loopTestSession(), 'add a feature', neverApprove());
+
+    $tierCalls = array_values(array_filter($log->all(), fn ($event) => $event['type'] === 'tier_call'));
+
+    expect($tierCalls)->toHaveCount(1);
+
+    // Default preset is 'balanced' (no .paider/settings.json here), whose orchestrator
+    // tier is anthropic/claude-opus-5 at $5.00/$25.00 per Mtok (config/presets.php). The
+    // expected cost is computed here independently rather than via ModelPricing::costFor()
+    // so this fails if Loop ever passes the wrong argument (e.g. the tier name 'orchestrator'
+    // or the preset name 'balanced') instead of the resolved model id.
+    $expectedCost = 1000 / 1e6 * 5.00 + 200 / 1e6 * 25.00;
+
+    expect($tierCalls[0]['payload']['model'])->toBe('anthropic/claude-opus-5')
+        ->and($tierCalls[0]['payload']['cost_usd'])->toBe($expectedCost);
+});
+
 test('a malformed fenced tool block is treated as prose, not a crash and not a dispatch', function () {
     $tool = new RecordingTool;
 

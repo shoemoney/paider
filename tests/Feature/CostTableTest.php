@@ -8,13 +8,19 @@
  * README table, the prices, or the token volumes without redoing the arithmetic, this fails.
  */
 
-// Prices per Mtok for the `balanced` preset, as documented in config/presets.php.
-const PRICES = [
-    'orchestrator' => [5.00, 25.00],   // anthropic/claude-opus-5
-    'coder' => [0.03, 0.13],           // qwen/qwen3.7-flash
-    'research' => [0.03, 0.13],        // qwen/qwen3.7-flash
-    'fast' => [0.03, 0.13],            // qwen/qwen3.7-flash
-];
+/** Prices per Mtok for the `balanced` preset, read from config/prices.php at test time. */
+function PRICES(): array
+{
+    $models = config('presets.balanced');
+    $prices = config('prices');
+
+    $out = [];
+    foreach (['orchestrator', 'coder', 'research', 'fast'] as $tier) {
+        $out[$tier] = [$prices[$models[$tier]]['in'], $prices[$models[$tier]]['out']];
+    }
+
+    return $out;
+}
 
 /** Parse the fenced `$ paider cost` block out of README.md. */
 function costBlock(): string
@@ -54,7 +60,7 @@ it('finds every tier row in the README cost table', function () {
 
 it('prices each tier row correctly against the balanced preset', function () {
     foreach (rows() as [, $tier, $in, $out, $stated]) {
-        [$pIn, $pOut] = PRICES[$tier];
+        [$pIn, $pOut] = PRICES()[$tier];
         $actual = tokens($in) / 1e6 * $pIn + tokens($out) / 1e6 * $pOut;
 
         // Rows are printed to 3dp, so compare at that precision — a tolerance band of exactly
@@ -66,7 +72,7 @@ it('prices each tier row correctly against the balanced preset', function () {
 it('sums the session total from its own rows', function () {
     $sum = 0.0;
     foreach (rows() as [, $tier, $in, $out]) {
-        [$pIn, $pOut] = PRICES[$tier];
+        [$pIn, $pOut] = PRICES()[$tier];
         $sum += tokens($in) / 1e6 * $pIn + tokens($out) / 1e6 * $pOut;
     }
 
@@ -82,13 +88,13 @@ it('states the all-Opus comparison and the saving consistently', function () {
     $tokIn = $tokOut = 0.0;
     $routed = 0.0;
     foreach (rows() as [, $tier, $in, $out]) {
-        [$pIn, $pOut] = PRICES[$tier];
+        [$pIn, $pOut] = PRICES()[$tier];
         $tokIn += tokens($in);
         $tokOut += tokens($out);
         $routed += tokens($in) / 1e6 * $pIn + tokens($out) / 1e6 * $pOut;
     }
 
-    [$oIn, $oOut] = PRICES['orchestrator'];
+    [$oIn, $oOut] = PRICES()['orchestrator'];
     $allOpus = $tokIn / 1e6 * $oIn + $tokOut / 1e6 * $oOut;
 
     preg_match('/all-Opus 5: \$([\d.]+)\s+·\s+you saved \$([\d.]+)/', $block, $m);
@@ -101,7 +107,7 @@ it('states the token and spend shares consistently', function () {
     $cheapTok = $allTok = $cheapSpend = $allSpend = 0.0;
 
     foreach (rows() as [, $tier, $in, $out]) {
-        [$pIn, $pOut] = PRICES[$tier];
+        [$pIn, $pOut] = PRICES()[$tier];
         $tok = tokens($in) + tokens($out);
         $spend = tokens($in) / 1e6 * $pIn + tokens($out) / 1e6 * $pOut;
 

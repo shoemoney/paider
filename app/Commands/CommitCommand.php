@@ -8,6 +8,7 @@ use App\Providers\Contracts\ProviderClient;
 use App\Providers\OpenAiCompatibleClient;
 use App\Storage\Database;
 use App\Storage\EventLog;
+use App\Support\ModelPricing;
 use App\Tools\GitTool;
 use LaravelZero\Framework\Commands\Command;
 
@@ -70,7 +71,7 @@ class CommitCommand extends Command
                 'model' => $route['model'],
                 'tokens_in' => $response->tokensIn,
                 'tokens_out' => $response->tokensOut,
-                'cost_usd' => 0.0,
+                'cost_usd' => ModelPricing::costFor($route['model'], $response->tokensIn, $response->tokensOut),
             ]);
 
             $message = trim($response->content);

@@ -11,9 +11,9 @@ use function Termwind\render;
 
 /**
  * `paider cost` — token/spend usage per tier, read straight off the append-only
- * event log via CostLedger's projection. cost_usd is 0.0 on every tier_call today
- * (see the comment in Loop.php / CommitCommand.php: presets.php prices are
- * informational, not a billing feed) so spend here reflects that, deliberately.
+ * event log via CostLedger's projection. spend is summed from cost_usd priced at
+ * write time; CostLedger never re-prices (LOCKED decision #2); unpriced calls are
+ * excluded from spend and named below the table (LOCKED decision #3).
  */
 class CostCommand extends Command
 {
@@ -57,8 +57,9 @@ class CostCommand extends Command
             </div>
         HTML);
 
-        if ($summary['session']['calls'] > 0 && $summary['session']['spend_usd'] === 0.0) {
-            render('<div class="px-1">spend not priced yet — tier_call events currently log cost_usd 0.0</div>');
+        if ($summary['session']['unpriced_calls'] > 0) {
+            $models = implode(', ', $summary['session']['unpriced_models']);
+            render('<div class="px-1">'.e("spend excludes {$summary['session']['unpriced_calls']} unpriced call(s) — no config/prices.php entry for: {$models}").'</div>');
         }
 
         return Command::SUCCESS;
@@ -66,13 +67,19 @@ class CostCommand extends Command
 
     private function row(string $tier, array $row): string
     {
+        // A tier with unpriced calls must never render as a bare, confident $0.000 — that's
+        // the exact silent-zero bug this feature exists to kill (LOCKED decision #3).
+        $spend = $row['unpriced_calls'] > 0
+            ? sprintf('$%.3f*', $row['spend_usd'])
+            : sprintf('$%.3f', $row['spend_usd']);
+
         return sprintf(
             '<tr><td class="px-1">%s</td><td class="px-1">%s</td><td class="px-1">%s</td><td class="px-1">%s</td><td class="px-1">%s</td></tr>',
             e($tier),
             e((string) $row['calls']),
             e($this->formatCount($row['tokens_in'])),
             e($this->formatCount($row['tokens_out'])),
-            e(sprintf('$%.3f', $row['spend_usd']))
+            e($spend)
         );
     }
 

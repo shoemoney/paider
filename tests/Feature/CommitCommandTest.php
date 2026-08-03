@@ -3,6 +3,8 @@
 use App\Commands\CommitCommand;
 use App\Providers\Contracts\ProviderClient;
 use App\Providers\ProviderResponse;
+use App\Storage\Database;
+use App\Storage\EventLog;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
@@ -113,6 +115,36 @@ test('a dirty working tree produces a real commit matching the fake provider res
     exec('git -C '.escapeshellarg($this->root).' status --porcelain', $statusOutput);
     expect($statusOutput)->not->toContain('M  tracked.txt')
         ->and($statusOutput)->not->toContain(' M tracked.txt');
+});
+
+test("the fast tier_call event is priced from \$route['model'], not the tier or preset name", function () {
+    file_put_contents($this->root.'/tracked.txt', 'original');
+    exec('git -C '.escapeshellarg($this->root).' add tracked.txt 2>&1');
+    exec('git -C '.escapeshellarg($this->root).' commit -m seed 2>&1');
+    file_put_contents($this->root.'/tracked.txt', 'changed');
+
+    $spy = new SpyProviderClient(response: new ProviderResponse('feat: add new file', 12, 4, []));
+
+    $exitCode = runCommit(new FakeCommitCommand($spy), $this->app);
+
+    expect($exitCode)->toBe(0);
+
+    $tierCalls = array_values(array_filter(
+        (new EventLog(Database::connect()))->all(),
+        fn ($event) => $event['type'] === 'tier_call'
+    ));
+
+    expect($tierCalls)->toHaveCount(1);
+
+    // Default preset is 'balanced' (no .paider/settings.json in this fresh repo), whose
+    // fast tier is qwen/qwen3.7-flash at $0.03/$0.13 per Mtok (config/presets.php). The
+    // expected cost is computed independently here, not via ModelPricing::costFor(), so
+    // this fails if CommitCommand ever passes the wrong argument (e.g. the tier name
+    // 'fast' or the preset name 'balanced') instead of $route['model'].
+    $expectedCost = 12 / 1e6 * 0.03 + 4 / 1e6 * 0.13;
+
+    expect($tierCalls[0]['payload']['model'])->toBe('qwen/qwen3.7-flash')
+        ->and($tierCalls[0]['payload']['cost_usd'])->toBe($expectedCost);
 });
 
 test('a whitespace-only commit message from the provider leaves the tree staged but uncommitted and returns FAILURE', function () {

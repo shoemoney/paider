@@ -23,22 +23,45 @@ class CostLedger
             $payload = $event['payload'];
             $tier = $payload['tier'];
 
-            $tiers[$tier] ??= ['calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0, 'spend_usd' => 0.0];
+            $tiers[$tier] ??= [
+                'calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0, 'spend_usd' => 0.0,
+                'unpriced_calls' => 0, 'unpriced_models' => [],
+            ];
 
             $tiers[$tier]['calls']++;
             $tiers[$tier]['tokens_in'] += $payload['tokens_in'];
             $tiers[$tier]['tokens_out'] += $payload['tokens_out'];
-            $tiers[$tier]['spend_usd'] += $payload['cost_usd'] ?? 0.0;
+
+            // NULL cost_usd (LOCKED decision #3) marks an unpriced model, never $0.00 —
+            // fold it only into unpriced_calls, not spend_usd, so a mixed session can't
+            // present a confident total that silently drops what it couldn't price.
+            if ($payload['cost_usd'] === null) {
+                $tiers[$tier]['unpriced_calls']++;
+                $tiers[$tier]['unpriced_models'][$payload['model']] = true;
+            } else {
+                $tiers[$tier]['spend_usd'] += $payload['cost_usd'];
+            }
         }
 
-        $session = ['calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0, 'spend_usd' => 0.0];
+        $session = [
+            'calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0, 'spend_usd' => 0.0,
+            'unpriced_calls' => 0, 'unpriced_models' => [],
+        ];
 
         foreach ($tiers as $tier) {
             $session['calls'] += $tier['calls'];
             $session['tokens_in'] += $tier['tokens_in'];
             $session['tokens_out'] += $tier['tokens_out'];
             $session['spend_usd'] += $tier['spend_usd'];
+            $session['unpriced_calls'] += $tier['unpriced_calls'];
+            $session['unpriced_models'] += $tier['unpriced_models'];
         }
+
+        foreach ($tiers as &$tier) {
+            $tier['unpriced_models'] = array_keys($tier['unpriced_models']);
+        }
+        unset($tier);
+        $session['unpriced_models'] = array_keys($session['unpriced_models']);
 
         $tiers['session'] = $session;
 

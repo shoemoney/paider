@@ -5,6 +5,7 @@ namespace App\Agent;
 use App\Approval\Gate;
 use App\Providers\Contracts\ProviderClient;
 use App\Storage\EventLog;
+use App\Support\ModelPricing;
 use App\Tools\Contracts\Tool;
 use App\Tools\ToolResult;
 
@@ -45,14 +46,12 @@ class Loop
             $resolved = $this->tierRouter->resolve('plan', $session->tierOverrides());
             $response = $this->provider->send($this->buildMessages($session), $resolved['model']);
 
-            // presets.php prices are informational comments, not a billing feed — same reason
-            // commit-command logs 0.0, see project brief.
             $this->eventLog->append('tier_call', [
                 'tier' => 'orchestrator',
                 'model' => $resolved['model'],
                 'tokens_in' => $response->tokensIn,
                 'tokens_out' => $response->tokensOut,
-                'cost_usd' => 0.0,
+                'cost_usd' => ModelPricing::costFor($resolved['model'], $response->tokensIn, $response->tokensOut),
             ]);
 
             $call = $this->parseToolCall($response->content);
