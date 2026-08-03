@@ -10,8 +10,11 @@ through `pdo_sqlite` — the ninth and, unless something forces it, final extens
 
 **Confirmed under the FrankenPHP embed binary** (measured 2026-08-02 — see
 [`DECISIONS.md` §8](DECISIONS.md)): an in-memory `pdo_sqlite` create/insert/select round-trip
-works correctly under the static binary, not just under system PHP. The binary is otherwise
-unrelated to this design — see [`README.md`](README.md#distribution) for the size caveat.
+works correctly under the static binary, not just under system PHP. **Re-confirmed under the
+trimmed 11-extension static build** (round 2, same date — see [`DECISIONS.md` §9](DECISIONS.md)):
+same round-trip, same result, so trimming 77 extensions down to 11 does not disturb `pdo_sqlite`.
+The binary is otherwise unrelated to this design — see [`README.md`](README.md#distribution) for
+the size numbers.
 
 ## What lives there
 

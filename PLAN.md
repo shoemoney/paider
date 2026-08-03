@@ -542,12 +542,21 @@ Things that need Jeremy's call, not a default guess:
    already in `config/presets.php`? Cheap to build, genuinely useful, but it's a second surface
    to maintain forever — same "does this need to exist" filter as everything else in this plan.
 
-7. **🔨 Verify a trimmed FrankenPHP static build.** The stock binary is 178MB (measured
-   2026-08-02, DECISIONS.md §8); the maintainer's 20–30MB figure describes a custom trimmed
-   build (`static-builder.Dockerfile`, or a native `static-php-cli` toolchain), not what
-   `curl`ing the release gives you. Needs Docker/colima or `static-php-cli`, neither installed
-   here yet. This is the risk the whole distribution argument now rests on — cold start already
-   cleared.
+7. **✅ RESOLVED 2026-08-02 (round 2) — trimmed FrankenPHP static build verified.** Built
+   natively on macOS with `build-static.sh` (not Docker — the Docker static-builder emits Linux
+   binaries only): 11 extensions, **111.3MB / 40.6MB zstd-compressed**, a **−37.5%** cut from the
+   stock 178MB binary, and cold start at parity with lean-ini system PHP (no penalty, where round
+   1 measured a 23% one on the stock binary). Getting there also surfaced a real spec bug — the
+   "documented nine" extensions produce a binary that cannot boot Paider at all (`Phar::running()`
+   trap, see EXTENSIONS.md) — so the required set is now eleven, not nine. Distribution is
+   confirmed on both axes. Full numbers: DECISIONS.md §9.
+
+8. **🔨 CLI-only FrankenPHP build, Caddy-free.** `build-static.sh` always links the full Caddy
+   server and Go HTTP stack even when the binary will only ever run as `php-cli`, which is why
+   111MB overshoots the maintainer's 20–30MB estimate by 3.7–5.5x. Worth checking whether a
+   Caddy-free build mode exists or is patchable — it's the only remaining path to that estimate.
+   Nice-to-have, not a blocker: 40.6MB compressed already lands next to competing agents' ~40MB Go
+   binaries.
 
 
 ---
@@ -572,14 +581,32 @@ It builds the extension set from `composer.json`, which is the fix for the measu
 76 extensions on a dev box cost 94ms of a 143ms startup, and a shipped tool must never inherit
 that. `static-php-cli` (1,917★) is the fallback if FrankenPHP proves awkward.
 
-**Measured 2026-08-02** (supersedes "Unverified" above): the off-the-shelf `frankenphp-mac-arm64`
-binary (v1.12.6, PHP 8.5.9, Caddy v2.11.4) cold-starts at 111.3ms ±1.7ms against the 95.9ms
-Laravel Zero baseline — 23% slower than lean-ini system PHP, but 1.7x *faster* than the PHP a real
-user has installed, since a real Homebrew PHP dynamically loads its extensions from disk on every
-run. **Cold start does not weaken the rationale.** Binary size does: the stock binary is 178MB,
-carrying 77 compiled-in extensions when only 9 are wanted (see EXTENSIONS.md). The maintainer's
-20–30MB figure is for a trimmed custom static build, not this binary, and remains unverified — no
-Docker on this machine to test it. Full numbers and the restated decision: DECISIONS.md §8.
+**Measured 2026-08-02, round 1** (superseded by round 2 below): the off-the-shelf
+`frankenphp-mac-arm64` binary (v1.12.6, PHP 8.5.9, Caddy v2.11.4) cold-starts at 111.3ms ±1.7ms
+against the 95.9ms Laravel Zero baseline — 23% slower than lean-ini system PHP, but 1.7x *faster*
+than the PHP a real user has installed, since a real Homebrew PHP dynamically loads its
+extensions from disk on every run. Binary size: the stock binary is 178MB, carrying 77
+compiled-in extensions when only 9 (then thought to be 9) are wanted. The maintainer's 20–30MB
+figure is for a trimmed custom static build, not this binary, and was unverified at the time — no
+Docker on this machine, and Docker's static-builder emits Linux binaries only regardless.
+
+**Measured 2026-08-02, round 2 — both conclusions above revised.** The trimmed build now exists,
+built natively (`build-static.sh`, ~7 minutes). Two corrections:
+
+1. **The required extension set is eleven, not nine.** The "documented nine" produced a binary
+   that compiled clean and then could not boot — `laravel-zero/framework` calls
+   `Phar::running()` unconditionally and needs `ext-phar` present, which its own `composer.json`
+   never declared. `filter` was the same story. See EXTENSIONS.md for the trap.
+2. **With all eleven, the trimmed binary is 111.3MB (106.2 MiB) — a −37.5% cut from stock — and
+   cold start is at *parity* with lean-ini system PHP (94.8ms vs. 95.9ms), not 23% slower.** The
+   23% penalty was never inherent to FrankenPHP; it was the cost of the stock binary dynamically
+   initialising 66 unwanted extensions. Trimming removes it entirely.
+
+Compressed transfer (what an installer downloads) is **40.6MB** at `zstd -19` — landing right
+alongside the ~40MB Go binaries competing agents ship. **Distribution is now confirmed on both
+axes**, where round 1 could only confirm cold start. The 20–30MB estimate itself was not reached,
+and the reason is now known: `build-static.sh` always links the full Caddy/Go HTTP stack, with no
+CLI-only mode. Full numbers and the restated decision: DECISIONS.md §9.
 
 ### Concurrency: Fibers, not Swoole
 
@@ -747,6 +774,15 @@ downloaded and benchmarked. Cold start is confirmed fine (111.3ms vs. the 95.9ms
 now precisely because it names a *different* build (`static-builder.Dockerfile`/`static-php-cli`)
 than the one measured. See DECISIONS.md §8 and the new Open question below.
 
+**Resolved (built) 2026-08-02, round 2:** the trimmed build named above was built. It revises,
+not just confirms, round 1: the "9 wanted" extensions were wrong (11 are required — see
+EXTENSIONS.md's `Phar::running()` trap), and once trimmed to the correct eleven, cold start is at
+*parity* with lean-ini PHP rather than 23% behind it — that penalty was the stock binary's 66
+unwanted extensions initialising, not anything inherent to FrankenPHP. Size lands at 111.3MB /
+40.6MB compressed, −37.5% off stock. The 20–30MB estimate still wasn't reached, and now there's a
+concrete reason: `build-static.sh` always links the full Caddy/Go HTTP stack. Distribution is
+confirmed on both axes. See DECISIONS.md §9 and Open question 7 (now resolved) / 8 (new).
+
 **On the Qwen Coding Plan:** breakeven is ~59 sessions/month against the $0.85 default, so the
 plan suits an audience that already pays for it rather than the one the cheap default attracts.
 Worse, **every allowlisted model is in the family Jeremy already rejected by hand** — "not smart
@@ -819,7 +855,7 @@ deciding before anything is promised, and it is not currently in the Risks secti
 > Windows guard. Only the input prompts change, to typed-number selection. Two findings worth
 > keeping: `number()` is the one prompt with no fallback and **will throw on Windows** (avoid it;
 > guarded by a test), and Windows Terminal is the baseline because legacy `cmd.exe` mangles the
-> box-drawing glyphs. Nothing to build. Full write-up in [`DECISIONS.md` §9](DECISIONS.md).
+> box-drawing glyphs. Nothing to build. Full write-up in [`DECISIONS.md` §10](DECISIONS.md).
 
 ### Full-screen TUI: blocked, and that is fine
 
@@ -875,7 +911,7 @@ These are separate decisions and the docs must not blur them.
   CLI. Channels remain the composer package and the FrankenPHP binary.
 - **Development: a Docker container is welcome**, and with the floor at 8.4 it makes contributor
   setup trivial — pinned PHP version, pinned extension set, no "works on my machine". It also
-  gives a clean place to measure the nine-extension configuration rather than testing against a
+  gives a clean place to measure the eleven-extension configuration rather than testing against a
   76-extension dev box.
 
 ## No Redux/RTK equivalent — and none is wanted
