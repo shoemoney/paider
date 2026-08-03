@@ -1,7 +1,7 @@
 # Storage
 
 **One SQLite file. No services.** Everything Paider persists lives in a single database, reached
-through `pdo_sqlite` — the ninth and, unless something forces it, final extension.
+through `pdo_sqlite`, one of the twelve compiled extensions.
 
 ```
 .paider/paider.db        # project-scoped: sessions, memory, plan, cost ledger
@@ -12,8 +12,8 @@ through `pdo_sqlite` — the ninth and, unless something forces it, final extens
 **Confirmed under the FrankenPHP embed binary** (measured 2026-08-02 — see
 [`DECISIONS.md` §8](DECISIONS.md)): an in-memory `pdo_sqlite` create/insert/select round-trip
 works correctly under the static binary, not just under system PHP. **Re-confirmed under the
-trimmed 11-extension static build** (round 2, same date — see [`DECISIONS.md` §9](DECISIONS.md)):
-same round-trip, same result, so trimming 77 extensions down to 11 does not disturb `pdo_sqlite`.
+trimmed 12-extension static build** (round 2, same date — see [`DECISIONS.md` §9](DECISIONS.md)):
+same round-trip, same result, so trimming 77 extensions down to 12 does not disturb `pdo_sqlite`.
 The binary is otherwise unrelated to this design — see [`README.md`](README.md#distribution) for
 the size numbers.
 
