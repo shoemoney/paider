@@ -1559,6 +1559,27 @@ Things that need Jeremy's call, not a default guess:
    Nice-to-have, not a blocker: 40.6MB compressed already lands next to competing agents' ~40MB Go
    binaries.
 
+9. **Renovate PR #1 (`renovate/configure`, open since 2026-08-02T22:11:49Z) — verdict: MERGE WITH CHANGES, not merge-as-is.** The PR is Renovate's onboarding PR: it only adds a bare `renovate.json` (`{"extends": ["config:recommended"]}`); merging it *activates* Renovate and its own body forecasts the first 3 real PRs it will open (actions/cache→v6, actions/checkout→v7, pestphp/pest→v5 — the last a major bump needing its own composer.json constraint change and full test-suite verification before *that* PR is merged, separately from this one). Closing it unmerged disables Renovate entirely — both are one-click options, this recommends neither in isolation.
+   - **Automerge:** not a risk as configured. `config:recommended`'s own listed presets (quoted in the PR's "Configuration Summary") are dashboard creation, semantic commit prefixes, ignore vendor/node_modules, monorepo/curated grouping, replacement + workaround rules — no automerge preset among them, and the PR body never mentions it. Given every push to `main` auto-republishes to Packagist's `dev-main` (tests.yml's own comment), that absence is load-bearing and currently implicit — one future `renovate.json` edit away from silently landing composer changes unattended. Make it explicit and permanent: add a `packageRules` entry pinning `automerge: false` for `matchManagers: ["composer"]`, so the guarantee survives future config edits instead of relying on today's default.
+   - **--prefer-lowest CI:** does not fight it — the opposite. `tests.yml` triggers on bare `pull_request:` with no author/branch restriction, so every Renovate-opened PR runs the full matrix (PHP 8.4 + 8.5 locked, PHP 8.4 lowest, plus the CLI/cost smoke tests) before a human even looks at it. No config change needed here; this is already the safety net doing its job.
+   - **Solo-maintainer fit — the real gap:** `config:recommended` ships `"schedule": ["at any time"]` (2 PRs/hour cap only) and composer.lock has been hand-resynced three times in one day already (`4d99534`→`dbedcf6`→`db8b8f1`, the last two 48 minutes apart, 2026-08-02). Unscheduled trickle PRs against a lock file that's already being hand-edited out-of-band is friction, not safety — it invites stale/conflicting PRs needing repeat rebases. Fix: add `"schedule": ["before 9am on monday"]` and `"prConcurrentLimit": 3` so Renovate PRs land in one weekly batch to triage together instead of trickling in.
+   - **Low-risk automerge worth adding, not removing:** GitHub Actions minor/patch bumps (`actions/cache`, `actions/checkout`) touch no composer.lock, no Packagist artifact, and no application code — safe to automerge. Add a `packageRules` entry: `matchManagers: ["github-actions"]`, `matchUpdateTypes: ["minor", "patch"]`, `automerge: true`. Cuts real noise without touching the risk this whole triage is about.
+   - **Concrete `renovate.json` to propose** (Jeremy applies this to the `renovate/configure` branch himself before merging, or merges as-is and follows up with a second PR — his call, not mine to force):
+     ```json
+     {
+         "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+         "extends": ["config:recommended"],
+         "schedule": ["before 9am on monday"],
+         "prConcurrentLimit": 3,
+         "packageRules": [
+             {"matchManagers": ["composer"], "automerge": false},
+             {"matchManagers": ["composer"], "matchDepTypes": ["require-dev"], "groupName": "composer dev dependencies"},
+             {"matchManagers": ["github-actions"], "groupName": "github actions", "matchUpdateTypes": ["minor", "patch"], "automerge": true}
+         ]
+     }
+     ```
+   - **ASSUMPTION:** the Packagist-auto-publish-on-every-push claim is taken from tests.yml's own comment, not independently verified against Packagist's actual webhook config (no Packagist API access from this pass) — if that mechanism has changed, re-check whether the composer-automerge:false guardrail is still the highest-leverage change here.
+
 
 ---
 
