@@ -195,6 +195,16 @@ Everything durable goes through one SQLite file. The cost ledger is not a balanc
 increments — it is a **projection replayed over an append-only event log**, which is why
 `/undo` and the audit trail come free rather than being features someone has to maintain.
 
+```
+you → ChatCommand → Session → Loop ─┬─ TierRouter → provider (Anthropic | OpenAI-compatible)
+                                    └─ Approval Gate → tools → PathGuard
+                                                          ↓
+                                              events (append-only) → CostLedger
+```
+
+<details>
+<summary><b>🗺️ Same thing as a diagram</b> (renders on GitHub)</summary>
+
 ```mermaid
 flowchart TB
     User([👤 you]) -->|prompt| Chat[💬 ChatCommand]
@@ -224,6 +234,8 @@ flowchart TB
     style Guard fill:#9cf,stroke:#333,color:#000
     style Log fill:#cfc,stroke:#333,color:#000
 ```
+
+</details>
 
 <details>
 <summary><b>🔍 One turn, end to end</b></summary>
@@ -463,6 +475,9 @@ better than the two above. A third channel is maintenance forever for an audienc
 
 ## 🗺️ Roadmap
 
+<details>
+<summary><b>📈 Milestone flow</b> (renders on GitHub)</summary>
+
 ```mermaid
 flowchart LR
     V01["🧱 v0.1<br/>commands · tools · ledger"] --> V02["🔌 v0.2<br/>MCP client · agent roster"]
@@ -472,6 +487,8 @@ flowchart LR
     style V02 fill:#ffd,stroke:#aa2,color:#000
     style V10 fill:#eee,stroke:#999,color:#000
 ```
+
+</details>
 
 | milestone | scope | state |
 |---|---|---|
