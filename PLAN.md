@@ -410,6 +410,46 @@ which has no embed step yet.*
   unaddressed critical (data-loss-class) bug open longer than two weeks — the "didn't die"
   criterion, since that's the actual differentiator being bet on.
 
+**⬜ POST-1.0 — Paider's own benchmark suites** — *idea, recorded 2026-08-03. Not scoped, not
+scheduled, and deliberately not in v1.0.*
+
+Build our own evaluation harnesses rather than routing model choices off other people's leaderboards.
+
+| bench | measures |
+|---|---|
+| orchestration | can a model decompose a real task into todos another model can execute |
+| code review | findings that **survive independent verification** — see the caveat below |
+| agentic coding | end-to-end: prompt in, working tested diff out |
+| vending-type | long-horizon economic agency; does it stay coherent over hundreds of turns |
+| math | arithmetic and proof-shaped reasoning |
+| unique style | can it hold a specified voice under pressure, not regress to house tone |
+| image recognition | multimodal grounding |
+| ARC-AGI variant | our own twist — the public one gets reinvented roughly monthly, so a fixed private variant is worth more than chasing it |
+
+Plus a **prompt tester per bench**: the prompt is a variable under test, not a constant. Most
+published comparisons hold the prompt fixed and vary the model, which measures "model + whoever
+wrote that prompt" and reports it as the model.
+
+**Why this is worth building rather than reading someone else's chart.** The Kilo Code Reviewer
+benchmark (10,643 runs, 2026-06-22 → 07-23) ranks 13 reviewer routes by *critical findings per
+completed review*: Kimi K2.7 Code 0.179, Grok 4.5 0.176, Laguna M.1 0.171, Sonnet 5 0.079,
+Opus 4.8 0.019 — a 9x spread, with open weights taking two of the top three. Genuinely useful
+signal, and exactly the job this plan's Adversarial Reviewer does.
+
+But the metric counts findings **reported**, not findings **correct** — so a noisier model scores
+higher by construction. This project has direct evidence the distinction is real: the 2026-08-03
+audits found 6 security defects and 11 money-path defects, and each one only counted because two
+independent skeptics had to reproduce it first. Several were refuted outright. A leaderboard
+built on raw finding-count would have ranked the refuted ones as wins.
+
+Paider already has the machinery to measure the honest version: the tier router picks the model,
+the event log records every call, and the cost ledger prices it. A bench that reports
+**verified-findings-per-dollar** is a number nobody else publishes, and it is the number that
+should actually pick a tier.
+
+**Scope discipline:** this is a separate product, not a Paider feature. If it ships it ships as
+its own repo. Recorded here so the idea survives, not so it creeps into v1.0.
+
 ---
 
 ## ⬜ v0.2 — Multi-agent roster, decided
