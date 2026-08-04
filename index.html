@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paider — a PHP coding agent that tells you what it cost</title>
+<meta name="description" content="An AI coding agent written in PHP. Append-only event log, a cost ledger that reconciles against provider-reported usage, and an approval gate in front of every tool.">
+<style>
+  :root { color-scheme: light dark; --fg:#111; --bg:#fff; --dim:#666; --line:#e3e3e3; --accent:#7c3aed; --code:#f6f6f7; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e8e8ea; --bg:#0f0f11; --dim:#9a9aa2; --line:#26262b; --accent:#a78bfa; --code:#18181c; }
+  }
+  * { box-sizing:border-box }
+  body { margin:0; padding:3rem 1.25rem 5rem; background:var(--bg); color:var(--fg);
+         font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:46rem; margin:0 auto }
+  h1 { font-size:2.6rem; margin:0 0 .3rem; letter-spacing:-.02em }
+  .tag { color:var(--dim); font-size:1.05rem; margin:0 0 2rem }
+  .alpha { display:inline-block; font-size:.72rem; font-weight:700; letter-spacing:.08em;
+           text-transform:uppercase; color:var(--accent); border:1px solid var(--accent);
+           border-radius:999px; padding:.15rem .6rem; vertical-align:.35rem; margin-left:.5rem }
+  h2 { font-size:1.05rem; text-transform:uppercase; letter-spacing:.07em; color:var(--dim);
+       margin:2.5rem 0 .75rem; font-weight:600 }
+  pre { background:var(--code); border:1px solid var(--line); border-radius:8px;
+        padding:.9rem 1rem; overflow-x:auto; font-size:.9rem }
+  code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace }
+  p code { background:var(--code); padding:.1rem .35rem; border-radius:4px; font-size:.9em }
+  a { color:var(--accent) }
+  ul { padding-left:1.1rem } li { margin:.35rem 0 }
+  .warn { border-left:3px solid var(--accent); padding:.1rem 0 .1rem 1rem; margin:1.5rem 0; color:var(--dim) }
+  footer { margin-top:4rem; padding-top:1.25rem; border-top:1px solid var(--line);
+           color:var(--dim); font-size:.85rem }
+</style>
+</head>
+<body>
+<main>
+  <h1>Paider<span class="alpha">alpha</span></h1>
+  <p class="tag">An AI coding agent written in PHP — that can tell you what it cost.</p>
+
+  <h2>Install</h2>
+  <pre><code>composer require paider/paider        # inside your Laravel app
+composer global require paider/paider # as a standalone CLI</code></pre>
+
+  <p>Or via this domain, which is what you are looking at:</p>
+  <pre><code>curl -fsSL paider.dev/install | sh</code></pre>
+  <p style="color:var(--dim);font-size:.9rem">
+    That script installs through Composer. It checks for PHP&nbsp;8.4+ and the twelve
+    extensions Paider actually loads, then hands off to <code>composer global require</code>.
+    It is not a standalone binary — that channel is still deferred.
+  </p>
+
+  <h2>What it does</h2>
+  <ul>
+    <li><strong>Four named model tiers</strong> — orchestrator, coder, research, fast — so the model that plans is not the model that greps.</li>
+    <li><strong>A cost ledger that reconciles.</strong> Priced per model at write time and never re-priced on read, so replaying the log cannot rewrite what a past session cost. It is checked against provider-reported usage by a live test, not by assertion.</li>
+    <li><strong>An append-only event log.</strong> The ledger is a pure projection over it.</li>
+    <li><strong>An approval gate in front of every tool</strong>, with path containment and secret redaction.</li>
+    <li><strong>Eleven model presets</strong>, every id and price verified against the live catalogue.</li>
+  </ul>
+
+  <h2>What it does not do</h2>
+  <div class="warn">
+    <p style="margin:.2rem 0"><strong>Do not install this expecting a finished agent.</strong>
+    The wiring is real and tested. The last mile is not: nobody has yet watched Paider drive
+    an end-to-end multi-file edit in a repo that is not its own. That milestone is tracked
+    openly in <code>PLAN.md</code> and it is not met.</p>
+  </div>
+  <ul>
+    <li>No standalone binary yet — the FrankenPHP embed has known packaging problems.</li>
+    <li>No MCP client yet.</li>
+    <li>Sessions, memory and the response cache are designed, not built.</li>
+  </ul>
+
+  <h2>Source</h2>
+  <p>
+    <a href="https://github.com/shoemoney/paider">github.com/shoemoney/paider</a> ·
+    <a href="https://packagist.org/packages/paider/paider">packagist</a> ·
+    <a href="https://github.com/shoemoney/paider/releases/tag/v0.1.0">v0.1.0</a>
+  </p>
+  <p style="color:var(--dim);font-size:.9rem">
+    Built in public from commit one, wrong turns left in. The decision log explains what was
+    tried and rejected, including the parts that did not work.
+  </p>
+
+  <footer>Apache-2.0 · <a href="https://github.com/shoemoney/paider/blob/main/DECISIONS.md">decision log</a></footer>
+</main>
+</body>
+</html>
