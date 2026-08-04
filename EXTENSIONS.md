@@ -8,12 +8,18 @@ extensions cost **94ms of a 143ms** PHP startup. A tool that inherits a user's i
 tax. Pinning the set is most of the reason
 [FrankenPHP](https://frankenphp.dev/docs/embed/) was chosen over `composer global require`.
 
-## v0.1 — required, ten
+## v0.1 — required, twelve
 
 ⚠️ **Corrected 2026-08-02 (round 2).** This table was eight for one measurement cycle and it was
 wrong — `phar` and `filter` are both load-bearing and were missing. See "🪤 The Laravel Zero
 `Phar::running()` trap" below for how that surfaced: a trimmed 9-extension static build compiled
 clean and then couldn't boot the app.
+
+⚠️ **Corrected 2026-08-04.** `pdo_sqlite` was framed below as "opt-in, v0.2" — stale. Three
+shipped v0.1 commands (`chat`, `commit`, `cost`) already call `Database::connect()`, which does
+`new PDO('sqlite:'.$path)`. It was never opt-in once those commands shipped; it just wasn't
+declared in `composer.json`, so `composer check-platform-reqs` couldn't catch a consumer missing
+it. Moved into this table; `composer.json`'s `require` block now matches.
 
 | extension | why | who needs it |
 |---|---|---|
@@ -27,11 +33,11 @@ clean and then couldn't boot the app.
 | `zlib` | gzipped HTTP responses | Paider |
 | `phar` | `laravel-zero/framework`'s `Build::isRunning()` calls `Phar::running()` **unconditionally**, every invocation, not only when building a PHAR | `laravel-zero/framework` — an **undeclared** dependency, see the trap below |
 | `filter` | flagged by `composer check-platform-reqs --no-dev` on the prod tree | `illuminate` internals |
+| `dom` | Termwind's `HtmlRenderer` does `new DOMDocument` | Termwind — an **undeclared** dependency, see the trap below |
+| `pdo_sqlite` | the entire state layer — sessions, memory, credentials, cache, cost ledger, task board, already live behind `chat`/`commit`/`cost`. See [STORAGE.md](STORAGE.md). **PDO, not `sqlite3`**: Eloquent talks PDO and the two are different APIs. | Paider — an **undeclared** dependency until this correction |
 
 Free — compiled into PHP core, not separate extensions: `json`, `pcre`, `date`,
 `spl`, `reflection`, `hash`, `random`.
-
-Add `pdo_sqlite` (opt-in, v0.2, below) and `dom`, and the real required count is **twelve**.
 
 ### 🪤 The `ext-dom` trap — nobody declares it
 
@@ -126,11 +132,8 @@ scripts. Measure before adding; it did nothing for bare-interpreter startup in t
 
 ## Opt-in, per milestone
 
-| extension | milestone | why |
-|---|---|---|
-| `pdo_sqlite` | v0.2 | the entire state layer — sessions, memory, credentials, cache, cost ledger, task board. See [STORAGE.md](STORAGE.md). **PDO, not `sqlite3`**: Eloquent talks PDO and the two are different APIs. |
-
-Nothing else is planned. That is the point.
+Nothing currently opt-in. `pdo_sqlite` was the one entry here; moved to required above
+2026-08-04 once it was confirmed live behind three shipped v0.1 commands rather than deferred.
 
 ## 📦 The stock FrankenPHP binary carries 77 — measured 2026-08-02
 
