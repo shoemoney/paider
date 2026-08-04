@@ -17,6 +17,11 @@
 .gitattributes      export-ignore
 .gitignore          export-ignore
 
+# Rehearsal and distribution tooling — not part of the package
+/m1                 export-ignore
+/design             export-ignore
+install.sh          export-ignore
+
 # The test suite — 204 KB, and nothing a consumer executes. Anyone who wants to
 # run it can `composer require --prefer-source` or clone the repo.
 /tests              export-ignore

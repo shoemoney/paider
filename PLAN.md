@@ -377,9 +377,12 @@ promised later.
 
 *Shipped: five commands, six native tools, the approval gate, PathGuard and SecretsGuard, the
 append-only event log, and a cost ledger that reports real money and reconciles against
-provider-reported usage. CI runs the hermetic suite on PHP 8.4 and 8.5. Still open for M1: the
-end-to-end edit in someone else's repo, the `curl | sh` installer, and the FrankenPHP binary,
-which has no embed step yet.*
+provider-reported usage. CI runs the hermetic suite on PHP 8.4 and 8.5. Rehearsal infrastructure:
+`m1/` directory with `preflight.sh`, `TASK.md`, `RUNBOOK.md` speedup script and fixture. `install.sh`
+written (composer-only, not yet hosted at paider.dev). `design/` directory with 18 terminal captures
+and TUI-REVIEW.md findings (proposals, not applied). Still open for M1: the end-to-end edit in
+someone else's repo, the hosted `curl | sh` installer at paider.dev, and the FrankenPHP binary
+embed step.*
 
 **⬜ v0.2 — "it doesn't need me watching it"** — *planned.*
 - MCP client support via `modelcontextprotocol/php-sdk` (consume external tool servers)
