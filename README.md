@@ -33,7 +33,7 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🧪 test suite | ✅ **206 passing**, 708 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
 | 📦 published on Packagist | ✅ **published** | `paider/paider` at https://packagist.org/packages/paider/paider |
-| 📦 `curl \| sh` installer | ⚠️ **written, not hosted** | [`install.sh`](install.sh) is composer-only and works from a checkout; `paider.dev/install` is not live |
+| 📦 `curl \| sh` installer | ✅ **live** | `curl -fsSL paider.dev/install \| sh` — served from GitHub Pages, installs via Composer; the standalone binary channel is still deferred |
 | 🏷️ tagged release | ✅ **v0.1.0** | `composer require paider/paider` resolves without a stability flag |
 
 **Do not install this expecting a working agent.** The wiring is real and tested; the last
@@ -444,7 +444,7 @@ Two channels, because there are exactly two users:
 ```bash
 composer require paider/paider               # inside your Laravel app — this is the thesis
 composer global require paider/paider        # as a standalone CLI
-curl -fsSL paider.dev/install | sh           # composer-only; run ./install.sh from a checkout — not yet hosted at paider.dev
+curl -fsSL paider.dev/install | sh           # live — checks PHP + extensions, then installs via Composer
 ```
 
 Tagged releases start at **v0.1.0**, so a bare `composer require` resolves under Composer's default
@@ -533,11 +533,14 @@ behaves correctly under a non-TTY pipe, and `PHP_VERSION` reports 8.5.9 — comf
 `^8.4` floor. Full writeup: [`DECISIONS.md` §9](DECISIONS.md).
 
 **The distribution decision is now confirmed on both axes** — cold start and size — where round 1
-could only confirm one. `curl -fsSL paider.dev/install | sh` above resolves to
-[`install.sh`](install.sh), which is written and composer-only — the FrankenPHP binary channel is
-still deferred (see [`DECISIONS.md` §16](DECISIONS.md) for the three open issues), so the script
-installs via Composer, not the binary. Hosting it at `paider.dev` is the only remaining step; the
-binary math behind that channel now checks out whenever it gets built.
+could only confirm one. `curl -fsSL paider.dev/install | sh` is live as of 2026-08-04, serving
+[`install.sh`](install.sh) byte-for-byte from GitHub Pages. It is **composer-only** — the FrankenPHP
+binary channel is still deferred (see [`DECISIONS.md` §16](DECISIONS.md) for the three open issues),
+so the script checks PHP 8.4+ and the twelve extensions, then hands off to `composer global require`.
+The binary math behind that other channel checks out whenever it gets built.
+
+The apex points at GitHub Pages rather than the self-hosted edge that fronts everything else here.
+An installer people are told to pipe into a shell should not go dark when a home uplink does.
 
 **No PHAR.** It needs PHP installed but is not a composer dependency, so it serves neither user
 better than the two above. A third channel is maintenance forever for an audience of nobody.
