@@ -478,10 +478,25 @@ box.json
 composer.lock
 ```
 
-A consumer gets exactly `app/ bootstrap/ config/ paider/ composer.json LICENSE README.md CHANGELOG.md`.
+A consumer gets exactly `app/ bootstrap/ config/ paider/ composer.json LICENSE README.md`.
 
-**Note:** `CHANGELOG.md` was **un**-ignored, correcting a mistake in the skeleton. The skeleton
-shipped it on the repo but ignored it on export — backwards. Now the changelog is in the tarball.
+~~**Note:** `CHANGELOG.md` was **un**-ignored, correcting a mistake in the skeleton. The skeleton
+shipped it on the repo but ignored it on export — backwards. Now the changelog is in the tarball.~~
+
+**Correction made post-launch:** The tarball description above was written from intent and never
+verified against `git archive`. The mistakes:
+
+1. **`CHANGELOG.md` does not exist and never has.** `git log --all -- CHANGELOG.md` returns nothing;
+   `git archive HEAD | tar -t` lists no such file. The skeleton's `.gitattributes:50` comment (about
+   un-ignoring it) references a file that was never here.
+   
+2. **A stray `foo.txt` WAS shipping** — a 25-byte test artifact from the `write_file`/`patch_file`
+   probes in §15 (commit `407a2fc`). It was never export-ignored, so every Composer install from
+   v0.1.0 through early `492b97b` had it. Removed in `492b97b`.
+
+The lesson: the tarball description was trusted without spot-checking. Anyone trusting only
+DECISIONS.md would have expected `CHANGELOG.md` and been surprised by `foo.txt` instead.
+Always verify against `git archive`, never against prose.
 
 Result: 200 KB of **intentional, shipped code** vs. the 760 KB of build tooling and unreleased docs
 that no consumer needs.
