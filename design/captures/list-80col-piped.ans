@@ -1,0 +1,12 @@
+
+  Paider  dev-main
+
+  USAGE:  <command> [options] [arguments]
+
+  chat            Start an interactive Paider chat session in the current project.
+  commit          Stage all changes and commit with an AI-generated message
+  cost            Show token/spend usage per tier from the event log
+
+  config:provider Set the active provider preset (tier stack)
+  config:show     Show the active preset and the model resolved for each tier
+
