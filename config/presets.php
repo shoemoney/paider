@@ -112,10 +112,11 @@ return [
     | to Anthropic/OpenAI. A real constituency, and nobody in the PHP space
     | ships a preset for them.
     |
-    | Weights: All models in this stack have published, downloadable weights on
-    | HuggingFace. K3 (confirmed 2026-08-02), K2.6 (confirmed 2026-08-03),
-    | V4-Flash (confirmed 2026-08-03), and Qwen3.7-flash are all open-weight.
-    | This stack is genuinely self-hostable end to end -- which is the whole point of it.
+    | Weights: every model in this stack has published, downloadable weights.
+    | K3 confirmed 2026-08-02; K2.6 and V4-Flash confirmed 2026-08-03 against the
+    | HuggingFace API -- both public, ungated, with real safetensors shards (64 and
+    | 46) rather than a card promising them. So this stack is genuinely
+    | self-hostable end to end, which is the whole point of it.
     */
     'open' => [
         'orchestrator' => 'moonshotai/kimi-k3',           //  $3.00 /  $15.00   1.05M ctx
@@ -150,9 +151,9 @@ return [
     | runs for pennies. Worth benchmarking m3 against k3 on real planning work
     | before deciding which is the default open orchestrator.
     |
-    | M3 weights confirmed open-weight 2026-08-03: minimax-community license,
-    | available on HuggingFace with full 427B parameters downloadable. This
-    | preset is genuinely self-hostable end to end.
+    | M3 weights confirmed 2026-08-03 against the HuggingFace API: public,
+    | ungated, 59 safetensors shards. This preset is self-hostable end to end,
+    | which the UNVERIFIED warning that stood here until today wrongly denied.
     */
     'open-frugal' => [
         'orchestrator' => 'minimax/minimax-m3',           //  $0.30 /   $1.20   1.05M ctx
