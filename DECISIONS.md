@@ -769,3 +769,34 @@ So the regression guard here is weaker than the rest of the suite: nothing in `p
 regresses, and the uncovered detached-child case has no test at all. A test that asserts on orphan
 count would need to shell out to `ps` from inside the suite; that was judged out of scope rather
 than free, and is the honest gap in this decision. Suite: 206 passing (708 assertions), hermetic.
+
+## 21. paider.dev points at GitHub Pages, not the self-hosted edge — 2026-08-04
+
+Everything else under this roof — Forgejo, the aigate vault, the image service — resolves to a
+single residential public IP fronted by Nginx Proxy Manager. Consistency argued for putting
+`paider.dev` there too, and it would have been the faster job: one A record and a proxy host on
+hardware already running.
+
+Rejected. The README tells strangers to run `curl -fsSL paider.dev/install | sh`. That instruction
+is only honest if the endpoint is up when they type it, and a home uplink is a single point of
+failure nobody outside this house can diagnose. A self-hosted control panel going dark is an
+inconvenience; a self-hosted **installer** going dark is a broken install for someone evaluating
+the project for the first time, with no way to tell a DNS problem from an abandoned repo.
+
+So the apex holds four A records to GitHub Pages (185.199.108–111.153), with `install` served from
+an orphan `gh-pages` branch alongside `CNAME` and a landing page. Cert issued by GitHub and
+auto-renewed, HTTPS enforced.
+
+**This constrains what the domain can ever do.** Pages is static only — no dynamic endpoint, no
+telemetry sink, no download counter, ever, on the apex. That was priced in: nothing planned needs
+it, and a subdomain can point at the self-hosted edge later without disturbing the installer.
+
+Verified by running the advertised pipeline rather than by checking that a file exists:
+
+```
+curl -fsSL https://paider.dev/install | sh -s -- --dry-run
+```
+
+and by diffing the served bytes against `install.sh` in the repo — identical. Note the checked
+claim is "the pipeline runs and serves the right script", not "the install succeeds"; the real
+install path is exercised separately and is Composer's, not this domain's.
