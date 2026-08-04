@@ -90,9 +90,9 @@ jobs:
         # This asserts the guard, and costs nothing because nothing is called.
         run: |
           set -euo pipefail
-          out="$(vendor/bin/pest --group=live 2>&1)"
-          echo "$out"
-          echo "$out" | grep -qE '3 skipped' \
+          vendor/bin/pest --group=live > /tmp/live-pest.txt 2>&1
+          cat /tmp/live-pest.txt
+          grep -qE '3 skipped' /tmp/live-pest.txt \
             || { echo "::error::live tests did not skip cleanly without credentials"; exit 1; }
 
   cli:
