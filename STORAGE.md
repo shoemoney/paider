@@ -1,12 +1,14 @@
 # Storage
 
-**One SQLite file. No services.** Everything Paider persists lives in a single database, reached
-through `pdo_sqlite`, one of the twelve compiled extensions.
+**One SQLite file. No services.** Paider persists through a single database reached via
+`pdo_sqlite`, one of the twelve compiled extensions.
 
 ```
-.paider/paider.db        # project-scoped: sessions, memory, plan, cost ledger
-                         # gitignored: the event log accumulates prompts and is local-only
-~/.paider/paider.db      # user-scoped: credentials, global preferences
+.paider/paider.db        # project-scoped: ✅ events (append-only), cost ledger (projection)
+                         # gitignored: the event log accumulates all calls and is local-only
+                         # planned v0.2+: sessions, memory, response cache
+                         # planned v0.3+: task board
+~/.paider/paider.db      # planned v0.2: credentials (AES-256-GCM via openssl), global preferences
 ```
 
 **Confirmed under the FrankenPHP embed binary** (measured 2026-08-02 — see
@@ -17,16 +19,21 @@ same round-trip, same result, so trimming 77 extensions down to 12 does not dist
 The binary is otherwise unrelated to this design — see [`README.md`](README.md#distribution) for
 the size numbers.
 
+**v0.1 scope: event log and cost ledger.** The two tables above marked ✅ are implemented.
+The rest (marked ⬜) are planned for v0.2+. This design document describes the full
+chosen architecture, not just the v0.1 slice.
+
 ## What lives there
 
-| concern | shape | notes |
-|---|---|---|
-| **Sessions** | conversation history, files in context, current plan | resumable across runs, survives a reboot |
-| **Memory** | durable project facts worth carrying between sessions | the thing that makes the second run smarter than the first |
-| **Credentials** | AES-256-GCM blobs via `openssl` | no Node service, no keyring dependency |
-| **Response cache** | Laravel's `database` cache driver, same file | prompt-cache-aware; identical requests should not be paid for twice |
-| **Cost ledger** | per-tier token and spend accounting | see below — this is a feature, not plumbing |
-| **Task board** | plan items and their state | what the v0.3 terminal kanban renders from |
+| concern | shape | state | notes |
+|---|---|---|---|
+| **Events** | append-only log, JSON payload per row | ✅ **v0.1** | all tier_calls, tool results, approvals; the source of truth for the cost ledger |
+| **Cost ledger** | per-tier token and spend accounting | ✅ **v0.1** | pure projection over events, never mutable; see below — this is a feature, not plumbing |
+| **Sessions** | conversation history, files in context, current plan | ⬜ **v0.2** | resumable across runs, survives a reboot |
+| **Memory** | durable project facts worth carrying between sessions | ⬜ **v0.2** | the thing that makes the second run smarter than the first |
+| **Response cache** | Laravel's `database` cache driver, same file | ⬜ **v0.2** | prompt-cache-aware; identical requests should not be paid for twice |
+| **Credentials** | AES-256-GCM blobs via `openssl` | ⬜ **v0.2** | no Node service, no keyring dependency; user-scoped in `~/.paider/paider.db` |
+| **Task board** | plan items and their state | ⬜ **v0.3** | what the v0.3 terminal kanban renders from |
 
 ## Why SQLite and not Redis
 
