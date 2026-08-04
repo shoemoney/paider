@@ -733,3 +733,28 @@ recorded alongside it; `CostLedgerTest` and `CostCommandTest` each gained a mism
 (table line and `--json` shape). Verified red/green: temporarily priced by the requested id instead
 of the served id in `Loop::turn()`, confirmed the new Loop test failed on the expected assertion,
 reverted, confirmed green again. Suite: 194 passing (666 assertions), still fully hermetic.
+
+## 20. ShellTool timeout reaches descendants still inside the process tree — 2026-08-04
+
+`ShellTool::run()` now kills the descendant process tree when a timeout fires, not just the tracked
+`$pid`. Before: a command that spawns children and then waits (e.g. `wait`, or a blocking
+`proc_open()` call) would not terminate on deadline — the parent would be unkilled, the parent's
+timeout would fire in a parent context, and children orphaned to init. After: when the wall-clock
+deadline fires, `proc_terminate()` targets the tracked pid and reaches any child still in that
+subtree at the snapshot moment.
+
+**Residual exposure: the entire timeout window.** A child already detached before the deadline
+fires — backgrounded via `( cmd & )` or `sh -c 'cmd &'` — is gone from the tree by the time we
+sample it and is **still not reached**. The timer fires from the system clock, so a command running
+up to a 60-second limit is still at risk of leaving work running if it double-forks in the last
+millisecond. This is a narrower fix than "prevents orphaned children everywhere" — it only catches
+the case where a descendant is present and trackable at the moment we check.
+
+Both the code comment in `ShellTool` and the `ToolResult::fail` message on timeout explicitly
+state "detached children may still be running", so the limit is documented in the tool where it
+matters — in code that calls it or debugs a timeout.
+
+Tests added: `ShellToolTest::timeoutReachesDescendantsStillInTheTree()` verifies a backgrounded
+child from the timeout-firing child is terminated; `ShellToolTest::timeoutDoesNotReachDetachedChildren()`
+verifies the open gap — a child backgrounded by a grandchild still escapes. Suite: 206 passing
+(708 assertions), fully hermetic.
