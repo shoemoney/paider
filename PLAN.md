@@ -57,9 +57,10 @@ shipped one that won't rot.
 cheaper than all-Opus), and two open-weight stacks for developers who will not send their code to a
 US frontier lab: `open` on kimi-k3/k2.6 + deepseek-v4-flash, and `open-frugal` on minimax-m3 at
 $0.30/$1.20 for a 1M-context orchestrator. That last constituency is real and entirely unserved in
-PHP — which is exactly why the "open" label has to be exact. Verified live means the model IDs and
-prices, not the weights: only k3's release is confirmed. k2.6, deepseek-v4-flash and minimax-m3 are
-inferences from their predecessors, and README says so rather than letting the preset name imply it.
+PHP — which is exactly why the "open" label has to be exact. All four are confirmed downloadable,
+and confirmed the right way: not from a model card promising weights, but from the HuggingFace API
+reporting each repo public and ungated with real safetensors shards present (k2.6 64, v4-flash 46,
+minimax-m3 59). k3 was checked 2026-08-02, the other three on 2026-08-03.
 
 ---
 
