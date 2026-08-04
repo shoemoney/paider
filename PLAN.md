@@ -54,8 +54,8 @@ shipped one that won't rot.
 **Model routing is a named feature, not a config detail.** Eleven presets ship in
 `config/presets.php`, every model ID and price verified live: eight single-provider stacks, a
 `balanced` default (Opus 5 orchestrates, qwen3.7-flash codes, deepseek-v4-flash researches — 95.5% cheaper than all-Opus), and
-two open-weight stacks (`open` on kimi-k3, `open-frugal` on minimax-m3 at $0.30/$1.20 for a 1M
-context orchestrator) for developers who will not send their code to a US frontier lab. That
+two open-weight stacks (`open` on kimi-k3/k2.6 + deepseek-v4-flash — **v4-flash weights unverified**, `open-frugal` on minimax-m3 at $0.30/$1.20 for a 1M
+context orchestrator — **m3 weights unverified**) for developers who will not send their code to a US frontier lab. That
 last constituency is real and entirely unserved in PHP.
 
 ---

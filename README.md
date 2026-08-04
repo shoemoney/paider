@@ -163,11 +163,10 @@ against the live OpenRouter catalogue. Modelled on a session planning 50k/20k an
 | all Sonnet 5 | $7.30 |
 | **default** — Opus 5 to think, deepseek for research/fast | **$1.159** |
 
-There is also an **open-weight stack** — `kimi-k3` for planning, `kimi-k2.6` for coding, `deepseek-v4-flash` for research/fast, self-hostable end to end, for people who will not send their code to a US
-frontier lab. As far as we can tell nobody in PHP ships a preset for them.
+There is also an **open-weight stack** — `kimi-k3` for planning (weights released), `kimi-k2.6` for coding (weights released), `deepseek-v4-flash` for research/fast (weights **UNVERIFIED**). Kimi models are genuinely open-weight, but DeepSeek v4-flash is not yet confirmed open-source — **if open-source is a hard requirement, fallback to the `open-frugal` preset or edit the `open` preset to use `qwen3.7-flash` for research/fast** (slower/cheaper, but fully open-weight). This preset is for people who will not send their code to US frontier labs, or who want to audit model behavior.
 
 ```bash
-paider config:provider open      # kimi-k3/k2.6 + deepseek, open weights
+paider config:provider open      # kimi-k3/k2.6 + deepseek (coder specialised, research budget-aware)
 paider config:provider balanced  # opus-5 to think, deepseek for research/fast, qwen for coder
 paider config:provider kimi      # single-provider stacks for all the majors
 paider config:show               # what am I actually running?
