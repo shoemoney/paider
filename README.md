@@ -9,7 +9,7 @@
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
 [![packagist](https://img.shields.io/badge/packagist-v0.1.0-blueviolet?style=for-the-badge)](https://packagist.org/packages/paider/paider)
 [![ci](https://img.shields.io/github/actions/workflow/status/shoemoney/paider/tests.yml?style=for-the-badge&label=tests)](https://github.com/shoemoney/paider/actions/workflows/tests.yml)
-[![tests](https://img.shields.io/badge/tests-203%20passing-brightgreen?style=for-the-badge)](tests/)
+[![tests](https://img.shields.io/badge/tests-207%20passing-brightgreen?style=for-the-badge)](tests/)
 [![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
@@ -30,7 +30,7 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `cost`, `config:provider`, `config:show` all register and run |
 | 🔧 six native tools | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `git`, `artisan` |
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection; stored in `.paider/` (gitignored locally) |
-| 🧪 test suite | ✅ **203 passing**, 704 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
+| 🧪 test suite | ✅ **207 passing**, 709 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
 | 📦 published on Packagist | ✅ **published** | `paider/paider` at https://packagist.org/packages/paider/paider |
 | 📦 `curl \| sh` installer | ⬜ **not built** | the binary is measured, the installer is not written |
@@ -163,12 +163,11 @@ against the live OpenRouter catalogue. Modelled on a session planning 50k/20k an
 | all Sonnet 5 | $7.30 |
 | **default** — Opus 5 to think, deepseek for research/fast | **$1.159** |
 
-There is also an **open-weight stack** — `kimi-k3` orchestrating with `qwen3.7-flash` on the
-other three tiers, self-hostable end to end, for people who will not send their code to a US
+There is also an **open-weight stack** — `kimi-k3` for planning, `kimi-k2.6` for coding, `deepseek-v4-flash` for research/fast, self-hostable end to end, for people who will not send their code to a US
 frontier lab. As far as we can tell nobody in PHP ships a preset for them.
 
 ```bash
-paider config:provider open      # kimi-k3 + qwen3.7-flash, open weights
+paider config:provider open      # kimi-k3/k2.6 + deepseek, open weights
 paider config:provider balanced  # opus-5 to think, deepseek for research/fast, qwen for coder
 paider config:provider kimi      # single-provider stacks for all the majors
 paider config:show               # what am I actually running?
@@ -315,7 +314,7 @@ vendor/bin/pest --group=live
   Measure both. Never derive one from the other.
 -->
 
-**Hermetic suite** (`vendor/bin/pest`, 203 tests) — all provider interactions mocked via Guzzle;
+**Hermetic suite** (`vendor/bin/pest`, 207 tests) — all provider interactions mocked via Guzzle;
 proves self-consistency, zero cost. Excluded group: `live`. This is the number in the badge above;
 the live suite is 3 more on top, **not** part of it.
 
