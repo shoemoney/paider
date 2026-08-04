@@ -1,0 +1,12 @@
+
+  [37;1mPaider [39;22m [32;1mdev-main[39;22m
+
+  [33;1mUSAGE:[39;22m  <command> [options] [arguments]
+
+  [32mchat[39m            Start an interactive Paider chat session in the current project.
+  [32mcommit[39m          Stage all changes and commit with an AI-generated message
+  [32mcost[39m            Show token/spend usage per tier from the event log
+
+  [32mconfig:provider[39m Set the active provider preset (tier stack)
+  [32mconfig:show[39m     Show the active preset and the model resolved for each tier
+
