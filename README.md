@@ -330,7 +330,7 @@ when credentials are absent, so CI stays green in sandboxes.
 
 **Environment variables for live suite:**
 - `OPENROUTER_API_KEY` — enables OpenRouter test (qwen/qwen3-max)
-- `ANTHROPIC_API_KEY` — enables Anthropic test (claude-opus-5-latest)
+- `ANTHROPIC_API_KEY` — enables Anthropic test (claude-haiku-4-5-20251001)
 - `XAI_API_KEY` — fallback when Anthropic key absent (Claude via xAI's Anthropic-format endpoint)
 
 <details>
