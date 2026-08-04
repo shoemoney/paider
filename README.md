@@ -163,7 +163,16 @@ against the live OpenRouter catalogue. Modelled on a session planning 50k/20k an
 | all Sonnet 5 | $7.30 |
 | **default** — Opus 5 to think, deepseek for research/fast | **$1.159** |
 
-There is also an **open-weight stack** — `kimi-k3` for planning (weights released), `kimi-k2.6` for coding (weights released), `deepseek-v4-flash` for research/fast (weights **UNVERIFIED**). Kimi models are genuinely open-weight, but DeepSeek v4-flash is not yet confirmed open-source — **if open-source is a hard requirement, fallback to the `open-frugal` preset or edit the `open` preset to use `qwen3.7-flash` for research/fast** (slower/cheaper, but fully open-weight). This preset is for people who will not send their code to US frontier labs, or who want to audit model behavior.
+There is also an **open-weight stack** for people who will not send their code to a US frontier
+lab, or who want to be able to audit and self-host what they run: `kimi-k3` planning, `kimi-k2.6`
+coding, `deepseek-v4-flash` on research and fast.
+
+Two honest caveats, because "open" is a claim worth being precise about. **K3's released weights
+are confirmed; k2.6's and deepseek-v4-flash's are not** — both are reasonable inferences from
+their predecessors (K2, and DeepSeek's earlier generations) rather than things we checked.
+`open-frugal` is **not** the fix if open weights are a hard requirement: its `minimax-m3`
+orchestrator carries the same unverified status. The one fully-verified configuration today is
+`open` with `qwen3.7-flash` put back on research and fast.
 
 ```bash
 paider config:provider open      # kimi-k3/k2.6 + deepseek (coder specialised, research budget-aware)
