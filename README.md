@@ -167,12 +167,9 @@ There is also an **open-weight stack** for people who will not send their code t
 lab, or who want to be able to audit and self-host what they run: `kimi-k3` planning, `kimi-k2.6`
 coding, `deepseek-v4-flash` on research and fast.
 
-Two honest caveats, because "open" is a claim worth being precise about. **K3's released weights
-are confirmed; k2.6's and deepseek-v4-flash's are not** — both are reasonable inferences from
-their predecessors (K2, and DeepSeek's earlier generations) rather than things we checked.
-`open-frugal` is **not** the fix if open weights are a hard requirement: its `minimax-m3`
-orchestrator carries the same unverified status. The one fully-verified configuration today is
-`open` with `qwen3.7-flash` put back on research and fast.
+All weights in both `open` and `open-frugal` stacks are confirmed available for download: K3, K2.6,
+and V4-Flash are all published and self-hostable. The same applies to `minimax-m3` in `open-frugal`,
+which is also open-weight with published weights on Hugging Face.
 
 ```bash
 paider config:provider open      # kimi-k3/k2.6 + deepseek (coder specialised, research budget-aware)

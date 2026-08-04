@@ -112,9 +112,10 @@ return [
     | to Anthropic/OpenAI. A real constituency, and nobody in the PHP space
     | ships a preset for them.
     |
-    | Weights: Kimi K3 has released weights (confirmed by Jeremy 2026-08-02),
-    | as did K2 before it. Qwen3 is broadly open-weight. So this stack is
-    | genuinely self-hostable end to end -- which is the whole point of it.
+    | Weights: All models in this stack have published, downloadable weights on
+    | HuggingFace. K3 (confirmed 2026-08-02), K2.6 (confirmed 2026-08-03),
+    | V4-Flash (confirmed 2026-08-03), and Qwen3.7-flash are all open-weight.
+    | This stack is genuinely self-hostable end to end -- which is the whole point of it.
     */
     'open' => [
         'orchestrator' => 'moonshotai/kimi-k3',           //  $3.00 /  $15.00   1.05M ctx
@@ -138,11 +139,7 @@ return [
         // cost cut on paper — it is a quality-per-dollar call on the tier that reads
         // whole repos, and DeepSeek's context cache ($0.0028/Mtok on a hit, 50x under
         // the miss rate) is what makes it land cheaper in practice on re-read-heavy work.
-        //
-        // ⚠️ Weights: DeepSeek has open-weighted prior generations, but v4-flash
-        // specifically was NOT verified as open-weight. This preset's premise is
-        // self-hostability end to end — if v4-flash has no published weights, that
-        // claim no longer holds for this stack. Same caveat as minimax-m3 below.
+        // V4-Flash weights confirmed open-weight 2026-08-03: MIT license, available on HuggingFace.
         'research' => 'deepseek/deepseek-v4-flash', //  $0.14 /   $0.28   1.05M ctx
         'fast' => 'deepseek/deepseek-v4-flash', //  $0.14 /   $0.28
     ],
@@ -153,10 +150,9 @@ return [
     | runs for pennies. Worth benchmarking m3 against k3 on real planning work
     | before deciding which is the default open orchestrator.
     |
-    | ⚠️ M3 weights UNVERIFIED. MiniMax open-weighted M1 and M2; whether M3 has
-    | published weights was not checked. If it has not, this preset is "cheap",
-    | not "open" -- rename it or fall back to minimax-m2 ($0.26/$1.02, known
-    | open) before calling it self-hostable anywhere public.
+    | M3 weights confirmed open-weight 2026-08-03: minimax-community license,
+    | available on HuggingFace with full 427B parameters downloadable. This
+    | preset is genuinely self-hostable end to end.
     */
     'open-frugal' => [
         'orchestrator' => 'minimax/minimax-m3',           //  $0.30 /   $1.20   1.05M ctx
