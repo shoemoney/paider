@@ -91,12 +91,22 @@ class ShellTool implements Tool
             }
 
             if (microtime(true) >= $deadline) {
-                // ponytail: SIGTERM/SIGKILL reach only the tracked pid. Anything the command
-                // detached (`&`, `( ... &)`) survives, reparented to init. proc_open gives the
-                // child PHP's own process group, so a group kill would take this process down
-                // with it; a real fix needs posix_setsid/pcntl_fork, both out of scope (LOCKED:
-                // no pcntl/posix). Bounded, not fully containing — see the return below.
+                // ponytail: pcntl/posix are LOCKED off the build (EXTENSIONS.md — cut for a
+                // single-profile, Windows-compatible binary), so no posix_setsid/posix_kill and
+                // no process-group kill (proc_open shares this process's own group, so a group
+                // kill would take PHP down with it). Instead: snapshot the whole descendant tree
+                // BEFORE signalling anything, then SIGTERM/SIGKILL every pid in it directly via
+                // the `kill` binary — ext-standard's exec(), not the posix extension. Known
+                // ceiling: this only reaches descendants still in the tracked pid's process tree
+                // AT THE DEADLINE. A child that has already double-forked or been backgrounded
+                // and reparented to init BEFORE the deadline fires (e.g. `( cmd & )`, `sh -c
+                // 'cmd &'`) is gone from the tree before we ever snapshot it and will keep
+                // running for the rest of its life — the whole timeout window is the exposure,
+                // not a few milliseconds of race.
+                $descendants = $this->descendantPids(proc_get_status($process)['pid']);
+
                 proc_terminate($process); // SIGTERM — a well-behaved child dies here
+                $this->killPids($descendants, 15);
 
                 $killDeadline = microtime(true) + 0.5;
                 while (proc_get_status($process)['running'] && microtime(true) < $killDeadline) {
@@ -112,11 +122,17 @@ class ShellTool implements Tool
                     }
                 }
 
+                // Descendants aren't PHP's direct children, so proc_close never reaps them —
+                // give any that trapped TERM the same TERM-then-KILL treatment before returning.
+                $this->killPids($descendants, 15);
+                usleep(100_000);
+                $this->killPids($descendants, 9);
+
                 fclose($pipes[1]);
                 fclose($pipes[2]);
                 proc_close($process);
 
-                return ToolResult::fail('command timed out (any detached children may still be running)', ['timed_out' => true]);
+                return ToolResult::fail('command timed out (detached children may still be running)', ['timed_out' => true]);
             }
 
             usleep(20_000);
@@ -133,5 +149,43 @@ class ShellTool implements Tool
         }
 
         return ToolResult::fail($stderr !== '' ? $stderr : $stdout, ['exit_code' => $code]);
+    }
+
+    /**
+     * Every live pid descended from $pid, walked via a single `ps` snapshot (BSD and GNU `ps`
+     * both understand `-A -o pid=,ppid=`). No pcntl/posix required — see the ponytail note above.
+     *
+     * @return int[]
+     */
+    private function descendantPids(int $pid): array
+    {
+        $childrenOf = [];
+
+        foreach (explode("\n", trim((string) shell_exec('ps -A -o pid=,ppid= 2>/dev/null'))) as $line) {
+            if (! preg_match('/^\s*(\d+)\s+(\d+)\s*$/', $line, $m)) {
+                continue;
+            }
+
+            $childrenOf[(int) $m[2]][] = (int) $m[1];
+        }
+
+        $descendants = [];
+        $queue = $childrenOf[$pid] ?? [];
+
+        while ($queue !== []) {
+            $current = array_pop($queue);
+            $descendants[] = $current;
+            array_push($queue, ...($childrenOf[$current] ?? []));
+        }
+
+        return $descendants;
+    }
+
+    /** @param int[] $pids */
+    private function killPids(array $pids, int $signal): void
+    {
+        foreach ($pids as $pid) {
+            @exec('kill -'.$signal.' '.escapeshellarg((string) $pid).' 2>/dev/null');
+        }
     }
 }
