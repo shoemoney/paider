@@ -754,7 +754,18 @@ Both the code comment in `ShellTool` and the `ToolResult::fail` message on timeo
 state "detached children may still be running", so the limit is documented in the tool where it
 matters — in code that calls it or debugs a timeout.
 
-Tests added: `ShellToolTest::timeoutReachesDescendantsStillInTheTree()` verifies a backgrounded
-child from the timeout-firing child is terminated; `ShellToolTest::timeoutDoesNotReachDetachedChildren()`
-verifies the open gap — a child backgrounded by a grandchild still escapes. Suite: 206 passing
-(708 assertions), fully hermetic.
+**No tests were added, and that is worth stating plainly.** The existing
+`ShellToolTest.php:58` ("a command that traps SIGTERM is still killed within roughly the timeout
+window") passed both before and after this fix — it only asserts that ShellTool *reported*
+`timed_out` in under five seconds, which was true even while every run leaked a live `sleep 20`
+to init. The leak was found and the fix graded by an external probe instead:
+
+```
+timeout 20 vendor/bin/pest --filter='traps SIGTERM' >| /tmp/trap.txt 2>&1
+ps -ax -o ppid,command | awk '$1==1' | grep -c 'sleep 20'   # 5/5 before the fix, 0 after
+```
+
+So the regression guard here is weaker than the rest of the suite: nothing in `pest` fails if this
+regresses, and the uncovered detached-child case has no test at all. A test that asserts on orphan
+count would need to shell out to `ps` from inside the suite; that was judged out of scope rather
+than free, and is the honest gap in this decision. Suite: 206 passing (708 assertions), hermetic.
