@@ -478,7 +478,8 @@ box.json
 composer.lock
 ```
 
-A consumer gets exactly `app/ bootstrap/ config/ paider/ composer.json LICENSE README.md`.
+A consumer gets exactly three directories — `app/ bootstrap/ config/` — and four files:
+`paider` (the executable entry point, not a directory), `composer.json`, `LICENSE`, `README.md`.
 
 ~~**Note:** `CHANGELOG.md` was **un**-ignored, correcting a mistake in the skeleton. The skeleton
 shipped it on the repo but ignored it on export — backwards. Now the changelog is in the tarball.~~
@@ -492,7 +493,17 @@ verified against `git archive`. The mistakes:
    
 2. **A stray `foo.txt` WAS shipping** — a 25-byte test artifact from the `write_file`/`patch_file`
    probes in §15 (commit `407a2fc`). It was never export-ignored, so every Composer install from
-   v0.1.0 through early `492b97b` had it. Removed in `492b97b`.
+   v0.1.0 until `492b97b` shipped it.
+
+3. **`paider` was written as `paider/`** — it is the executable entry point, a file, not a
+   directory. That slash survived this very correction's first draft, which is the point: the
+   listing had never been diffed against `tar -t`, so nobody read it closely enough to notice.
+
+The check is one command, and it is the only thing that settles this:
+
+```
+git archive HEAD | tar -t | grep -v '/'    # every top-level file, no guessing
+```
 
 The lesson: the tarball description was trusted without spot-checking. Anyone trusting only
 DECISIONS.md would have expected `CHANGELOG.md` and been surprised by `foo.txt` instead.
