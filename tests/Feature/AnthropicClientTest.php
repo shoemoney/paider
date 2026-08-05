@@ -127,7 +127,6 @@ it('forwards $options, allows max_tokens through, and pins model, messages and s
     expect($body['system'])->toBe('real system');
 });
 
-
 it('reads both cache buckets and does NOT subtract them from input_tokens', function () {
     // Anthropic reports input_tokens already excluding the cache buckets. Subtracting
     // here -- as the OpenAI-compatible path must -- would under-report the bill.

@@ -137,7 +137,6 @@ it('forwards $options into the request body but never lets them override model o
     expect($body['messages'])->toBe([['role' => 'user', 'content' => 'real']]);
 });
 
-
 it('subtracts cached tokens out of prompt_tokens so they are not billed twice', function () {
     // prompt_tokens INCLUDES the cached ones in this family -- the opposite of
     // Anthropic. Reporting both whole would bill the same 8,000 tokens as full-rate

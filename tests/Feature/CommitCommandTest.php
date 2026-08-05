@@ -214,10 +214,10 @@ it('routes a qwen plan key to the plan endpoint, and a payg key to payg', functi
         putenv($key === '' ? 'DASHSCOPE_API_KEY' : "DASHSCOPE_API_KEY={$key}");
         putenv($planUrl === '' ? 'DASHSCOPE_PLAN_BASE_URL' : "DASHSCOPE_PLAN_BASE_URL={$planUrl}");
 
-        $m = new ReflectionMethod(\App\Commands\CommitCommand::class, 'qwenBaseUrl');
+        $m = new ReflectionMethod(CommitCommand::class, 'qwenBaseUrl');
         $m->setAccessible(true);
 
-        return $m->invoke(app(\App\Commands\CommitCommand::class));
+        return $m->invoke(app(CommitCommand::class));
     };
 
     // A pay-as-you-go key keeps the PAYG endpoint.
