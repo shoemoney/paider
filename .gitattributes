@@ -34,6 +34,7 @@ PLAN.md             export-ignore
 DECISIONS.md        export-ignore
 EXTENSIONS.md       export-ignore
 STORAGE.md          export-ignore
+PRISM-TAKEAWAYS.md  export-ignore
 
 # PHAR build config, inherited from the Laravel Zero skeleton. PHAR is an
 # explicitly cut distribution format (PLAN.md, "Distribution and concurrency"),

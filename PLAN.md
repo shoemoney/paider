@@ -1279,10 +1279,21 @@ aider's death is a citable "no".
 "why not just use this instead of hand-rolled provider clients?" candidate. Rejected on two
 independent grounds, checked 2026-08-05:
 
-1. **It requires `laravel/framework` `^11.0|^12.0|^13.0`** — the *entire* framework. Paider is
-   built on `laravel-zero/framework` v12.1.0, which is illuminate components without the
-   framework. Adopting Prism means pulling all of Laravel into a CLI tool. This is the same
-   objection that rules `laravel/mcp` out of v0.2, and it is structural, not a preference.
+1. **It declares `laravel/framework` `^11.0|^12.0|^13.0`** — but *measured*, that is
+   over-declaration, not real coupling. Across its 359 source files it imports only
+   `Illuminate\Http\Client\*` (139 uses — PendingRequest, Response, RequestException),
+   `Illuminate\Support\{Arr,Collection,Str,Carbon}` (83), and `Illuminate\Contracts` (31 files).
+   `Illuminate\Database`, `Queue`, `Events` and `Bus` are **zero**; `Container` is one file;
+   `app()` appears twice. **A fork could swap the metapackage for `illuminate/http` +
+   `illuminate/support` + `illuminate/contracts` — plausible work, not a rewrite.** An earlier
+   version of this entry called it "architecturally incompatible"; that was wrong and is corrected
+   here.
+
+   The real cost of forking is ongoing, not structural: owning an LLM abstraction across thirteen
+   providers' API drift, permanently. Note also DECISIONS.md §1 founded this project on the
+   argument that becoming fork #4,806 of a stalled project is low leverage — though Prism's 307
+   forks with no consolidated successor is exactly the vacuum shape §1 described. A live option,
+   not a closed door.
 2. **Latest release v0.100.1, 2026-03-20 — 138 days ago.** DECISIONS.md §2 flagged this as
    "the plumbing is rotting faster than the ecosystem is growing" and it has not moved since.
 
@@ -1294,6 +1305,58 @@ of `app/Providers/`.
 
 **`php-mcp/server`** — last released 2025-07-12, over a year ago. `php-mcp/laravel` (4.0.0,
 2026-03-29) is a Laravel-framework integration with the same objection as Prism.
+
+### Track D — Provider-layer hardening, learned from Prism's source
+
+*Four patterns lifted from `prism-php/prism` at its final commit (2026-03-20). Taking the shapes,
+not the dependency — see "Considered and rejected" below for why we are not adopting the package.
+Each item below is anchored to a Paider defect that already exists, not to "Prism does it".*
+
+| id | goal | done-command |
+|---|---|---|
+| `structured-output-strategy` | Per-provider structured-output strategy instead of one universal path | `vendor/bin/pest --filter=StructuredStrategy` |
+| `typed-provider-exceptions` | `RateLimited`, `Overloaded`, `RequestTooLarge`, `StructuredDecodeFailed` under `App\Providers\Exceptions` | `vendor/bin/pest --filter=ProviderException` |
+| `provider-maps-extraction` | Move message/tool/finish-reason translation out of `send()` into `Maps/` | `vendor/bin/pest --filter=ProviderMap` |
+| `consumer-test-fakes` | Ship fakes so a host app can test against Paider without live calls | `vendor/bin/pest --filter=ConsumerFake` |
+
+**`structured-output-strategy` is the one attached to a live risk.** `config/presets.php:95` and
+DECISIONS.md §4 both record that `qwen3.7-flash` — the shipped default **coder** tier — reports
+`structured_outputs=false`, with the mitigation being a code comment saying *"malformed diffs are
+the first thing to suspect if they appear."* Prism's answer is that structured output is a
+negotiated capability per provider: native mode where supported, prompt-coercion plus validation
+where not, with the decoding failure typed rather than silent. This is also the mechanism that
+makes v1.0's promised "measured diff-apply success rate" improvable rather than merely observable.
+
+**`typed-provider-exceptions` maps the failures that actually happen.** Both clients today throw
+bare `\RuntimeException` for a missing key (`AnthropicClient.php:29`,
+`OpenAiCompatibleClient.php:30`) and otherwise let Guzzle's exceptions escape; there is no
+`app/Exceptions` directory. Prism ships `PrismRateLimitedException`,
+`PrismProviderOverloadedException`, `PrismRequestTooLargeException`,
+`PrismStructuredDecodingException` and a `ProviderRateLimit` value object. **Overloaded and
+rate-limited are different decisions** — retry now, back off, or switch tier — and that
+distinction is precisely what DECISIONS.md §5's multi-account rotation hypothesis would need if it
+is ever pursued.
+
+**`provider-maps-extraction` is a seam, not a refactor.** `AnthropicClient::send()` currently does
+transport *and* shape translation inline — system-message extraction at lines 32-34, the
+`array_merge` ordering at 42-45 that deliberately prevents `model` being overridden. At two
+providers this is fine and should not be churned for its own sake. It becomes worth doing at the
+*third* provider with a different tool-call shape, which is the moment inline conditionals start
+accumulating. Filed now so the trigger is written down rather than rediscovered.
+
+**`consumer-test-fakes` asks a question nobody has asked.** Paider ships as a package that lives
+inside someone's Laravel app. Prism ships `src/Testing/` with `PrismFake` and per-modality response
+fakes so consumers can test against it without live calls. Paider has no equivalent, and its own
+live suite costs real money — the same problem, one level out.
+
+**One grader here was caught fail-open before it shipped.** `--filter=Fake` was the obvious choice
+and it **passes today** — `CommitCommandTest.php:38` defines a `FakeCommitCommand`, so the filter
+matches an unrelated existing test and the milestone would have been born green. Narrowed to
+`ConsumerFake`. This is the same defect the binary track was sent back for; a grader is only
+trustworthy after you have watched it fail.
+
+**Provenance caveat:** these are patterns from a codebase whose last commit was 2026-03-20. They
+are worth copying as designs; they are not evidence the project is maintained.
 
 ### Decisions only the maintainer can make
 
