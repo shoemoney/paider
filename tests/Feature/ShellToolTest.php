@@ -68,6 +68,43 @@ test('a command that traps SIGTERM is still killed within roughly the timeout wi
     expect($elapsed)->toBeLessThan(5.0);
 });
 
+test('a backgrounded descendant still in the process tree at the deadline is dead after timeout', function () {
+    $root = shellToolRoot();
+    $pidFile = $root.'/child.pid';
+    $tool = new ShellTool($root, timeoutSeconds: 1);
+    $childPid = null;
+
+    try {
+        // The background `sleep 20 &` is still a live descendant of the tracked `sh -c` pid at
+        // the 1s deadline (it hasn't detached via `( ... & )`), so ShellTool's descendant sweep
+        // must reach it. `wait` keeps the parent shell blocked so the tree is intact when the
+        // deadline fires.
+        $result = $tool->execute([
+            'command' => 'sleep 20 & echo $! > '.escapeshellarg($pidFile).'; wait',
+            'approval' => 'allow-once',
+        ]);
+
+        expect($result->ok)->toBeFalse();
+        expect($result->meta['timed_out'])->toBeTrue();
+        expect(file_exists($pidFile))->toBeTrue();
+
+        $childPid = (int) trim((string) file_get_contents($pidFile));
+        expect($childPid)->toBeGreaterThan(0);
+
+        // Generous settle margin on top of ShellTool's own internal kill/reap waits, so this
+        // doesn't flake on a loaded box.
+        usleep(750_000);
+
+        $alive = trim((string) shell_exec('ps -p '.escapeshellarg((string) $childPid).' -o pid= 2>/dev/null'));
+        expect($alive)->toBe('');
+    } finally {
+        // Best-effort: never leak a live `sleep` if an assertion above threw first.
+        if ($childPid) {
+            @exec('kill -9 '.escapeshellarg((string) $childPid).' 2>/dev/null');
+        }
+    }
+});
+
 test('a shell command cannot read an unlisted parent environment variable', function () {
     $root = shellToolRoot();
     $sentinelName = 'PAIDER_TEST_SECRET_'.str_replace('.', '', uniqid('', true));
