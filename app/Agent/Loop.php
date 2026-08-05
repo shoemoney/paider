@@ -19,7 +19,7 @@ class Loop
 {
     private const MAX_TOOL_CALLS_PER_TURN = 10;
 
-    private const APPROVAL_GATED_TOOLS = ['read_file', 'write_file', 'patch_file', 'git'];
+    private const RETRY_ON_APPROVAL_TOOLS = ['read_file', 'write_file', 'patch_file', 'git'];
 
     /** @var array<string, Tool> */
     private array $tools = [];
@@ -155,7 +155,7 @@ class Loop
 
         $result = $tool->execute($input);
 
-        if (in_array($name, self::APPROVAL_GATED_TOOLS, true) && $this->needsRetry($result, $input)) {
+        if (in_array($name, self::RETRY_ON_APPROVAL_TOOLS, true) && $this->needsRetry($result, $input)) {
             $result = $this->retryWithApproval($tool, $input, $approvalPrompt);
         }
 
@@ -173,17 +173,16 @@ class Loop
             return ToolResult::fail('command must be a string');
         }
 
-        $command = $input['command'];
-        $allowed = $this->gate->decide($command, fn () => $approvalPrompt($command));
-
-        $input['approval'] = $allowed ? 'allow-once' : 'deny';
-
-        return $tool->execute($input);
+        return $this->dispatchGated($tool, $input, $input['command'], $approvalPrompt);
     }
 
     private function dispatchArtisan(Tool $tool, array $input, callable $approvalPrompt): ToolResult
     {
-        $subject = 'php artisan route:list --json';
+        return $this->dispatchGated($tool, $input, 'php artisan route:list --json', $approvalPrompt);
+    }
+
+    private function dispatchGated(Tool $tool, array $input, string $subject, callable $approvalPrompt): ToolResult
+    {
         $allowed = $this->gate->decide($subject, fn () => $approvalPrompt($subject));
 
         $input['approval'] = $allowed ? 'allow-once' : 'deny';
