@@ -796,8 +796,8 @@ So the regression guard here is weaker than the rest of the suite: nothing in `p
 regresses, and the uncovered detached-child case has no test at all. A test that asserts on orphan
 count would need to shell out to `ps` from inside the suite; that was judged out of scope rather
 than free, and is the honest gap in this decision.~~ **This was written before the test was added and is now false.** Commit `335a436` added
-`ShellToolTest.php:71` ("a backgrounded descendant still in the process tree at the deadline is dead
-after timeout"), which shells out to `ps -p <pid> -o pid=` at `ShellToolTest.php:98` to verify the
+`ShellToolTest.php:96` ("a backgrounded descendant still in the process tree at the deadline is dead
+after timeout"), which shells out to `ps -p <pid> -o pid=` at `ShellToolTest.php:123` to verify the
 child is actually dead at the OS level. It is hermetic in the sense that matters — no network, no
 provider call, no paid group — it just inspects local processes, exactly as `ShellTool` itself does
 when it kills them. It deliberately does **not** use `posix_kill()`: `pcntl`/`posix` are LOCKED off
@@ -823,7 +823,12 @@ snapshot time, and do not catch those already detached.
 
 Suite: 207 passing (715 assertions), hermetic.
 
-**2026-08-05 follow-up:** The gap this section identified in `ShellToolTest.php:58` was closed by commit `70ac2dc`. Both timeout tests now capture the child pid via pidfile and assert its death with `ps -p`, exactly as described at lines 798–806. Neither test passes against the pre-fix code. The regression guard is now hermetic — `pest` fails if either timeout assertion regresses.
+**2026-08-05 follow-up:** The gap this section identified in `ShellToolTest.php:58` was closed by commit `70ac2dc`. Both timeout tests now capture the child pid via pidfile and assert its death with `ps -p`, by the same mechanism described earlier in this section. Neither test passes against the pre-fix code. The regression guard is now hermetic — `pest` fails if either timeout assertion regresses.
+
+That same commit also broke this section's own citations: hardening the traps-SIGTERM test added
+25 lines, pushing the descendant test from `ShellToolTest.php:71` to `:96` and its `ps -p` call
+from `:98` to `:123`. Both were corrected on 2026-08-05. A line-number citation is a claim with a
+shelf life, and the commit most likely to invalidate it is the one you are documenting.
 
 ## 21. paider.dev points at GitHub Pages, not the self-hosted edge — 2026-08-04
 
