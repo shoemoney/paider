@@ -45,11 +45,9 @@ box.json            export-ignore
 # contributors need it; there is no reason to put it in every install.
 composer.lock       export-ignore
 
-# NOT export-ignored, deliberately:
-#
-#   CHANGELOG.md — the skeleton ignored it. That was a scaffold default, not a
-#   decision. Someone reading vendor/paider/paider to work out what changed
-#   between two versions should find it right there.
+# CHANGELOG.md does not exist in this repository and never has. (See DECISIONS.md.)
+# The skeleton export-ignored it; f59166b un-ignored it and wrote a comment saying a
+# consumer would find it in vendor/. Both were speculative — the file was never here.
 #
 # Removed from this file: .scrutinizer.yml, BACKERS.md and CONTRIBUTING.md.
 # None of them exist in this repository — they were Laravel Zero skeleton
