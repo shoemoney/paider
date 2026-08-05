@@ -208,3 +208,31 @@ test('a provider failure leaves the tree staged but uncommitted and returns FAIL
     exec('git -C '.escapeshellarg($this->root).' status --porcelain', $statusOutput);
     expect($statusOutput[0] ?? '')->toBe('M  tracked.txt');
 });
+
+it('routes a qwen plan key to the plan endpoint, and a payg key to payg', function () {
+    $call = function (string $key, string $planUrl) {
+        putenv($key === '' ? 'DASHSCOPE_API_KEY' : "DASHSCOPE_API_KEY={$key}");
+        putenv($planUrl === '' ? 'DASHSCOPE_PLAN_BASE_URL' : "DASHSCOPE_PLAN_BASE_URL={$planUrl}");
+
+        $m = new ReflectionMethod(\App\Commands\CommitCommand::class, 'qwenBaseUrl');
+        $m->setAccessible(true);
+
+        return $m->invoke(app(\App\Commands\CommitCommand::class));
+    };
+
+    // A pay-as-you-go key keeps the PAYG endpoint.
+    expect($call('sk-payg-abc', ''))->toBe('https://dashscope.aliyuncs.com/compatible-mode/v1');
+
+    // A plan key with the plan URL configured uses it.
+    $plan = 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1';
+    expect($call('sk-sp-abc', $plan))->toBe($plan);
+
+    // A plan key with NO plan URL must not silently fall back to PAYG — that bills
+    // per token against a plan already paid for, which is the whole failure mode
+    // QwenPlanKeyGuard exists to catch, arriving one layer earlier.
+    expect(fn () => $call('sk-sp-abc', ''))
+        ->toThrow(RuntimeException::class, 'DASHSCOPE_PLAN_BASE_URL');
+
+    putenv('DASHSCOPE_API_KEY');
+    putenv('DASHSCOPE_PLAN_BASE_URL');
+});
