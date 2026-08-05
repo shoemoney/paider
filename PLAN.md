@@ -1115,7 +1115,7 @@ user's disk:
 doesn't have to reconcile Anthropic's `tool_use` format against OpenAI's function-calling shape
 across three roles and four tiers; `MAX_TOOL_CALLS_PER_TURN = 10`; `Gate::decide()`'s allow-once/
 allow-session/deny contract, unchanged, and never bypassed by a model-supplied field (the
-`786a347` fix holds); the `APPROVAL_GATED_TOOLS` trio plus `SecretsGuard`/`PathGuard`, reused by
+`786a347` fix holds); the `RETRY_ON_APPROVAL_TOOLS` trio plus `SecretsGuard`/`PathGuard`, reused by
 `Ingest` rather than duplicated; the atomic write-then-rename primitive; `EventLog`'s schema and
 its WAL pragmas.
 
@@ -1185,9 +1185,9 @@ does not reintroduce them. `StdioTransport` is `proc_open` + Fiber.
 
 **Two hazards the review found in the original plan — both confirmed in code:**
 
-1. **`Loop::APPROVAL_GATED_TOOLS` is a *retry* list, not a gate list.** The plan assumed adding
+1. **`Loop::RETRY_ON_APPROVAL_TOOLS` is a *retry* list, not a gate list.** The plan assumed adding
    `mcp` to it would gate the tool with "no change to Gate itself". It is consulted only at
-   `Loop.php:156`, inside `in_array(...) && $this->needsRetry(...)`. Adding an entry there
+   `Loop.php:158`, inside `in_array(...) && $this->needsRetry(...)`. Adding an entry there
    changes retry behaviour, not approval. Gating an MCP tool needs real work.
 2. **`mcp/sdk`'s `proc_open` call site reopens DECISIONS.md §17.** That section scrubbed the
    child environment to an allowlist precisely so an approved subprocess could not inherit live

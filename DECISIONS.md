@@ -673,7 +673,11 @@ now see only the seven allowlisted variables plus whatever the user explicitly o
 an approved command can still read the filesystem, make network calls, or read a credential from
 some OTHER source (a config file, `~/.netrc`, a keychain) that isn't environment-variable-shaped.
 The §15 architectural caveat (tools calling `proc_open` directly instead of through `ShellEnv`
-reopen this) still applies to any future proc_open call site — lint or code-review for it.
+reopen this) was once enforced by human review; it is now machine-enforced. `SecretsGuardTest.php`
+walks every `proc_open` in `app/` and fails the suite if `ShellEnv::build()` is absent from its
+argument list. Before this test, the caveat survived three security passes without catching the
+very thing it warned about — `SecretsGuard.php` line 54 inherited the full parent environment until
+2026-08-05. The test exists so a fourth `proc_open` cannot be added quietly.
 Regression test: `ShellToolTest.php` — sets a sentinel via `putenv()`, echoes it through
 `run_shell`, asserts it does not appear in output; confirmed to fail if the `$env` argument is
 removed.
