@@ -1,6 +1,6 @@
 # Design Jury — Round 1
 
-**Models parsed:** 5 · **stop votes:** 0
+**Reviewers:** 5 · **stop votes:** 0
 
 ## Deduped findings
 
@@ -117,15 +117,13 @@
 
 ## Font suggestions
 
-- **x-ai/grok-4.20:** ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif — remains excellent for clarity and wide platform consistency in a technical product · pair: ui-monospace,SFMono-Regular,Menlo,monospace for code (already in use)
-  - `400/600 weights, -0.02em tracking on headings, 1.75 leading`
-- **google/gemini-3.6-flash:** ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif — zero-dependency native stack offering high legibility and native platform feel. · pair: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace — precise monospaced font for terminal commands and ledger output.
-  - `h1: weight 750, letter-spacing -0.03em; h2: weight 600, letter-spacing 0.08em; code: tabular-nums, weight 400`
-- **openai/gpt-5.6-sol:** Keep `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`; it is fast, native, constraint-compliant, and appropriately utilitarian for a developer tool. · pair: Keep `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace` for commands, identifiers, and ledger-oriented details.
-  - `Use 700–750 for the wordmark, 600–650 for headings and feature labels, 400 for body copy, uppercase section labels at 0.08em tracking, and tabular numerals in code/meta text.`
-- **anthropic/claude-opus-5:** Keep the existing system stack (`ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto`) — it is the correct call for a zero-request page, renders natively crisp, and its neutrality lets the copy's bluntness be the voice. Add `"Helvetica Neue", Arial` as tail fallbacks and `font-feature-settings: "kern" 1, "liga" 1; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;` on body. · pair: Strengthen the mono stack for the code panels, which carry the product's credibility: `ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace` with `font-variant-numeric: tabular-nums` — tabular figures matter specifically because the ledger sample shows dollar amounts that should column-align.
-  - `h1 650/-.03em, h2 600/.08em uppercase at .78rem, body 400/0 at 16-17px with 1.6 line-height, code 400/0 at .875rem with tabular-nums, dim labels 700/.09em uppercase at .7rem.`
-- **deepseek/deepseek-v4-flash:** Keep the existing system-ui stack: `ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`. It is the correct choice for a PHP tool: zero network cost, native rendering, and exactly the kind of default-first engineering the product speaks to.
+**5 of 5 reviewers recommend keeping the existing native stack** — `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` paired with `ui-monospace, SFMono-Regular, Menlo, monospace` for code — over any webfont. Reasons converge: zero network cost, native rendering, wide platform consistency, and a neutral voice that lets the copy's bluntness (not the typeface) do the work. Distinct weight/tracking refinements proposed:
+
+- `400/600 weights, -0.02em tracking on headings, 1.75 leading`
+- `h1: weight 750, letter-spacing -0.03em; h2: weight 600, letter-spacing 0.08em; code: tabular-nums, weight 400`
+- `Use 700–750 for the wordmark, 600–650 for headings and feature labels, 400 for body copy, uppercase section labels at 0.08em tracking, and tabular numerals in code/meta text.`
+- Add `"Helvetica Neue", Arial` as tail fallbacks and `font-feature-settings: "kern" 1, "liga" 1; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;` on body; strengthen the mono stack to `ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace` with `font-variant-numeric: tabular-nums` so ledger dollar figures column-align. Full scale: `h1 650/-.03em, h2 600/.08em uppercase at .78rem, body 400/0 at 16-17px with 1.6 line-height, code 400/0 at .875rem with tabular-nums, dim labels 700/.09em uppercase at .7rem.`
+- No further tweak beyond keeping the stack as-is — already the correct default for a PHP tool.
 
 ## Auto-agree implementation queue (by votes)
 
@@ -163,7 +161,7 @@ All 14 auto-agree queue items are SHIP. None violate locked constraints (a–e).
 13. **SHIP** — Vertical rhythm rebuild: main container to 42rem, CSS spacing scale, pure CSS, improves typeset feel.
 14. **SHIP** — Interaction layer: CSS hover/focus/transitions only, no JavaScript, visible focus rings required for keyboard accessibility.
 
-**Note on REVIEW items:** All 28 REVIEW items (1 vote each across general/transitions/professional) are CSS-only and violate no locked constraints. None propose JavaScript, webfonts, or external assets. Many reinforce locked constraint #1 (honesty/alpha pill prominence). Future rounds with vote accumulation could promote high-signal items like "Add a static terminal sample showing a reconciled ledger" (item in professional row 19) to demonstrate the core value prop without external resources.
+**Note on REVIEW items:** 77 of the 91 deduped findings are REVIEW (1 vote each, across general/transitions/professional/top3_must — 91 rows total, 14 YES). All are CSS-only and violate no locked constraints. None propose JavaScript, webfonts, or external assets. Many reinforce locked constraint #1 (honesty/alpha pill prominence). Future rounds with vote accumulation could promote high-signal items like "Add a static terminal sample showing a reconciled ledger" (in the general section) to demonstrate the core value prop without external resources.
 
 ## Stop condition
 
