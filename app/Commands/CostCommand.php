@@ -61,29 +61,8 @@ class CostCommand extends Command
         }
         unset($row);
 
-        $unpriced = [];
-        foreach ($tiers as $tier => $row) {
-            if ($row['unpriced_calls'] > 0) {
-                $unpriced[] = [
-                    'tier' => $tier,
-                    'count' => $row['unpriced_calls'],
-                    'calls' => $row['calls'],
-                    'models' => $row['unpriced_models'],
-                ];
-            }
-        }
-
-        $mismatches = [];
-        foreach ($tiers as $tier => $row) {
-            if ($row['mismatched_calls'] > 0) {
-                $mismatches[] = [
-                    'tier' => $tier,
-                    'count' => $row['mismatched_calls'],
-                    'calls' => $row['calls'],
-                    'models' => $row['mismatched_models'],
-                ];
-            }
-        }
+        $unpriced = $this->collectFlagged($tiers, 'unpriced_calls', 'unpriced_models');
+        $mismatches = $this->collectFlagged($tiers, 'mismatched_calls', 'mismatched_models');
 
         $comparison = CostComparison::compare($summary);
 
@@ -164,6 +143,29 @@ class CostCommand extends Command
         }
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * $unpriced and $mismatches were the same tier-filtering loop with different keys —
+     * one shared shape instead of two copies that could drift out of sync.
+     *
+     * @return list<array{tier: string, count: int, calls: int, models: array}>
+     */
+    private function collectFlagged(array $tiers, string $countKey, string $modelsKey): array
+    {
+        $flagged = [];
+        foreach ($tiers as $tier => $row) {
+            if ($row[$countKey] > 0) {
+                $flagged[] = [
+                    'tier' => $tier,
+                    'count' => $row[$countKey],
+                    'calls' => $row['calls'],
+                    'models' => $row[$modelsKey],
+                ];
+            }
+        }
+
+        return $flagged;
     }
 
     private function row(string $tier, array $row, bool $isSession = false): string
