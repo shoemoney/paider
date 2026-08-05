@@ -44,8 +44,8 @@ function costJsonKeySets(): array
         // silently pricing the id you requested. This pin caught the addition on merge, which
         // is exactly what it is for — the key is intentional, so the pin moves with it.
         'top' => ['tiers', 'session', 'unpriced_calls', 'comparison', 'model_mismatches'],
-        'tier' => ['calls', 'tokens_in', 'tokens_out', 'spend_usd', 'unpriced_calls', 'unpriced_models', 'hypothetical_usd', 'hypothetical_unknown', 'share_pct', 'mismatched_calls', 'mismatched_models'],
-        'session' => ['calls', 'tokens_in', 'tokens_out', 'spend_usd', 'unpriced_calls', 'unpriced_models', 'hypothetical_usd', 'hypothetical_unknown', 'mismatched_calls', 'mismatched_models'],
+        'tier' => ['calls', 'tokens_in', 'tokens_out', 'tokens_cache_write', 'tokens_cache_read', 'spend_usd', 'unpriced_calls', 'unpriced_models', 'hypothetical_usd', 'hypothetical_unknown', 'share_pct', 'mismatched_calls', 'mismatched_models'],
+        'session' => ['calls', 'tokens_in', 'tokens_out', 'tokens_cache_write', 'tokens_cache_read', 'spend_usd', 'unpriced_calls', 'unpriced_models', 'hypothetical_usd', 'hypothetical_unknown', 'mismatched_calls', 'mismatched_models'],
         'unpriced_entry' => ['tier', 'count', 'calls', 'models'],
         'comparison' => ['hypothetical_usd', 'saved_usd', 'token_share_pct', 'spend_share_pct'],
     ];

@@ -141,3 +141,49 @@ it('never re-prices: two calls to the same model with different stored cost_usd 
         ->and($summary['fast']['unpriced_calls'])->toBe(0)
         ->and($summary['session']['spend_usd'])->toEqualWithDelta(0.35, 1e-9);
 });
+
+it('sums cache tokens per tier and session, and treats a pre-697167b row as zero not unknown', function () {
+    $log = new EventLog(Database::connect(':memory:'));
+
+    // A warm Anthropic session: cache_read dwarfs tokens_in by orders of magnitude. That
+    // shape is the whole reason these columns exist — a table carrying only in/out shows a
+    // few hundred tokens beside the spend those millions of cached tokens actually drove.
+    $seed = [
+        ['tier' => 'orchestrator', 'model' => 'opus', 'tokens_in' => 12, 'tokens_out' => 400,
+            'tokens_cache_write' => 8_000, 'tokens_cache_read' => 1_200_000, 'cost_usd' => 0.42],
+        ['tier' => 'orchestrator', 'model' => 'opus', 'tokens_in' => 3, 'tokens_out' => 150,
+            'tokens_cache_write' => 0, 'tokens_cache_read' => 980_000, 'cost_usd' => 0.30],
+        ['tier' => 'coder', 'model' => 'flash', 'tokens_in' => 5_000, 'tokens_out' => 900,
+            'tokens_cache_write' => 2_500, 'tokens_cache_read' => 40_000, 'cost_usd' => 0.02],
+        // Written before 697167b existed: no cache keys at all. Absent means zero tokens
+        // here — unlike cost_usd, where absent means unknown and must never become 0.0.
+        ['tier' => 'coder', 'model' => 'flash', 'tokens_in' => 700, 'tokens_out' => 100, 'cost_usd' => 0.004],
+    ];
+
+    foreach ($seed as $payload) {
+        $log->append('tier_call', $payload);
+    }
+
+    $summary = (new CostLedger($log))->summary();
+
+    // Recomputed from the seed, not copy-pasted totals.
+    $expect = [];
+    foreach ($seed as $row) {
+        $t = $row['tier'];
+        $expect[$t] ??= ['w' => 0, 'r' => 0];
+        $expect[$t]['w'] += $row['tokens_cache_write'] ?? 0;
+        $expect[$t]['r'] += $row['tokens_cache_read'] ?? 0;
+    }
+
+    foreach (['orchestrator', 'coder'] as $tier) {
+        expect($summary[$tier]['tokens_cache_write'])->toBe($expect[$tier]['w'])
+            ->and($summary[$tier]['tokens_cache_read'])->toBe($expect[$tier]['r']);
+    }
+
+    expect($summary['session']['tokens_cache_write'])->toBe($expect['orchestrator']['w'] + $expect['coder']['w'])
+        ->and($summary['session']['tokens_cache_read'])->toBe($expect['orchestrator']['r'] + $expect['coder']['r']);
+
+    // The point of the columns, stated as an assertion: cached volume can exceed plain
+    // input by orders of magnitude, so a table omitting it cannot explain its own spend.
+    expect($summary['session']['tokens_cache_read'])->toBeGreaterThan($summary['session']['tokens_in'] * 100);
+});

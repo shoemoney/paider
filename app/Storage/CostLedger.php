@@ -24,7 +24,8 @@ class CostLedger
             $tier = $payload['tier'];
 
             $tiers[$tier] ??= [
-                'calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0, 'spend_usd' => 0.0,
+                'calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0,
+                'tokens_cache_write' => 0, 'tokens_cache_read' => 0, 'spend_usd' => 0.0,
                 'unpriced_calls' => 0, 'unpriced_models' => [],
                 'hypothetical_usd' => 0.0, 'hypothetical_unknown' => 0,
                 'mismatched_calls' => 0, 'mismatched_models' => [],
@@ -33,6 +34,16 @@ class CostLedger
             $tiers[$tier]['calls']++;
             $tiers[$tier]['tokens_in'] += $payload['tokens_in'];
             $tiers[$tier]['tokens_out'] += $payload['tokens_out'];
+
+            // Cache tokens were priced into cost_usd from the start (Loop.php passes all four
+            // kinds to ModelPricing::costFor) but were never projected, so the table showed a
+            // spend that included them beside token columns that did not. On a warm Anthropic
+            // session cache_read dwarfs tokens_in by orders of magnitude, so their absence made
+            // the volume columns unable to explain the number sitting next to them.
+            // `?? 0` because rows written before 697167b have no such key — absent is zero
+            // tokens here, unlike cost_usd where absent means unknown and must stay null.
+            $tiers[$tier]['tokens_cache_write'] += $payload['tokens_cache_write'] ?? 0;
+            $tiers[$tier]['tokens_cache_read'] += $payload['tokens_cache_read'] ?? 0;
 
             // Only counted when 'requested_model' is PRESENT -- a legacy row written
             // before this field existed has no key at all and contributes nothing, same
@@ -66,7 +77,8 @@ class CostLedger
         }
 
         $session = [
-            'calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0, 'spend_usd' => 0.0,
+            'calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0,
+            'tokens_cache_write' => 0, 'tokens_cache_read' => 0, 'spend_usd' => 0.0,
             'unpriced_calls' => 0, 'unpriced_models' => [],
             'hypothetical_usd' => 0.0, 'hypothetical_unknown' => 0,
             'mismatched_calls' => 0, 'mismatched_models' => [],
@@ -76,6 +88,8 @@ class CostLedger
             $session['calls'] += $tier['calls'];
             $session['tokens_in'] += $tier['tokens_in'];
             $session['tokens_out'] += $tier['tokens_out'];
+            $session['tokens_cache_write'] += $tier['tokens_cache_write'];
+            $session['tokens_cache_read'] += $tier['tokens_cache_read'];
             $session['spend_usd'] += $tier['spend_usd'];
             $session['unpriced_calls'] += $tier['unpriced_calls'];
             $session['unpriced_models'] += $tier['unpriced_models'];
