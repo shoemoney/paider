@@ -821,7 +821,7 @@ exist; on Linux, both `pcntl` and `posix` extensions are LOCKED off the shipped 
 timeout is genuinely an edge case. The asymmetry is worth naming: we catch descendants present at
 snapshot time, and do not catch those already detached.
 
-Suite: 207 passing (713 assertions), hermetic.
+Suite: 207 passing (715 assertions), hermetic.
 
 ## 21. paider.dev points at GitHub Pages, not the self-hosted edge — 2026-08-04
 
