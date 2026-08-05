@@ -488,8 +488,9 @@ shipped it on the repo but ignored it on export — backwards. Now the changelog
 verified against `git archive`. The mistakes:
 
 1. **`CHANGELOG.md` does not exist and never has.** `git log --all -- CHANGELOG.md` returns nothing;
-   `git archive HEAD | tar -t` lists no such file. The skeleton's `.gitattributes:50` comment (about
-   un-ignoring it) references a file that was never here.
+   `git archive HEAD | tar -t` lists no such file. Commit `f59166b` un-ignored it in `.gitattributes`
+   with a comment promising consumers would find it in `vendor/` — both the file and the assumption
+   were speculative and the file was never here.
    
 2. **A stray `foo.txt` WAS shipping** — a 25-byte test artifact from the `write_file`/`patch_file`
    probes in §15 (commit `407a2fc`). It was never export-ignored, so every Composer install from
@@ -780,7 +781,7 @@ Both the code comment in `ShellTool` and the `ToolResult::fail` message on timeo
 state "detached children may still be running", so the limit is documented in the tool where it
 matters — in code that calls it or debugs a timeout.
 
-**No tests were added, and that is worth stating plainly.** The existing
+~~**No tests were added, and that is worth stating plainly.** The existing
 `ShellToolTest.php:58` ("a command that traps SIGTERM is still killed within roughly the timeout
 window") passed both before and after this fix — it only asserts that ShellTool *reported*
 `timed_out` in under five seconds, which was true even while every run leaked a live `sleep 20`
@@ -794,7 +795,26 @@ ps -ax -o ppid,command | awk '$1==1' | grep -c 'sleep 20'   # 5/5 before the fix
 So the regression guard here is weaker than the rest of the suite: nothing in `pest` fails if this
 regresses, and the uncovered detached-child case has no test at all. A test that asserts on orphan
 count would need to shell out to `ps` from inside the suite; that was judged out of scope rather
-than free, and is the honest gap in this decision. Suite: 206 passing (708 assertions), hermetic.
+than free, and is the honest gap in this decision.~~ **This was written before the test was added and is now false.** Commit `335a436` added
+`ShellToolTest.php:71` ("a backgrounded descendant still in the process tree at the deadline is dead
+after timeout"), which shells out to `ps -p <pid> -o pid=` to verify the child is actually dead at
+the OS level. It *is* hermetic — the probe reads `/proc`/Darwin's process table directly, which `pest`
+can do in a subprocess since neither is blocked off for the testing environment. The test proved
+discriminatory: RED against the parent-termination-only version, GREEN against current. It covers
+the actual regression (a live `sleep 20` staying orphaned), and `pest` now fails if the descendant
+kill regresses.
+
+**Still true and still unfixable:** the detached-child case — a command that double-forks before
+the deadline, like `( sleep 20 & )` or `sh -c 'sleep 20 &'` — is genuinely unreachable within our
+constraints. There is no process tree left to traverse because the child is gone from the `$pid`
+subtree and reparented to init by the time we sample it. On macOS and Windows, `setsid` does not
+exist; on Linux, both `pcntl` and `posix` extensions are LOCKED off the shipped FrankenPHP build
+(`posix_kill` would not be available anyway), so no test can assert via a POSIX call. The test we
+*could* add would also be fragile — a shell sleep backgrounded in the last millisecond before
+timeout is genuinely an edge case. The asymmetry is worth naming: we catch descendants present at
+snapshot time, and do not catch those already detached.
+
+Suite: 207 passing (713 assertions), hermetic.
 
 ## 21. paider.dev points at GitHub Pages, not the self-hosted edge — 2026-08-04
 
