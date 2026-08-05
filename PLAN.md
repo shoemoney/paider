@@ -1133,6 +1133,180 @@ command drives end-to-end, non-interactively, bounded by the allow-list above.
 
 ---
 
+---
+
+## ⬜ v0.2 — Three tracks, planned 2026-08-05
+
+*Planned, not built. Three tracks were planned independently, synthesised, then reviewed
+adversarially. **The review sent one track back on its graders alone** — five of the binary
+track's seven done-commands could not detect their own failure, and the fixed versions below
+replace them. The rest of this section is the surviving plan.*
+
+Every milestone carries a **done-command that fails when the work is not done**. That property
+is the point: this repo has shipped tests that could not fail (DECISIONS.md §20), and a plan
+graded by ungradeable commands reproduces the defect at the roadmap level.
+
+### Track A — MCP client
+
+**BUILD.** Scoped to stdio transport only, exact-pinned, behind a Paider-owned adapter.
+
+**Two corrections to the existing roster first.** PLAN.md's v0.2 list named the SDK as
+`modelcontextprotocol/php-sdk`. **That package does not exist on Packagist.** The real package is
+**`mcp/sdk`**, at **v0.7.0** — verified against `repo.packagist.org`. Composer package name is not
+the GitHub repo name, and this has bitten the project before.
+
+**`laravel/mcp` cannot do this job.** Checked 2026-08-05: it is **server-only** — *"Rapidly build
+MCP servers for your Laravel applications"*, namespaces `Laravel\Mcp\` and `Laravel\Mcp\Server\`.
+v0.2 needs a **client** that consumes external servers. It is also expensive for a CLI: a
+`composer require --dry-run` locks **16 packages** including `illuminate/http`, `routing`,
+`session`, `translation`, `validation` plus `symfony/http-foundation` and `http-kernel` — the
+entire HTTP stack Laravel Zero deliberately omits, in a tool that serves no HTTP. `mcp/sdk` locks
+**9** in this project and does both client and server. It stays the candidate for v1.0 server mode,
+but on evidence, not on being the official Laravel package.
+
+| id | goal | done-command |
+|---|---|---|
+| `mcp-fix-package-name` | Correct both `modelcontextprotocol/php-sdk` references in PLAN.md | `! grep -q 'modelcontextprotocol/php-sdk' PLAN.md` |
+| `mcp-pin-sdk` | `composer.json` requires `mcp/sdk` at an exact version — pre-1.0 permits breaking minors | `php -r '$r=json_decode(file_get_contents("composer.json"),true)["require"]; exit(isset($r["mcp/sdk"]) && preg_match("/^\d+\.\d+\.\d+$/",$r["mcp/sdk"]) ? 0 : 1);'` |
+| `mcp-extension-floor-holds` | Adding the SDK must not add a new required extension | `test "$(composer check-platform-reqs --no-dev 2>/dev/null \| grep -c '^ext-')" -eq 14` |
+| `mcp-client-adapter` | `App\Mcp\Contracts\McpClient` isolates the SDK, mirroring `ProviderClient` | `vendor/bin/pest --filter=McpClient` |
+| `mcp-stdio-fixture` | A fixture MCP server under `tests/Fixtures/`, hermetic — no network, no `npx` | `vendor/bin/pest --filter=McpStdio` |
+
+**Why the grader asserts 14 and not 12.** `composer.json` declares **twelve** extensions and that
+is the shipped promise. `composer check-platform-reqs` resolves **fourteen**, adding `ext-json` and
+`ext-pcre` transitively — both are always-enabled core extensions in PHP 8 that cannot be disabled,
+so they are not part of the twelve-extension floor and never appear in EXTENSIONS.md. The number to
+watch is *change*: 14 today, and a 15th means a dependency brought in something real. Asserting 12
+here would fail forever and teach whoever hits it to delete the check.
+
+**Verified by review, not assumed:** `mcp/sdk` v0.7.0 declares only `ext-fileinfo`, and a grep of
+its `src/` finds **zero** `pcntl_*`/`posix_*` calls — both LOCKED off Paider's build, so the SDK
+does not reintroduce them. `StdioTransport` is `proc_open` + Fiber.
+
+**Two hazards the review found in the original plan — both confirmed in code:**
+
+1. **`Loop::APPROVAL_GATED_TOOLS` is a *retry* list, not a gate list.** The plan assumed adding
+   `mcp` to it would gate the tool with "no change to Gate itself". It is consulted only at
+   `Loop.php:156`, inside `in_array(...) && $this->needsRetry(...)`. Adding an entry there
+   changes retry behaviour, not approval. Gating an MCP tool needs real work.
+2. **`mcp/sdk`'s `proc_open` call site reopens DECISIONS.md §17.** That section scrubbed the
+   child environment to an allowlist precisely so an approved subprocess could not inherit live
+   provider keys. An SDK spawning a server process is a second `proc_open` outside `ShellEnv`.
+   §15's architectural caveat named this exact shape as the thing to watch for.
+
+### Track B — Sessions, memory, response cache
+
+**BUILD sessions and memory. SPLIT the response cache.**
+
+Sessions and memory reuse the append-only-plus-projection pattern `CostLedger` already proved:
+new `type` values in the existing `events` table, **zero new tables, zero new dependencies**.
+`Session.php` today is explicitly memory-only, so this fills a documented gap rather than
+inventing scope.
+
+| id | goal | done-command |
+|---|---|---|
+| `session-store` | `App\Storage\SessionStore` — pure projection over new `session_*` events | `vendor/bin/pest --filter=SessionStore` |
+| `session-resume` | `paider chat` replays a project's session events before the first turn | `vendor/bin/pest --filter=SessionResume` |
+| `memory-store` | `App\Storage\MemoryStore` — `memory_set` / `memory_retract`, so forgetting is an event, not a delete | `vendor/bin/pest --filter=MemoryStore` |
+| `cache-ledger-semantics` | A cache hit records `cache_hit` and `cache_saved_usd`; the ledger sums savings | `vendor/bin/pest --filter=CacheLedger` |
+
+**The response cache is a correctness hazard, and it is the sharpest question in the roadmap.**
+`ModelPricing::costFor()` returns `null` for a 0-in/0-out call — deliberately, so an unpriced model
+surfaces rather than silently booking `$0.00`. A naive zero-token cache-hit event therefore makes
+savings vanish as `null`. The ledger's flagship claim is that it reconciles against
+provider-reported usage; get this wrong and the feature starts lying. **The wiring is gated behind
+the semantics milestone for that reason** — decide what a hit records before anything can record one.
+
+**Known gotcha, verified:** `Session.php`'s constructor *unconditionally* `pushHistory('system', …)`
+from the first of its context-file candidates. Replaying stored `session_message` events on top of
+that double-posts the system message. Resume has to account for it.
+
+**Risks the plan states plainly:** exact-match caching may have a near-zero hit rate in real use,
+since a coding agent's context differs almost every turn. Persisting sessions and memory also
+extends the lifetime of anything that leaked into a prompt — data that today dies at process exit.
+
+### Track C — Standalone binary
+
+**CONTINUE-DEFER, with a written trigger.** Not "no" — "not yet, and here is what would change it."
+
+§16 measured the real shippable artifact at **178 MB on disk, ~72 MB zstd-19**, twelve extensions
+compiled in. The defer decision rested partly on size: 40.6 MB lands beside a Go binary, 72 MB does
+not. Nothing has changed that argument, so building wrapper and rename infrastructure now is
+speculative work against the project's own criterion.
+
+What v0.2 does build is the cheap, bounded research that would let the decision be *made*:
+
+| id | goal | done-command |
+|---|---|---|
+| `binary-build-script` | Codify the twice-by-hand build into `scripts/build-frankenphp.sh` | *runs the script and checks the artifact boots through the real render path* — see below |
+| `binary-size-report` | Measure vendor's true share of the +67 MB embed cost with `--no-dev` | `test -s dist/frankenphp-size-report.md && grep -qE 'shippable_zstd_bytes=[0-9]{6,}' dist/frankenphp-size-report.md` |
+| `binary-decision` | Convert the measurements into a numbered DECISIONS entry: GO or CONTINUE-DEFER | `grep -qiE '^## [0-9]+\. FrankenPHP embed v0\.2' DECISIONS.md` |
+
+**The graders were rewritten, and this is why.** The reviewed plan graded
+`binary-build-script` with three literal string greps — a file containing a shebang and one comment
+would have passed while building nothing. It graded the Caddy spike with a regex where
+`caddy_free_result=infeasible:x` satisfied a two-day investigation with one arbitrary character.
+And `binary-tmpdir` ended in `find … | grep -qv .`, which **can never pass**: `grep -v .` matches
+lines containing no characters, which `find` never emits, so it exits non-zero on output *and* on
+empty input.
+
+Worst of all, three milestones graded on `paider --version`. DECISIONS.md §16 and EXTENSIONS.md
+both say, in bold, after it cost two rebuilds: *"`--version` and `list` are not smoke tests; they
+prove the binary can fork and print."* A missing `ext-dom` passed `--version` and died on
+`paider cost`. **Any binary milestone must grade through a command that renders** — `paider cost`
+against a seeded event log, exactly as `.github/workflows/tests.yml` already does.
+
+The conditional hardening milestones — rename plus wrapper for the naming collision that OOMs, and
+a pinned `TMPDIR` for the world-writable extraction path — stay specified but **gated behind
+`binary-decision` recording GO**.
+
+### Sequence, and what is not being built
+
+Critical path: **`mcp-pin-sdk` → `mcp-client-adapter` → `mcp-stdio-fixture` → `binary-size-report`
+→ `binary-decision`.** The binary measurement has to happen *after* the one dependency-adding
+change of the cycle, or it measures a tree that will not ship.
+
+Sessions and memory are independent of both and can run in parallel.
+
+**Explicitly not in v0.2:** MCP *server* mode (v1.0), the task board (v0.3), credentials storage,
+HTTP transport for MCP, and a conformance harness for the SDK — that last one is upstream's
+problem, not Paider's. Stating the exclusions is the point; the project's written antidote to
+aider's death is a citable "no".
+
+### Considered and rejected — so nobody re-derives this
+
+**`prism-php/prism`** (2,406★) — a Laravel package for integrating LLMs, and the obvious
+"why not just use this instead of hand-rolled provider clients?" candidate. Rejected on two
+independent grounds, checked 2026-08-05:
+
+1. **It requires `laravel/framework` `^11.0|^12.0|^13.0`** — the *entire* framework. Paider is
+   built on `laravel-zero/framework` v12.1.0, which is illuminate components without the
+   framework. Adopting Prism means pulling all of Laravel into a CLI tool. This is the same
+   objection that rules `laravel/mcp` out of v0.2, and it is structural, not a preference.
+2. **Latest release v0.100.1, 2026-03-20 — 138 days ago.** DECISIONS.md §2 flagged this as
+   "the plumbing is rotting faster than the ecosystem is growing" and it has not moved since.
+
+Paider's four-tier routing with write-time pricing is also not something Prism models, so even a
+healthy, framework-free Prism would only replace the transport, which is the least valuable part
+of `app/Providers/`.
+
+**`laravel/mcp` for v0.2** — server-only, cannot consume external servers. See Track A.
+
+**`php-mcp/server`** — last released 2025-07-12, over a year ago. `php-mcp/laravel` (4.0.0,
+2026-03-29) is a Laravel-framework integration with the same objection as Prism.
+
+### Decisions only the maintainer can make
+
+- Is **45 MB compressed** the right GO trigger for `binary-decision`, or a different number?
+- Should MCP approval be scoped **per server+tool** (`mcp:filesystem:read_file`) rather than one
+  blanket `mcp` grant? This changes Gate and Loop, not just config.
+- If `binary-decision` records CONTINUE-DEFER, do the naming and TMPDIR fixes get built anyway as
+  cheap safety work, or does the track close entirely until the trigger fires?
+- Exact shape of `config/mcp.php` — per-server command/args/env, and whether the tool allowlist is
+  per-server or global.
+
+---
+
 ## ⬜ v0.3 — Session identity, spec only
 
 *Planned. Written 2026-08-03 as an implementation-ready spec — **no schema and no code changed in
