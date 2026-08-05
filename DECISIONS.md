@@ -823,6 +823,8 @@ snapshot time, and do not catch those already detached.
 
 Suite: 207 passing (715 assertions), hermetic.
 
+**2026-08-05 follow-up:** The gap this section identified in `ShellToolTest.php:58` was closed by commit `70ac2dc`. Both timeout tests now capture the child pid via pidfile and assert its death with `ps -p`, exactly as described at lines 798–806. Neither test passes against the pre-fix code. The regression guard is now hermetic — `pest` fails if either timeout assertion regresses.
+
 ## 21. paider.dev points at GitHub Pages, not the self-hosted edge — 2026-08-04
 
 Everything else under this roof — Forgejo, the aigate vault, the image service — resolves to a
