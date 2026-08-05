@@ -70,12 +70,16 @@ class AnthropicClient implements ProviderClient
 
         return new ProviderResponse(
             content: $content,
+            // input_tokens already EXCLUDES both cache buckets here, so these are
+            // handed over as-is — no subtraction, unlike the OpenAI-compatible path.
             tokensIn: $raw['usage']['input_tokens'] ?? 0,
             tokensOut: $raw['usage']['output_tokens'] ?? 0,
             raw: $raw,
             // Anthropic's Messages API echoes the model that actually served the request —
             // an undated alias in the request can resolve to a dated snapshot here.
             servedModel: is_string($raw['model'] ?? null) ? $raw['model'] : null,
+            cacheWrite: $raw['usage']['cache_creation_input_tokens'] ?? 0,
+            cacheRead: $raw['usage']['cache_read_input_tokens'] ?? 0,
         );
     }
 }

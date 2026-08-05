@@ -136,3 +136,60 @@ it('forwards $options into the request body but never lets them override model o
     expect($body['model'])->toBe('real-model');
     expect($body['messages'])->toBe([['role' => 'user', 'content' => 'real']]);
 });
+
+
+it('subtracts cached tokens out of prompt_tokens so they are not billed twice', function () {
+    // prompt_tokens INCLUDES the cached ones in this family -- the opposite of
+    // Anthropic. Reporting both whole would bill the same 8,000 tokens as full-rate
+    // input AND as cache read.
+    $http = makeOpenAiHttp([
+        new Response(200, [], json_encode([
+            'choices' => [['message' => ['content' => 'ok']]],
+            'usage' => [
+                'prompt_tokens' => 10_000,
+                'completion_tokens' => 50,
+                'prompt_tokens_details' => ['cached_tokens' => 8_000],
+            ],
+        ])),
+    ]);
+
+    $r = (new OpenAiCompatibleClient('https://api.example.com/v1', 'K', 'k', $http))
+        ->send([['role' => 'user', 'content' => 'hi']], 'gpt-x');
+
+    expect($r->tokensIn)->toBe(2_000)
+        ->and($r->cacheRead)->toBe(8_000)
+        ->and($r->cacheWrite)->toBe(0)
+        ->and($r->tokensIn + $r->cacheRead)->toBe(10_000, 'buckets must sum to prompt_tokens');
+});
+
+it('leaves an uncached response exactly as it was before cache support', function () {
+    $http = makeOpenAiHttp([
+        new Response(200, [], json_encode([
+            'choices' => [['message' => ['content' => 'ok']]],
+            'usage' => ['prompt_tokens' => 5, 'completion_tokens' => 3],
+        ])),
+    ]);
+
+    $r = (new OpenAiCompatibleClient('https://api.example.com/v1', 'K', 'k', $http))
+        ->send([['role' => 'user', 'content' => 'hi']], 'gpt-x');
+
+    expect($r->tokensIn)->toBe(5)->and($r->cacheRead)->toBe(0);
+});
+
+it('never credits the ledger when a provider reports cached above prompt', function () {
+    $http = makeOpenAiHttp([
+        new Response(200, [], json_encode([
+            'choices' => [['message' => ['content' => 'ok']]],
+            'usage' => [
+                'prompt_tokens' => 500,
+                'completion_tokens' => 1,
+                'prompt_tokens_details' => ['cached_tokens' => 900],
+            ],
+        ])),
+    ]);
+
+    $r = (new OpenAiCompatibleClient('https://api.example.com/v1', 'K', 'k', $http))
+        ->send([['role' => 'user', 'content' => 'hi']], 'gpt-x');
+
+    expect($r->tokensIn)->toBe(0, 'a negative token count would subtract real money');
+});

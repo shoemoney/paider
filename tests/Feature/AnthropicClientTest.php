@@ -126,3 +126,42 @@ it('forwards $options, allows max_tokens through, and pins model, messages and s
     expect($body['model'])->toBe('real-model');      // an invariant, so it does not
     expect($body['system'])->toBe('real system');
 });
+
+
+it('reads both cache buckets and does NOT subtract them from input_tokens', function () {
+    // Anthropic reports input_tokens already excluding the cache buckets. Subtracting
+    // here -- as the OpenAI-compatible path must -- would under-report the bill.
+    // Numbers are a real turn from a measured household transcript.
+    $http = makeAnthropicHttp([
+        new Response(200, [], json_encode([
+            'content' => [['type' => 'text', 'text' => 'ok']],
+            'usage' => [
+                'input_tokens' => 403,
+                'output_tokens' => 515,
+                'cache_creation_input_tokens' => 1_669,
+                'cache_read_input_tokens' => 172_911,
+            ],
+        ])),
+    ]);
+
+    $r = (new AnthropicClient('sk-ant-test', 'https://api.anthropic.com', $http))
+        ->send([['role' => 'user', 'content' => 'hi']], 'claude-opus-5');
+
+    expect($r->tokensIn)->toBe(403)
+        ->and($r->cacheWrite)->toBe(1_669)
+        ->and($r->cacheRead)->toBe(172_911);
+});
+
+it('defaults both cache buckets to zero when the usage block omits them', function () {
+    $http = makeAnthropicHttp([
+        new Response(200, [], json_encode([
+            'content' => [['type' => 'text', 'text' => 'ok']],
+            'usage' => ['input_tokens' => 10, 'output_tokens' => 4],
+        ])),
+    ]);
+
+    $r = (new AnthropicClient('sk-ant-test', 'https://api.anthropic.com', $http))
+        ->send([['role' => 'user', 'content' => 'hi']], 'claude-opus-5');
+
+    expect($r->cacheWrite)->toBe(0)->and($r->cacheRead)->toBe(0);
+});

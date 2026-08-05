@@ -15,5 +15,14 @@ readonly class ProviderResponse
         // when the response carries none (or in tests using raw: []); callers fall back to
         // the requested id in that case.
         public ?string $servedModel = null,
+        // Cache tokens, normalised so both are DISJOINT from $tokensIn. The two
+        // provider families disagree about this and the disagreement is silent:
+        // Anthropic's input_tokens EXCLUDES cache tokens (they arrive as their own
+        // fields), while an OpenAI-compatible prompt_tokens INCLUDES the cached
+        // ones as a subset. Adding both without subtracting on the OpenAI side
+        // bills the same tokens twice, at the more expensive rate, with nothing to
+        // notice it. Each client is responsible for handing these over disjoint.
+        public int $cacheWrite = 0,
+        public int $cacheRead = 0,
     ) {}
 }
