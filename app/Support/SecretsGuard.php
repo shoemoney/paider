@@ -44,10 +44,19 @@ class SecretsGuard
             2 => ['pipe', 'w'],
         ];
 
+        // Scrubbed env, same as ShellTool and GitTool. DECISIONS.md §15's architectural
+        // caveat is that ANY proc_open call site outside ShellEnv reopens the key-leak this
+        // repo closed in §17 — and until now this was the third one, and the only one still
+        // inheriting the full parent environment. Lower risk than the tools (fixed argv, no
+        // user input reaches it) but the invariant is worth more than the exception: every
+        // proc_open in this codebase routes through ShellEnv, no cases to remember.
+        // `-C $dir` already sets the working directory, so cwd stays null.
         $process = @proc_open(
             ['git', '-C', $dir, 'check-ignore', '-q', $absolutePath],
             $descriptors,
-            $pipes
+            $pipes,
+            null,
+            ShellEnv::build()
         );
 
         if (! is_resource($process)) {
