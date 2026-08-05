@@ -797,12 +797,19 @@ regresses, and the uncovered detached-child case has no test at all. A test that
 count would need to shell out to `ps` from inside the suite; that was judged out of scope rather
 than free, and is the honest gap in this decision.~~ **This was written before the test was added and is now false.** Commit `335a436` added
 `ShellToolTest.php:71` ("a backgrounded descendant still in the process tree at the deadline is dead
-after timeout"), which shells out to `ps -p <pid> -o pid=` to verify the child is actually dead at
-the OS level. It *is* hermetic — the probe reads `/proc`/Darwin's process table directly, which `pest`
-can do in a subprocess since neither is blocked off for the testing environment. The test proved
-discriminatory: RED against the parent-termination-only version, GREEN against current. It covers
-the actual regression (a live `sleep 20` staying orphaned), and `pest` now fails if the descendant
-kill regresses.
+after timeout"), which shells out to `ps -p <pid> -o pid=` at `ShellToolTest.php:98` to verify the
+child is actually dead at the OS level. It is hermetic in the sense that matters — no network, no
+provider call, no paid group — it just inspects local processes, exactly as `ShellTool` itself does
+when it kills them. It deliberately does **not** use `posix_kill()`: `pcntl`/`posix` are LOCKED off
+the shipped build, so a posix-based check would pass in dev and fail on a build matching what
+actually ships. The test is discriminating: RED against `401d3b5^` (the child pid still alive),
+GREEN against current. `pest` now fails if the descendant kill regresses.
+
+**The instructive part is not the test — it is that this section's own excuse went unchallenged for
+a day.** "Would need to shell out to `ps` from inside the suite; that was judged out of scope"
+described a ten-minute job. It was written once, read past by a dozen review passes, and only fell
+when someone stopped reading it and wrote the probe. A documented *can't* is still a claim, and it
+gets audited like any other.
 
 **Still true and still unfixable:** the detached-child case — a command that double-forks before
 the deadline, like `( sleep 20 & )` or `sh -c 'sleep 20 &'` — is genuinely unreachable within our
