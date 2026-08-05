@@ -57,15 +57,40 @@ test('a command exceeding the timeout is killed and reports timed_out', function
 
 test('a command that traps SIGTERM is still killed within roughly the timeout window', function () {
     $root = shellToolRoot();
+    $pidFile = $root.'/child.pid';
     $tool = new ShellTool($root, timeoutSeconds: 1);
+    $childPid = null;
 
-    $start = microtime(true);
-    $result = $tool->execute(['command' => "trap '' TERM; sleep 20", 'approval' => 'allow-once']);
-    $elapsed = microtime(true) - $start;
+    try {
+        // The trap makes the ignored-TERM disposition inherit into the backgrounded `sleep`,
+        // so it survives ShellTool's SIGTERM pass and must be reached by SIGKILL. `wait` keeps
+        // the parent shell blocked so the tree is intact when the deadline fires.
+        $start = microtime(true);
+        $result = $tool->execute([
+            'command' => "trap '' TERM; sleep 20 & echo \$! > ".escapeshellarg($pidFile).'; wait',
+            'approval' => 'allow-once',
+        ]);
+        $elapsed = microtime(true) - $start;
 
-    expect($result->ok)->toBeFalse();
-    expect($result->meta['timed_out'])->toBeTrue();
-    expect($elapsed)->toBeLessThan(5.0);
+        expect($result->ok)->toBeFalse();
+        expect($result->meta['timed_out'])->toBeTrue();
+        expect($elapsed)->toBeLessThan(5.0);
+
+        $childPid = (int) trim((string) file_get_contents($pidFile));
+        expect($childPid)->toBeGreaterThan(0);
+
+        // Generous settle margin on top of ShellTool's own internal kill/reap waits, so this
+        // doesn't flake on a loaded box.
+        usleep(750_000);
+
+        $alive = trim((string) shell_exec('ps -p '.escapeshellarg((string) $childPid).' -o pid= 2>/dev/null'));
+        expect($alive)->toBe('');
+    } finally {
+        // Best-effort: never leak a live `sleep` if an assertion above threw first.
+        if ($childPid) {
+            @exec('kill -9 '.escapeshellarg((string) $childPid).' 2>/dev/null');
+        }
+    }
 });
 
 test('a backgrounded descendant still in the process tree at the deadline is dead after timeout', function () {
