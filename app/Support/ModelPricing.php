@@ -20,6 +20,14 @@ class ModelPricing
      */
     public const REFERENCE_MODEL = 'anthropic/claude-opus-5';
 
+    /**
+     * What an UNVERIFIED cache write costs, as a multiple of base input. 1.25x is
+     * what both vendors that charge for writes at all actually charge (Anthropic
+     * 5-minute TTL, OpenAI short-context), so it is the conservative floor rather
+     * than a guess. DeepSeek charges nothing extra and says so in its own row.
+     */
+    public const UNVERIFIED_WRITE_MULTIPLIER = 1.25;
+
     public static function costFor(
         string $model,
         int $tokensIn,
@@ -46,9 +54,13 @@ class ModelPricing
         }
 
         // A null cache rate means "no verified rate for this model" -- NOT zero and NOT
-        // a discount. Bill those at the full input rate, which over-estimates. Under-
-        // estimating is how a product gets priced into a loss. See config/prices.php.
-        $writeRate = $price['cache_write'] ?? $price['in'];
+        // a discount. The two columns fall back DIFFERENTLY, and symmetry here would be
+        // the bug: a cache READ is always a discount (0.10x Anthropic and OpenAI, 0.02x
+        // DeepSeek), so the full input rate over-estimates it -- safe. A cache WRITE
+        // carries a PREMIUM wherever it is charged at all (1.25x Anthropic, 1.25x
+        // OpenAI), so falling back to 1.00x would UNDER-estimate by 25%, which is the
+        // one direction that prices a product into a loss. See config/prices.php.
+        $writeRate = $price['cache_write'] ?? $price['in'] * self::UNVERIFIED_WRITE_MULTIPLIER;
         $readRate = $price['cache_read'] ?? $price['in'];
 
         return $tokensIn / 1e6 * $price['in']

@@ -54,16 +54,51 @@ it('prices cache tokens, not just input and output', function () {
         ->toBe(1.00 + 5.00 + 1.25 + 0.10);
 });
 
-it('bills an unverified cache rate at the FULL input rate, never as free', function () {
-    // null means "no verified rate", which must over-estimate. Treating it as 0.0
-    // would report a large cached workload as costing nothing at all -- the exact
-    // shape of wrongness that priced the household at $0 instead of $869/mo.
+it('falls back ASYMMETRICALLY on an unverified cache rate, never as free', function () {
+    // null means "no verified rate", which must over-estimate in BOTH columns --
+    // and symmetry is the bug. A cache READ is always a discount (0.10x Anthropic
+    // and OpenAI, 0.02x DeepSeek), so the full input rate over-estimates it. A
+    // cache WRITE carries a premium wherever it is charged (1.25x Anthropic, 1.25x
+    // OpenAI), so falling back to 1.00x would UNDER-estimate by 25% -- the one
+    // direction that prices a product into a loss.
     config()->set('prices', ['unverified/model' => [
         'in' => 2.00, 'out' => 10.00, 'cache_write' => null, 'cache_read' => null,
     ]]);
 
-    expect(ModelPricing::costFor('unverified/model', 0, 0, 1_000_000, 0))->toBe(2.00)
-        ->and(ModelPricing::costFor('unverified/model', 0, 0, 0, 1_000_000))->toBe(2.00);
+    expect(ModelPricing::costFor('unverified/model', 0, 0, 1_000_000, 0))
+        ->toBe(2.50, 'an unverified WRITE must assume the 1.25x premium')
+        ->and(ModelPricing::costFor('unverified/model', 0, 0, 0, 1_000_000))
+        ->toBe(2.00, 'an unverified READ falls back to the undiscounted input rate');
+});
+
+it('honours a verified cache rate over the fallback', function () {
+    // DeepSeek charges NOTHING extra to write and 0.020x to read. If the verified
+    // numbers were ignored in favour of the conservative default, a real workload
+    // would be over-billed by 25% on every write -- wrong in the safe direction is
+    // still wrong once the real rate is known.
+    config()->set('prices', ['deepseek/deepseek-v4-flash' => [
+        'in' => 0.14, 'out' => 0.28, 'cache_write' => 0.14, 'cache_read' => 0.0028,
+    ]]);
+
+    expect(ModelPricing::costFor('deepseek/deepseek-v4-flash', 0, 0, 1_000_000, 0))
+        ->toBe(0.14, 'verified: no write surcharge, so NOT 1.25x')
+        ->and(ModelPricing::costFor('deepseek/deepseek-v4-flash', 0, 0, 0, 1_000_000))
+        ->toBe(0.0028);
+});
+
+it('never lets a cache read cost more than uncached input', function () {
+    // A read is a discount at every vendor surveyed. A row claiming otherwise is a
+    // transcription error, and it would silently inflate every cached workload.
+    // Read the SHIPPED file, not config() -- an earlier test in this file replaces
+    // the prices config wholesale, and asserting against whatever the app happens
+    // to hold makes this pass or fail on test ORDER rather than on the data.
+    foreach (require config_path('prices.php') as $modelId => $price) {
+        if ($price['cache_read'] === null) {
+            continue;
+        }
+
+        expect($price['cache_read'])->toBeLessThanOrEqual($price['in'], $modelId);
+    }
 });
 
 it('does not discard a warm cached turn as unparsed usage', function () {

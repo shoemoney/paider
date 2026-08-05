@@ -26,10 +26,39 @@
 | the wrong number.
 |
 | null means "no verified cache rate for this model". A null is NOT zero and is
-| NOT a discount: a consumer must bill those tokens at the full `in` rate. That
-| OVER-estimates cost, which is the only safe direction — under-estimating is
-| how a product gets priced into a loss. Fill a null in only against the
-| provider's own pricing page, never by analogy to another vendor.
+| NOT a discount. Fill one in only against the provider's own pricing page, never
+| by analogy to another vendor — MEASURED, DeepSeek's two models have different
+| hit ratios as of 2026-08-05 (0.020x vs 0.0083x of the miss rate), so even the
+| same vendor is not internally consistent.
+|
+| A null READ and a null WRITE do NOT fall back the same way, and getting this
+| backwards is how the safe direction becomes the unsafe one:
+|
+|   cache_read  null -> bill at the full `in` rate. A read is ALWAYS a discount
+|                       (0.10x Anthropic, 0.10x OpenAI, 0.02x DeepSeek), so the
+|                       full rate over-estimates. Safe.
+|   cache_write null -> bill at 1.25x `in`. A write carries a PREMIUM where it is
+|                       charged at all (1.25x Anthropic, 1.25x OpenAI; DeepSeek
+|                       charges nothing extra). Falling back to 1.00x here would
+|                       UNDER-estimate by 25% — the one direction that prices a
+|                       product into a loss.
+|
+| Over-estimating is the only safe direction. The asymmetry above is what makes
+| that true for both columns instead of just one.
+|
+|--------------------------------------------------------------------------
+| Where this schema does not reach: Google
+|--------------------------------------------------------------------------
+|
+| Gemini context caching bills a per-token cached rate PLUS a STORAGE charge per
+| million tokens per HOUR ($1.00/Mtok/hr on the Flash tier, $4.50 on 2.5 Pro).
+| Two rate columns cannot express a cost with a time dimension, so a Gemini row
+| here is INCOMPLETE by construction, not merely unverified — the cached rate is
+| recorded and the storage cost is silently absent.
+|
+| Do not price a long-lived Gemini cache off this file. If Gemini ever becomes a
+| real target, `cache_storage_per_mtok_hour` is the missing column and the ledger
+| needs the cache's age to use it.
 |
 | Anthropic's are the multipliers Anthropic publishes: a cache WRITE is 1.25x
 | base input (5-minute TTL) and a cache READ is 0.10x base input. A 1-hour TTL
@@ -48,22 +77,22 @@ return [
     // offer prompt/context caching and some price it very differently from
     // Anthropic (a cache-hit input rate rather than a write+read pair, or an
     // hourly storage charge). Verify per provider before trusting a number here.
-    'openai/gpt-5.5-pro' => ['in' => 30.00, 'out' => 180.00, 'cache_write' => null, 'cache_read' => null],
-    'openai/gpt-chat-latest' => ['in' => 5.00, 'out' => 30.00, 'cache_write' => null, 'cache_read' => null],
-    'openai/gpt-5-nano' => ['in' => 0.05, 'out' => 0.40, 'cache_write' => null, 'cache_read' => null],
+    'openai/gpt-5.5-pro' => ['in' => 30.00, 'out' => 180.00, 'cache_write' => 30.00, 'cache_read' => 30.00],  // caching NOT offered for this model — no discount exists
+    'openai/gpt-chat-latest' => ['in' => 5.00, 'out' => 30.00, 'cache_write' => null, 'cache_read' => 0.50],  // cached input verified; write premium not published for this id
+    'openai/gpt-5-nano' => ['in' => 0.05, 'out' => 0.40, 'cache_write' => null, 'cache_read' => 0.005],  // cached input verified exactly
 
     'google/gemini-3.1-pro-preview' => ['in' => 2.00, 'out' => 12.00, 'cache_write' => null, 'cache_read' => null],
-    'google/gemini-3.6-flash' => ['in' => 1.50, 'out' => 7.50, 'cache_write' => null, 'cache_read' => null],
-    'google/gemma-4-26b-a4b-it' => ['in' => 0.07, 'out' => 0.34, 'cache_write' => null, 'cache_read' => null],
+    'google/gemini-3.6-flash' => ['in' => 1.50, 'out' => 7.50, 'cache_write' => null, 'cache_read' => 0.15],  // cached input verified — BUT SEE THE GEMINI NOTE: hourly storage is unrepresentable here
+    'google/gemma-4-26b-a4b-it' => ['in' => 0.07, 'out' => 0.34, 'cache_write' => null, 'cache_read' => null],  // context caching not available on the paid tier
 
     'moonshotai/kimi-k3' => ['in' => 3.00, 'out' => 15.00, 'cache_write' => null, 'cache_read' => null],
     'moonshotai/kimi-k2.7-code' => ['in' => 0.73, 'out' => 3.50, 'cache_write' => null, 'cache_read' => null],
     'moonshotai/kimi-k2.6' => ['in' => 0.60, 'out' => 3.41, 'cache_write' => null, 'cache_read' => null],
     'moonshotai/kimi-k2' => ['in' => 0.57, 'out' => 2.30, 'cache_write' => null, 'cache_read' => null],
 
-    'deepseek/deepseek-v4-pro' => ['in' => 0.435, 'out' => 0.87, 'cache_write' => null, 'cache_read' => null],
+    'deepseek/deepseek-v4-pro' => ['in' => 0.435, 'out' => 0.87, 'cache_write' => 0.435, 'cache_read' => 0.003625],  // hit 0.0083x miss; no write surcharge
     'deepseek/deepseek-v3.2' => ['in' => 0.269, 'out' => 0.40, 'cache_write' => null, 'cache_read' => null],
-    'deepseek/deepseek-v4-flash' => ['in' => 0.14, 'out' => 0.28, 'cache_write' => null, 'cache_read' => null],
+    'deepseek/deepseek-v4-flash' => ['in' => 0.14, 'out' => 0.28, 'cache_write' => 0.14, 'cache_read' => 0.0028],  // hit 0.020x miss; no write surcharge
 
     'x-ai/grok-4.5' => ['in' => 2.00, 'out' => 6.00, 'cache_write' => null, 'cache_read' => null],
     'x-ai/grok-4.3' => ['in' => 1.25, 'out' => 2.50, 'cache_write' => null, 'cache_read' => null],
