@@ -6,30 +6,95 @@
 <title>Paider — a PHP coding agent that tells you what it cost</title>
 <meta name="description" content="An AI coding agent written in PHP. Append-only event log, a cost ledger that reconciles against provider-reported usage, and an approval gate in front of every tool.">
 <style>
-  :root { color-scheme: light dark; --fg:#111; --bg:#fff; --dim:#666; --line:#e3e3e3; --accent:#7c3aed; --code:#f6f6f7; }
-  @media (prefers-color-scheme: dark) {
-    :root { --fg:#e8e8ea; --bg:#0f0f11; --dim:#9a9aa2; --line:#26262b; --accent:#a78bfa; --code:#18181c; }
+  /* ── tokens ──────────────────────────────────────────────────────────
+     Dim text was #666 / #9a9aa2 — both under 4.5:1 on their backgrounds.
+     The honesty copy (limitations, caveats) is set in dim, so it was the
+     least readable text on the page and is the text that matters most. */
+  :root {
+    color-scheme: light dark;
+    --fg:#111; --bg:#fff; --dim:#5b5b63; --line:#e3e3e3;
+    --accent:#7c3aed; --code:#f6f6f7; --warn-bg:#7c3aed0d;
+    --step:.35rem; --ease:cubic-bezier(.2,0,.2,1); --dur:160ms;
   }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fg:#e8e8ea; --bg:#0f0f11; --dim:#a2a2ab; --line:#26262b;
+      --accent:#a78bfa; --code:#18181c; --warn-bg:#a78bfa14;
+    }
+  }
+
   * { box-sizing:border-box }
+
   body { margin:0; padding:3rem 1.25rem 5rem; background:var(--bg); color:var(--fg);
-         font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
-  main { max-width:46rem; margin:0 auto }
-  h1 { font-size:2.6rem; margin:0 0 .3rem; letter-spacing:-.02em }
-  .tag { color:var(--dim); font-size:1.05rem; margin:0 0 2rem }
+         font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+         -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+
+  /* 42rem holds ~68 characters at this size — closer to a comfortable measure
+     than 46rem, which ran long on the prose paragraphs. */
+  main { max-width:42rem; margin:0 auto }
+
+  h1 { font-size:clamp(2.1rem,1.6rem + 2.2vw,2.9rem); margin:0 0 calc(var(--step) * 1);
+       letter-spacing:-.025em; line-height:1.1; font-weight:700 }
+  .tag { color:var(--dim); font-size:1.08rem; margin:0 0 calc(var(--step) * 6);
+         max-width:34rem; text-wrap:balance }
+
   .alpha { display:inline-block; font-size:.72rem; font-weight:700; letter-spacing:.08em;
            text-transform:uppercase; color:var(--accent); border:1px solid var(--accent);
-           border-radius:999px; padding:.15rem .6rem; vertical-align:.35rem; margin-left:.5rem }
+           border-radius:999px; padding:.15rem .6rem; vertical-align:.35rem; margin-left:.5rem;
+           animation:breathe 4s var(--ease) infinite }
+
   h2 { font-size:1.05rem; text-transform:uppercase; letter-spacing:.07em; color:var(--dim);
-       margin:2.5rem 0 .75rem; font-weight:600 }
+       margin:calc(var(--step) * 7) 0 calc(var(--step) * 2); font-weight:600 }
+
+  /* Labelled code blocks: the label is generated from data-label, so the copy
+     stays in the markup and the chrome stays in CSS. */
+  .snippet { position:relative; margin:calc(var(--step) * 3) 0 }
+  .snippet[data-label]::before {
+    content:attr(data-label); position:absolute; top:0; right:.75rem;
+    transform:translateY(-50%); background:var(--bg); color:var(--dim);
+    font:600 .68rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+    letter-spacing:.06em; text-transform:uppercase; padding:0 .45rem;
+  }
   pre { background:var(--code); border:1px solid var(--line); border-radius:8px;
-        padding:.9rem 1rem; overflow-x:auto; font-size:.9rem }
+        padding:1rem 1.1rem; overflow-x:auto; font-size:.9rem; margin:0;
+        transition:border-color var(--dur) var(--ease) }
+  .snippet:hover pre { border-color:var(--accent) }
   code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace }
   p code { background:var(--code); padding:.1rem .35rem; border-radius:4px; font-size:.9em }
-  a { color:var(--accent) }
-  ul { padding-left:1.1rem } li { margin:.35rem 0 }
-  .warn { border-left:3px solid var(--accent); padding:.1rem 0 .1rem 1rem; margin:1.5rem 0; color:var(--dim) }
-  footer { margin-top:4rem; padding-top:1.25rem; border-top:1px solid var(--line);
-           color:var(--dim); font-size:.85rem }
+
+  a { color:var(--accent); text-underline-offset:.18em;
+      transition:opacity var(--dur) var(--ease) }
+  a:hover { opacity:.72 }
+  a:focus-visible, .snippet:focus-visible {
+    outline:2px solid var(--accent); outline-offset:3px; border-radius:3px }
+
+  ul { padding-left:1.1rem } li { margin:calc(var(--step) * 1) 0 }
+
+  /* The warning is the most important block on the page. Tinting it stops it
+     reading as an aside without moving it or softening the words. */
+  .warn { border-left:3px solid var(--accent); background:var(--warn-bg);
+          padding:.9rem 1rem .9rem 1.1rem; margin:calc(var(--step) * 4) 0;
+          border-radius:0 6px 6px 0; color:var(--fg) }
+  .warn strong { color:var(--accent) }
+
+  footer { margin-top:calc(var(--step) * 11); padding-top:1.25rem;
+           border-top:1px solid var(--line); color:var(--dim); font-size:.85rem }
+
+  @keyframes breathe { 0%,100% { opacity:1 } 50% { opacity:.62 } }
+  @keyframes rise { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:none } }
+
+  main > * { animation:rise .5s var(--ease) both }
+  main > :nth-child(2) { animation-delay:.04s }
+  main > :nth-child(3) { animation-delay:.08s }
+  main > :nth-child(n+4) { animation-delay:.12s }
+
+  /* Every animation above is opt-out. Nothing here conveys meaning by motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration:.01ms !important; animation-iteration-count:1 !important;
+      transition-duration:.01ms !important; scroll-behavior:auto !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -38,11 +103,11 @@
   <p class="tag">An AI coding agent written in PHP — that can tell you what it cost.</p>
 
   <h2>Install</h2>
-  <pre><code>composer require paider/paider        # inside your Laravel app
-composer global require paider/paider # as a standalone CLI</code></pre>
+  <div class="snippet" data-label="composer"><pre><code>composer require paider/paider        # inside your Laravel app
+composer global require paider/paider # as a standalone CLI</code></pre></div>
 
   <p>Or via this domain, which is what you are looking at:</p>
-  <pre><code>curl -fsSL paider.dev/install | sh</code></pre>
+  <div class="snippet" data-label="shell"><pre><code>curl -fsSL paider.dev/install | sh</code></pre></div>
   <p style="color:var(--dim);font-size:.9rem">
     That script installs through Composer. It checks for PHP&nbsp;8.4+ and the twelve
     extensions Paider actually loads, then hands off to <code>composer global require</code>.
