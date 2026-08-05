@@ -72,3 +72,31 @@ it('matches each prices.php entry to its trailing comment in presets.php', funct
             ->and($prices[$modelId]['out'])->toBe($price['out']);
     }
 });
+
+it('declares all four price columns on every model, null meaning "unverified"', function () {
+    // A MISSING cache key and a deliberately-null one must stay distinguishable.
+    // Without this, a model added later silently lacks the columns and a consumer
+    // reads null-by-accident as "free" instead of "bill at the full input rate".
+    foreach (config('prices') as $modelId => $price) {
+        expect($price)->toHaveKeys(['in', 'out', 'cache_write', 'cache_read'], $modelId);
+
+        foreach (['cache_write', 'cache_read'] as $col) {
+            expect($price[$col] === null || is_float($price[$col]))
+                ->toBeTrue("{$modelId}.{$col} must be a float or null");
+        }
+    }
+});
+
+it('keeps anthropic cache rates in step with its input rate', function () {
+    // Anthropic prices a cache WRITE at 1.25x base input and a cache READ at 0.10x.
+    // Editing `in` without editing these would silently misprice the 93% of a cached
+    // workload that is not plain input — which is the whole reason the columns exist.
+    foreach (config('prices') as $modelId => $price) {
+        if (! str_starts_with($modelId, 'anthropic/')) {
+            continue;
+        }
+
+        expect($price['cache_write'])->toEqualWithDelta($price['in'] * 1.25, 0.0001, $modelId)
+            ->and($price['cache_read'])->toEqualWithDelta($price['in'] * 0.10, 0.0001, $modelId);
+    }
+});
