@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Storage\ProjectEnv;
+
 /**
  * Decides whether a model-supplied URL may be fetched, and pins the answer to specific IPs.
  *
@@ -17,6 +19,9 @@ namespace App\Support;
 final class UrlGuard
 {
     public const MAX_REDIRECTS = 5;
+
+    /** Comma-separated hostnames the user vouches for, e.g. `git.example.com,searx.example.com`. */
+    public const ALLOW_VAR = 'PAIDER_FETCH_ALLOW';
 
     /**
      * Carrier-grade NAT. Not covered by PHP's reserved-range filter, and it is the range
@@ -64,9 +69,19 @@ final class UrlGuard
 
         // EVERY answer must be public. A host that returns one public and one private address
         // is a rebinding attempt, and which one gets used is up to the resolver.
-        foreach ($ips as $ip) {
-            if (! self::isPublic($ip)) {
-                return self::deny("'{$host}' resolves to the non-public address {$ip}");
+        //
+        // Unless the user has explicitly named this host. Self-hosted infrastructure — a Forgejo
+        // instance, a local SearXNG — legitimately resolves to a private address, and refusing
+        // it forever is the wrong default for someone who owns the network. The exemption is
+        // per-HOST and opt-in, never a blanket "allow private": a redirect from an allowlisted
+        // host to some other private address is checked against the list on its own hop and
+        // still refused.
+        if (! self::isAllowlisted($host)) {
+            foreach ($ips as $ip) {
+                if (! self::isPublic($ip)) {
+                    return self::deny("'{$host}' resolves to the non-public address {$ip}"
+                        .' (add it to '.self::ALLOW_VAR.' if you own it)');
+                }
             }
         }
 
@@ -132,6 +147,35 @@ final class UrlGuard
         }
 
         return $ips;
+    }
+
+    /**
+     * Hostnames the user has explicitly vouched for, from PAIDER_FETCH_ALLOW.
+     *
+     * EXACT, case-insensitive hostname match — no wildcards and no suffix matching. A naive
+     * `str_ends_with($host, $entry)` would make an entry of `example.com` also match
+     * `notexample.com`, and a wildcard would hand one typo'd entry a whole zone. Anyone needing
+     * several subdomains lists them.
+     *
+     * @return array<int, string>
+     */
+    public static function allowlist(): array
+    {
+        $raw = ProjectEnv::get(self::ALLOW_VAR);
+
+        if ($raw === null || trim($raw) === '') {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(fn (string $entry) => strtolower(trim($entry, " \t\n\r\0\x0B[]")), explode(',', $raw)),
+            fn (string $entry) => $entry !== '',
+        ));
+    }
+
+    private static function isAllowlisted(string $host): bool
+    {
+        return in_array(strtolower($host), self::allowlist(), true);
     }
 
     /** @return array{ok: false, reason: string} */

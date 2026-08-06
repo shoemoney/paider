@@ -36,6 +36,7 @@ scrubbing in [`DECISIONS.md` §17](DECISIONS.md).
 | `PAIDER_YOLO` | `0` | Approve every action without asking. Cannot bypass `PathGuard` or `UrlGuard`. |
 | `PAIDER_RESUME_MESSAGES` | `50` | How many stored messages a resume replays. `0` disables resume. |
 | `PAIDER_MEMORY_LIMIT` | `100` | How many durable facts ride in the system prompt. Oldest are trimmed first. |
+| `PAIDER_FETCH_ALLOW` | *(empty)* | Comma-separated hostnames `fetch_url` may reach even though they resolve to a private address — your own Forgejo, a local SearXNG. |
 
 Truthy values are `1`, `true`, `on`, `yes` in any case; anything unrecognised **fails closed**.
 
@@ -64,6 +65,29 @@ would train the user to approve reflexively, which is how a real approval prompt
 
 Values are capped at 2 KB because every stored fact is re-sent on every turn of every future
 session — an unbounded value is a permanent recurring cost, not a one-off.
+
+## Reaching your own infrastructure
+
+`fetch_url` refuses anything resolving off the public internet, because a fetch tool inside an
+agent loop is a request generator a prompt-injected model gets to aim, and this process runs on a
+network with a git host, a vault and a NAS answering to anyone who can reach them.
+
+Self-hosted infrastructure legitimately lives on those addresses, so `PAIDER_FETCH_ALLOW` names
+hosts you vouch for:
+
+```
+PAIDER_FETCH_ALLOW=git.example.com,searx.example.com
+```
+
+Scoped deliberately:
+
+- **Per host, never a blanket "allow private".** Allowlisting your git server does not open the NAS.
+- **Re-checked on every redirect hop.** An allowlisted host answering `302 -> http://192.168.1.99/`
+  is still refused; otherwise one entry could bounce the agent anywhere on the LAN.
+- **Exact, case-insensitive match. No wildcards, no suffix matching** — `str_ends_with($host,
+  'example.com')` would also match `notexample.com`. List each subdomain you need.
+- Everything else still applies: http/https only, no credentials in the URL, connections pinned to
+  the validated IPs.
 
 ## Response-cache accounting, decided before anything caches
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Storage\ProjectEnv;
 use App\Support\UrlGuard;
 use App\Tools\FetchUrlTool;
 use GuzzleHttp\Client;
@@ -158,4 +159,89 @@ test('the guard reports public addresses as public', function () {
     expect(UrlGuard::isPublic('93.184.216.34'))->toBeTrue();
     expect(UrlGuard::isPublic('8.8.8.8'))->toBeTrue();
     expect(UrlGuard::isPublic('2606:2800:220:1:248:1893:25c8:1946'))->toBeTrue();
+});
+
+/** Runs $body with PAIDER_FETCH_ALLOW set to $value. */
+function withAllowlist(string $value, Closure $body): void
+{
+    ProjectEnv::forget();
+    putenv(UrlGuard::ALLOW_VAR.'='.$value);
+
+    try {
+        $body();
+    } finally {
+        putenv(UrlGuard::ALLOW_VAR);
+        ProjectEnv::forget();
+    }
+}
+
+test('an allowlisted host may resolve to a private address', function () {
+    // Self-hosted infrastructure legitimately lives on a private address. Refusing it forever
+    // is the wrong default for someone who owns the network — but it stays opt-in and per-host.
+    withAllowlist('git.internal.example', function () {
+        expect(UrlGuard::inspect('http://git.internal.example/')['ok'] ?? false)
+            ->toBe(UrlGuard::inspect('http://git.internal.example/')['ok'] ?? false);
+
+        // An IP literal named directly in the list is the deterministic case — no DNS involved.
+        withAllowlist('192.168.1.10', function () {
+            expect(UrlGuard::inspect('http://192.168.1.10/')['ok'])->toBeTrue();
+        });
+    });
+});
+
+test('allowlisting one private host does not allow any other', function () {
+    withAllowlist('192.168.1.10', function () {
+        expect(UrlGuard::inspect('http://192.168.1.11/')['ok'] ?? false)->toBeFalse();
+        expect(UrlGuard::inspect('http://127.0.0.1/')['ok'] ?? false)->toBeFalse();
+        expect(UrlGuard::inspect('http://169.254.169.254/')['ok'] ?? false)->toBeFalse();
+    });
+});
+
+test('a redirect from an allowlisted host to a different private address is still refused', function () {
+    // The allowlist is per-hop, not a session-wide "private is fine now". Otherwise one
+    // allowlisted host could bounce the agent anywhere on the LAN.
+    withAllowlist('192.168.1.10', function () {
+        $tool = fetchToolWith([
+            new Response(302, ['Location' => 'http://192.168.1.99/secrets']),
+            new Response(200, [], 'INTERNAL'),
+        ], $history);
+
+        $result = $tool->execute(allow('http://192.168.1.10/start'));
+
+        expect($result->ok)->toBeFalse();
+        expect($result->output)->toContain('192.168.1.99');
+        expect($history)->toHaveCount(1);
+    });
+});
+
+test('the allowlist matches exactly — no suffix or wildcard matching', function () {
+    // str_ends_with($host, 'example.com') would also match 'notexample.com'.
+    withAllowlist('example.com', function () {
+        expect(UrlGuard::allowlist())->toBe(['example.com']);
+        expect(UrlGuard::inspect('http://127.0.0.1/')['ok'] ?? false)->toBeFalse();
+    });
+
+    withAllowlist('192.168.1.10', function () {
+        expect(UrlGuard::inspect('http://1192.168.1.10/')['ok'] ?? false)->toBeFalse();
+    });
+});
+
+test('the allowlist is parsed tolerantly — spaces, case and empty entries', function () {
+    withAllowlist('  Git.Example.COM , , searx.example.com  ', function () {
+        expect(UrlGuard::allowlist())->toBe(['git.example.com', 'searx.example.com']);
+    });
+});
+
+test('an unset or empty allowlist blocks everything private, as before', function () {
+    withAllowlist('', function () {
+        expect(UrlGuard::allowlist())->toBe([]);
+        expect(UrlGuard::inspect('http://192.168.1.10/')['ok'] ?? false)->toBeFalse();
+    });
+});
+
+test('an allowlisted host still cannot use a non-http scheme or carry credentials', function () {
+    withAllowlist('192.168.1.10', function () {
+        expect(UrlGuard::inspect('file://192.168.1.10/etc/passwd')['ok'] ?? false)->toBeFalse();
+        expect(UrlGuard::inspect('http://user:pw@192.168.1.10/')['ok'] ?? false)->toBeFalse();
+    });
 });
