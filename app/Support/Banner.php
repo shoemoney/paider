@@ -34,20 +34,12 @@ final class Banner
 
     private const SUBTITLE_COL = 8;
 
-    /**
-     * A blue -> steel -> white sweep down the diagonal, after toilet's `--metal`. Reproducing
-     * the sweep rather than pasting toilet's escape bytes keeps one plain copy of the art,
-     * which is what the undecorated branch below prints.
-     *
-     * toilet's own palette runs through bright-black (1;30), which on a dark terminal renders
-     * as barely-visible charcoal and made the lower half of the mark look washed out. This
-     * brightens toward the bottom-right instead, so every row stays legible.
-     */
-    private const METAL = ['0;34', '0;94', '0;37', '1;37'];
-
     public static function render(): string
     {
-        $decorated = stream_isatty(STDOUT);
+        // Palette::gradient() is [] whenever colour is off for any reason (NO_COLOR, PAIDER_COLOR=0,
+        // TERM=dumb, non-TTY) — that single check replaces this file's own stream_isatty() call.
+        $shades = Palette::gradient();
+        $decorated = $shades !== [];
         $rows = count(self::ART);
         $cols = max(array_map('strlen', self::ART));
         $out = '';
@@ -67,14 +59,22 @@ final class Banner
                 // Diagonal position in [0,1], quantised onto the palette. The max(1, ...)
                 // guards the single-row/column case from a division by zero.
                 $t = ($row / max(1, $rows - 1) + $col / max(1, $cols - 1)) / 2;
-                $shade = self::METAL[min(count(self::METAL) - 1, (int) ($t * count(self::METAL)))];
+                $shade = $shades[min(count($shades) - 1, (int) ($t * count($shades)))];
 
                 $out .= "\e[{$shade}m{$char}\e[0m";
             }
 
             if ($row === self::SUBTITLE_ROW) {
                 $out .= str_repeat(' ', max(1, self::SUBTITLE_COL - $width));
-                $out .= $decorated ? "\e[0;37m".self::SUBTITLE."\e[0m" : self::SUBTITLE;
+
+                if ($decorated) {
+                    // Second-brightest shade, not the brightest — keeps the subtitle a notch
+                    // quieter than the wordmark's hottest corner.
+                    $subtitleShade = $shades[max(0, count($shades) - 2)];
+                    $out .= "\e[{$subtitleShade}m".self::SUBTITLE."\e[0m";
+                } else {
+                    $out .= self::SUBTITLE;
+                }
             }
 
             $out .= PHP_EOL;

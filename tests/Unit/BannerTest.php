@@ -1,11 +1,28 @@
 <?php
 
 use App\Support\Banner;
+use App\Support\Palette;
 
-// The suite runs with stdout redirected, so render() takes its undecorated branch here and
-// these assertions see the plain art — which is the point: the banner must not leak escape
-// bytes into a piped or logged run.
-test('the banner emits no escape sequences when stdout is not a terminal', function () {
+// Banner::render() -> Palette::gradient() -> Palette::enabled(), whose final rung is
+// !stream_isatty(STDOUT) — true in CI (piped) but FALSE when this suite is run interactively
+// per the house rule ("vendor/bin/pest"), which used to make these tests fail on a real
+// terminal. Forcing the explicit override removes the dependency on how the suite happens to
+// be invoked, matching what every other assertion in this file already assumes.
+beforeEach(function () {
+    putenv('PAIDER_COLOR=0');
+    Palette::forget();
+});
+
+afterEach(function () {
+    putenv('PAIDER_COLOR');
+    Palette::forget();
+});
+
+test('the banner emits no escape sequences when colour is explicitly disabled', function () {
+    // Renamed deliberately. The beforeEach above forces PAIDER_COLOR=0, so this exercises the
+    // EXPLICIT-OVERRIDE rung of the ladder, not the non-tty rung its old name claimed. A test
+    // whose name points at a different guard than the one it trips is how a rung silently
+    // stops being covered — the real non-tty check now lives in PaletteTest as a subprocess.
     expect(Banner::render())->not->toContain("\e");
 });
 

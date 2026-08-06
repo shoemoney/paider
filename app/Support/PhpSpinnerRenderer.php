@@ -23,13 +23,6 @@ final class PhpSpinnerRenderer extends SpinnerRenderer
     /** Slower than the stock 75ms — the larger glyph reads as frantic at that rate. */
     protected int $interval = 120;
 
-    /**
-     * 256-colour 103 (#8787af) is the closest widely-supported approximation of PHP's #777BB4.
-     * Deliberately not truecolor: this renders in a forked child on every frame, and terminals
-     * without truecolor would print the escape as literal text.
-     */
-    private const PURPLE = "\e[38;5;103m";
-
     public function __invoke(Spinner $spinner): string
     {
         $frame = $spinner->static
@@ -40,6 +33,8 @@ final class PhpSpinnerRenderer extends SpinnerRenderer
             $spinner->interval = $this->interval;
         }
 
-        return $this->line(' 🐘 '.self::PURPLE.$frame."\e[0m {$spinner->message}");
+        // Palette::wrap only reads cached env checks (no terminal probing), safe to call
+        // every frame even though each frame renders in a freshly forked child.
+        return $this->line(' 🐘 '.Palette::wrap(ColorRole::Brand, $frame)." {$spinner->message}");
     }
 }

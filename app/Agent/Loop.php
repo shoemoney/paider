@@ -7,14 +7,14 @@ use App\Providers\Contracts\ProviderClient;
 use App\Storage\EventLog;
 use App\Storage\MemoryStore;
 use App\Storage\SessionStore;
+use App\Support\ColorRole;
 use App\Support\ModelPricing;
+use App\Support\Palette;
 use App\Support\PhpSpinner;
 use App\Support\ProseStream;
 use App\Tools\Contracts\Tool;
 use App\Tools\ToolResult;
 use Symfony\Component\Console\Terminal;
-
-use function Termwind\render;
 
 /**
  * The think -> tool-call -> apply -> observe cycle. One turn is: push the user's message,
@@ -414,17 +414,20 @@ class Loop
         // w-12/ml-* rather than str_pad and literal spaces: Termwind trims whitespace at the
         // edges of an element, so padding baked into the text collapses and the columns lose
         // their alignment.
-        render("<div class=\"mt-1\"><span class=\"text-cyan w-12\">⚒ {$label}</span><span class=\"text-gray\">{$subject}</span></div>");
+        $accent = Palette::tw(ColorRole::Accent);
+        $muted = Palette::tw(ColorRole::Muted);
+        Palette::render("<div class=\"mt-1\"><span class=\"{$accent} w-12\">⚒ {$label}</span><span class=\"{$muted}\">{$subject}</span></div>");
     }
 
     private function renderToolResult(ToolResult $result, float $seconds): void
     {
         $lines = $result->output === '' ? 0 : substr_count($result->output, "\n") + 1;
         $detail = sprintf('%.1fs · %d line%s', $seconds, $lines, $lines === 1 ? '' : 's');
+        $muted = Palette::tw(ColorRole::Muted);
 
-        render($result->ok
-            ? "<div><span class=\"text-green ml-2\">✓ ok</span><span class=\"text-gray ml-2\">{$detail}</span></div>"
-            : '<div><span class="text-red ml-2">✗ '.htmlspecialchars($this->oneLine($result->output), ENT_QUOTES).'</span></div>');
+        Palette::render($result->ok
+            ? '<div><span class="'.Palette::tw(ColorRole::Success)." ml-2\">✓ ok</span><span class=\"{$muted} ml-2\">{$detail}</span></div>"
+            : '<div><span class="'.Palette::tw(ColorRole::Error).' ml-2">✗ '.htmlspecialchars($this->oneLine($result->output), ENT_QUOTES).'</span></div>');
     }
 
     /**

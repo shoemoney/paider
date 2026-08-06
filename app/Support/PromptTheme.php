@@ -21,6 +21,14 @@ final class PromptTheme
 
     public static function activate(): void
     {
+        // Registers 'paider-<role>' Termwind styles for the active PAIDER_THEME, if any — a
+        // no-op when the user hasn't opted into one. Palette::tw() also calls this itself now
+        // (belt-and-suspenders after a real StyleNotFound crash reached production: ShowCommand
+        // never constructs a Prompt at all, so this call site alone didn't cover it), so this is
+        // no longer the only thing standing between a themed run and that fatal — but it still
+        // has to run before the Prompt subclasses below render themselves.
+        Palette::boot();
+
         Prompt::addTheme(self::NAME, [
             ProseStream::class => StreamRenderer::class,
             ChatPrompt::class => ChatPromptRenderer::class,

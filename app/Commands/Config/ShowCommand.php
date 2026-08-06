@@ -3,10 +3,10 @@
 namespace App\Commands\Config;
 
 use App\Agent\TierRouter;
+use App\Support\ColorRole;
+use App\Support\Palette;
 use App\Support\SettingsStore;
 use LaravelZero\Framework\Commands\Command;
-
-use function Termwind\render;
 
 /**
  * `paider config:show` — displays the model resolved for each tier under the
@@ -30,6 +30,7 @@ class ShowCommand extends Command
     public function handle(TierRouter $router): int
     {
         $preset = SettingsStore::activePreset();
+        $presetClass = Palette::tw(ColorRole::Success);
         $sourceLines = @file(config_path('presets.php'));
 
         $rows = '';
@@ -48,9 +49,9 @@ class ShowCommand extends Command
             );
         }
 
-        render(<<<HTML
+        Palette::render(<<<HTML
             <div class="my-1">
-                <div class="px-1 mb-1">Active preset: <span class="text-green-500">{$preset}</span></div>
+                <div class="px-1 mb-1">Active preset: <span class="{$presetClass}">{$preset}</span></div>
                 <table>
                     <thead>
                         <tr><th class="px-1">tier</th><th class="px-1">model</th><th class="px-1">price</th></tr>

@@ -14,6 +14,8 @@ use App\Storage\EventLog;
 use App\Storage\SessionStore;
 use App\Support\Banner;
 use App\Support\ChatPrompt;
+use App\Support\ColorRole;
+use App\Support\Palette;
 use App\Support\SettingsStore;
 use App\Tools\ArtisanTool;
 use App\Tools\FetchUrlTool;
@@ -26,7 +28,6 @@ use App\Tools\WriteFileTool;
 use LaravelZero\Framework\Commands\Command;
 
 use function Laravel\Prompts\select;
-use function Termwind\render;
 
 class ChatCommand extends Command
 {
@@ -88,18 +89,24 @@ class ChatCommand extends Command
         // unprompted `rm -rf` reads as a bug rather than as the setting the user chose — and
         // PAIDER_YOLO in a shell profile is a setting it is very easy to forget you set.
         if ($gate->autoApproves()) {
-            render(sprintf(
-                '<div class="mb-1"><span class="px-1 bg-red text-white">YOLO</span>'
-                .'<span class="text-gray ml-1">approving everything%s — writes and commands run unprompted</span></div>',
+            // Alert is bg+fg inverse video, but the words "YOLO" / "approving everything" carry
+            // the meaning on their own — NO_COLOR must not make this badge silent, only plain.
+            Palette::render(sprintf(
+                '<div class="mb-1"><span class="px-1 %s">YOLO</span>'
+                .'<span class="%s ml-1">approving everything%s — writes and commands run unprompted</span></div>',
+                Palette::tw(ColorRole::Alert),
+                Palette::tw(ColorRole::Muted),
                 $this->option('yolo') ? '' : ' via '.Gate::ENV_VAR,
             ));
         }
 
-        render(<<<'HTML'
-            <div class="mb-1">
-                <span class="text-gray">type </span><span class="text-cyan">/quit</span><span class="text-gray"> to exit</span>
-            </div>
-        HTML);
+        Palette::render(sprintf(
+            '<div class="mb-1">
+                <span class="%1$s">type </span><span class="%2$s">/quit</span><span class="%1$s"> to exit</span>
+            </div>',
+            Palette::tw(ColorRole::Muted),
+            Palette::tw(ColorRole::Accent),
+        ));
 
         $this->resume($session);
 
@@ -180,9 +187,9 @@ class ChatCommand extends Command
             $this->eventLog?->append(SessionStore::FILE_ADDED, ['path' => $path]);
         }
 
-        render($result->ok
+        Palette::render($result->ok
             ? "<div class=\"ml-2\">added {$path}</div>"
-            : "<div class=\"ml-2 text-red-500\">{$result->output}</div>");
+            : sprintf('<div class="ml-2 %s">%s</div>', Palette::tw(ColorRole::Error), $result->output));
     }
 
     /**
@@ -218,9 +225,11 @@ class ChatCommand extends Command
             }
         }
 
-        render(sprintf(
-            '<div class="mb-1"><span class="text-cyan">resumed</span>'
-            .'<span class="text-gray ml-1">%d message%s%s — /quit does not clear it</span></div>',
+        Palette::render(sprintf(
+            '<div class="mb-1"><span class="%s">resumed</span>'
+            .'<span class="%s ml-1">%d message%s%s — /quit does not clear it</span></div>',
+            Palette::tw(ColorRole::Accent),
+            Palette::tw(ColorRole::Muted),
             count($messages),
             count($messages) === 1 ? '' : 's',
             $files > 0 ? sprintf(', %d file%s', $files, $files === 1 ? '' : 's') : '',
@@ -238,10 +247,14 @@ class ChatCommand extends Command
     {
         $result = $session->undo();
 
-        render(match ($result['status']) {
+        Palette::render(match ($result['status']) {
             'ok' => "<div class=\"ml-2\">reverted {$result['path']}</div>",
             'empty' => '<div class="ml-2">nothing to undo</div>',
-            'conflict' => "<div class=\"ml-2 text-red-500\">conflict — {$result['path']} changed since the apply, restoring nothing</div>",
+            'conflict' => sprintf(
+                '<div class="ml-2 %s">conflict — %s changed since the apply, restoring nothing</div>',
+                Palette::tw(ColorRole::Error),
+                $result['path'],
+            ),
         });
     }
 
@@ -250,7 +263,10 @@ class ChatCommand extends Command
         [$tier, $model] = array_pad(explode(' ', $args, 2), 2, '');
 
         if ($tier === '' || $model === '') {
-            render('<div class="ml-2 text-red-500">usage: /tier &lt;name&gt; &lt;model&gt;</div>');
+            Palette::render(sprintf(
+                '<div class="ml-2 %s">usage: /tier &lt;name&gt; &lt;model&gt;</div>',
+                Palette::tw(ColorRole::Error),
+            ));
 
             return;
         }
@@ -258,12 +274,12 @@ class ChatCommand extends Command
         try {
             $session->setTierOverride($tier, $model);
         } catch (\InvalidArgumentException $e) {
-            render("<div class=\"ml-2 text-red-500\">{$e->getMessage()}</div>");
+            Palette::render(sprintf('<div class="ml-2 %s">%s</div>', Palette::tw(ColorRole::Error), $e->getMessage()));
 
             return;
         }
 
-        render("<div class=\"ml-2\">{$tier} → {$model} for this session</div>");
+        Palette::render("<div class=\"ml-2\">{$tier} → {$model} for this session</div>");
     }
 
     private function promptApproval(string $subject): string

@@ -6,9 +6,8 @@ use App\Storage\CostLedger;
 use App\Storage\Database;
 use App\Storage\EventLog;
 use App\Support\CostComparison;
+use App\Support\Palette;
 use LaravelZero\Framework\Commands\Command;
-
-use function Termwind\render;
 
 /**
  * `paider cost` — token/spend usage per tier, read straight off the append-only
@@ -38,7 +37,7 @@ class CostCommand extends Command
         // real (zeroed) shape below, not human prose, so only short-circuit for the
         // table render.
         if ($tiers === [] && ! $this->option('json')) {
-            render(<<<'HTML'
+            Palette::render(<<<'HTML'
                 <div class="px-1 my-1">no usage recorded yet — run `paider chat` or `paider commit` to start one</div>
             HTML);
 
@@ -84,7 +83,7 @@ class CostCommand extends Command
         }
         $rows .= $this->row('session', $session, isSession: true);
 
-        render(<<<HTML
+        Palette::render(<<<HTML
             <div class="my-1">
                 <table>
                     <thead>
@@ -106,13 +105,13 @@ class CostCommand extends Command
                 fn ($model) => (array_key_exists($model, $prices) ? 'no usage reported' : 'unknown model').": {$model}",
                 $entry['models']
             );
-            render('<div class="px-1">'.e(
+            Palette::render('<div class="px-1">'.e(
                 "{$entry['count']} of {$entry['calls']} {$entry['tier']} calls not priced (".implode(', ', $parts).') — totals exclude them.'
             ).'</div>');
         }
 
         foreach ($mismatches as $entry) {
-            render('<div class="px-1">'.e(
+            Palette::render('<div class="px-1">'.e(
                 "{$entry['count']} of {$entry['calls']} {$entry['tier']} calls served a different model than requested: ".implode(', ', $entry['models'])
             ).'</div>');
         }
@@ -122,7 +121,7 @@ class CostCommand extends Command
         // a fabricated result, not a measurement (LOCKED decision #3's spirit).
         if ($sessionSpend > 0.0) {
             if ($comparison['token_share_pct'] !== null && $comparison['spend_share_pct'] !== null) {
-                render('<div class="px-1">'.e(sprintf(
+                Palette::render('<div class="px-1">'.e(sprintf(
                     '%s%% of your tokens went through tiers costing %s%% of your spend.',
                     number_format($comparison['token_share_pct'], 1),
                     number_format($comparison['spend_share_pct'], 1)
@@ -135,7 +134,7 @@ class CostCommand extends Command
                 // real, reachable negative saving that reads backwards under "you saved".
                 $saved = abs($comparison['saved_usd']) < 0.005 ? 0.0 : $comparison['saved_usd'];
 
-                render('<div class="px-1">'.e($saved >= 0
+                Palette::render('<div class="px-1">'.e($saved >= 0
                     ? sprintf('Same work on all-Opus 5: $%.2f · you saved $%.2f', $comparison['hypothetical_usd'], $saved)
                     : sprintf('Same work on all-Opus 5: $%.2f · this session cost $%.2f more', $comparison['hypothetical_usd'], -$saved)
                 ).'</div>');

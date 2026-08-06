@@ -37,8 +37,29 @@ scrubbing in [`DECISIONS.md` §17](DECISIONS.md).
 | `PAIDER_RESUME_MESSAGES` | `50` | How many stored messages a resume replays. `0` disables resume. |
 | `PAIDER_MEMORY_LIMIT` | `100` | How many durable facts ride in the system prompt. Oldest are trimmed first. |
 | `PAIDER_FETCH_ALLOW` | *(empty)* | Comma-separated hostnames `fetch_url` may reach even though they resolve to a private address — your own Forgejo, a local SearXNG. |
+| `NO_COLOR` | unset | Any non-empty value disables all colour output, per [no-color.org](https://no-color.org). Read via `ProjectEnv::get()` so a real environment variable wins over a project `.env`, matching the standard. |
+| `PAIDER_COLOR` | unset (auto-detect) | Explicit override, wins over everything including `NO_COLOR` — but only as a **real** environment variable; a `.paider/.env`-sourced `PAIDER_COLOR=1` cannot override the operator's own real `NO_COLOR`, or a cloned repo could silently turn colour back on for someone who disabled it system-wide. Falsy forces plain output, truthy forces colour even when piped — our `FORCE_COLOR` equivalent. Unset runs the normal detection ladder (`Palette::enabled()`). |
+| `PAIDER_THEME` | unset (respect the terminal) | Bundled theme name (`dracula`, `gruvbox-dark`, `solarized-light`, `high-contrast`) resolving every `ColorRole` to that theme's absolute colours instead of the default symbolic ANSI-16 slots. Unknown name falls back silently to the default. |
 
 Truthy values are `1`, `true`, `on`, `yes` in any case; anything unrecognised **fails closed**.
+
+## Colour
+
+Every colour Paider emits is named by meaning, never by hex or SGR code, through `App\Support\Palette`
+and its `ColorRole` enum (`Accent`, `Muted`, `Success`, `Error`, `Alert`, `Brand`). This exists because
+`Banner.php` once hardcoded a gradient that ran through bright-black (`SGR 1;30`) — charcoal on a dark
+terminal's charcoal background. The charcoal rule: a role may colour primary content only with a
+symbolic ANSI-16 slot (the user's own theme chose it to be readable) or an absolute colour checked
+against *that theme's own* background polarity — relative luminance ≤0.30 clears ≥3:1 against a
+light background, ≥0.10 clears ≥3:1 against a dark one. `Muted` is the sole exemption, because its
+contract is "safe to lose entirely" — meaningful content in that role is a bug by definition. See
+`Palette`'s class docblock and the luminance test in `PaletteTest` for the check.
+
+`Palette::enabled()` is the single capability gate (real `PAIDER_COLOR` env > real `NO_COLOR` env >
+file-sourced `PAIDER_COLOR` > file-sourced `NO_COLOR` > `TERM=dumb` > non-TTY stdout > on). Truecolor
+is never emitted by the default palette; the only absolute defaults are 256-colour (`Brand`, theme
+overrides), each degrading to no colour at all unless `TERM` contains
+`256color` or `COLORTERM` is non-empty.
 
 ## Sessions survive process exit
 
