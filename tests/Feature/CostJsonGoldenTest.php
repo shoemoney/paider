@@ -44,8 +44,12 @@ function costJsonKeySets(): array
         // silently pricing the id you requested. This pin caught the addition on merge, which
         // is exactly what it is for — the key is intentional, so the pin moves with it.
         'top' => ['tiers', 'session', 'unpriced_calls', 'comparison', 'model_mismatches'],
-        'tier' => ['calls', 'tokens_in', 'tokens_out', 'tokens_cache_write', 'tokens_cache_read', 'spend_usd', 'unpriced_calls', 'unpriced_models', 'hypothetical_usd', 'hypothetical_unknown', 'share_pct', 'mismatched_calls', 'mismatched_models'],
-        'session' => ['calls', 'tokens_in', 'tokens_out', 'tokens_cache_write', 'tokens_cache_read', 'spend_usd', 'unpriced_calls', 'unpriced_models', 'hypothetical_usd', 'hypothetical_unknown', 'mismatched_calls', 'mismatched_models'],
+        // 'cache_*' arrived with the response-cache ledger semantics. Note the deliberate
+        // naming: the comparison block already has a 'saved_usd' meaning "what tier routing
+        // saved against all-Opus", which is a different quantity from what the response cache
+        // saved. Two things called saved_usd in one payload would be read as one number.
+        'tier' => ['calls', 'tokens_in', 'tokens_out', 'tokens_cache_write', 'tokens_cache_read', 'spend_usd', 'unpriced_calls', 'unpriced_models', 'hypothetical_usd', 'hypothetical_unknown', 'share_pct', 'mismatched_calls', 'mismatched_models', 'cache_hits', 'cache_saved_usd', 'cache_unpriced_hits'],
+        'session' => ['calls', 'tokens_in', 'tokens_out', 'tokens_cache_write', 'tokens_cache_read', 'spend_usd', 'unpriced_calls', 'unpriced_models', 'hypothetical_usd', 'hypothetical_unknown', 'mismatched_calls', 'mismatched_models', 'cache_hits', 'cache_saved_usd', 'cache_unpriced_hits'],
         'unpriced_entry' => ['tier', 'count', 'calls', 'models'],
         'comparison' => ['hypothetical_usd', 'saved_usd', 'token_share_pct', 'spend_share_pct'],
     ];

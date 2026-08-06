@@ -65,6 +65,23 @@ would train the user to approve reflexively, which is how a real approval prompt
 Values are capped at 2 KB because every stored fact is re-sent on every turn of every future
 session — an unbounded value is a permanent recurring cost, not a one-off.
 
+## Response-cache accounting, decided before anything caches
+
+The wiring is deliberately split from the semantics, because the obvious implementation is wrong
+in a way that looks right. `ModelPricing::costFor()` returns `null` for a 0-in/0-out/0-cache call —
+all four at zero means the usage block was never parsed, which is *unknown*, not a real `$0.00`
+(LOCKED decision #3). A cache hit makes no provider call, so the naive event carries four zeros and
+the saving it was meant to prove **evaporates as `null` on every hit**. The ledger's flagship claim
+is that it reconciles against provider-reported usage; getting this wrong makes it lie in the
+direction of its own marketing.
+
+`CacheLedger::recordHit()` is therefore the only supported way to record one, and it prices the
+hit from the **original response's** token counts — what the call *would* have cost.
+
+A hit contributes to savings and nothing else. It never touches `calls`, `spend_usd`, or any token
+column, and savings are **never** applied as a discount to spend. An unpriced model's saving is
+recorded as unknown (`cache_unpriced_hits`), never as a confident zero.
+
 **Privacy consequence, stated plainly:** anything that reached a prompt now outlives the process.
 `.paider/` is gitignored, but the conversation is on disk until the file is deleted. Set
 `PAIDER_RESUME_MESSAGES=0` to keep the old behaviour where it died at exit.
@@ -89,7 +106,7 @@ chosen architecture, not just the v0.1 slice.
 | **Cost ledger** | per-tier token and spend accounting | ✅ **v0.1** | pure projection over events, never mutable; see below — this is a feature, not plumbing |
 | **Sessions** | conversation history, files in context | ✅ **v0.2** | `session_*` events, projected by `SessionStore`; resumable across runs, survives a reboot |
 | **Memory** | durable project facts worth carrying between sessions | ✅ **v0.2** | `memory_set`/`memory_retract` events, projected by `MemoryStore`; the thing that makes the second run smarter than the first |
-| **Response cache** | Laravel's `database` cache driver, same file | ⬜ **v0.2** | prompt-cache-aware; identical requests should not be paid for twice |
+| **Response cache** | Laravel's `database` cache driver, same file | 🟡 **v0.2** | *semantics done, wiring deferred* — `CacheLedger` defines what a hit records; nothing records one yet |
 | **Credentials** | AES-256-GCM blobs via `openssl` | ⬜ **v0.2** | no Node service, no keyring dependency; user-scoped in `~/.paider/paider.db` |
 | **Task board** | plan items and their state | ⬜ **v0.3** | what the v0.3 terminal kanban renders from |
 

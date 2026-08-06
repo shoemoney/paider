@@ -16,6 +16,12 @@ class CostLedger
         $tiers = [];
 
         foreach ($this->events->stream() as $event) {
+            if ($event['type'] === CacheLedger::HIT) {
+                $this->applyCacheHit($tiers, $event['payload']);
+
+                continue;
+            }
+
             if ($event['type'] !== 'tier_call') {
                 continue;
             }
@@ -29,6 +35,7 @@ class CostLedger
                 'unpriced_calls' => 0, 'unpriced_models' => [],
                 'hypothetical_usd' => 0.0, 'hypothetical_unknown' => 0,
                 'mismatched_calls' => 0, 'mismatched_models' => [],
+                'cache_hits' => 0, 'cache_saved_usd' => 0.0, 'cache_unpriced_hits' => 0,
             ];
 
             $tiers[$tier]['calls']++;
@@ -82,6 +89,7 @@ class CostLedger
             'unpriced_calls' => 0, 'unpriced_models' => [],
             'hypothetical_usd' => 0.0, 'hypothetical_unknown' => 0,
             'mismatched_calls' => 0, 'mismatched_models' => [],
+            'cache_hits' => 0, 'cache_saved_usd' => 0.0, 'cache_unpriced_hits' => 0,
         ];
 
         foreach ($tiers as $tier) {
@@ -97,6 +105,9 @@ class CostLedger
             $session['hypothetical_unknown'] += $tier['hypothetical_unknown'];
             $session['mismatched_calls'] += $tier['mismatched_calls'];
             $session['mismatched_models'] += $tier['mismatched_models'];
+            $session['cache_hits'] += $tier['cache_hits'];
+            $session['cache_saved_usd'] += $tier['cache_saved_usd'];
+            $session['cache_unpriced_hits'] += $tier['cache_unpriced_hits'];
         }
 
         foreach ($tiers as &$tier) {
@@ -110,5 +121,42 @@ class CostLedger
         $tiers['session'] = $session;
 
         return $tiers;
+    }
+
+    /**
+     * A cache hit adds to savings and NOTHING else — not calls, not spend, not token volume.
+     * No provider call was made and nothing was billed, so folding a hit into those columns
+     * would inflate the exact figures the ledger's credibility rests on. See CacheLedger for
+     * why the saving is priced from the original response's tokens rather than from zeros.
+     */
+    private function applyCacheHit(array &$tiers, array $payload): void
+    {
+        $tier = $payload['tier'] ?? null;
+
+        if (! is_string($tier) || $tier === '') {
+            return;
+        }
+
+        $tiers[$tier] ??= [
+            'calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0,
+            'tokens_cache_write' => 0, 'tokens_cache_read' => 0, 'spend_usd' => 0.0,
+            'unpriced_calls' => 0, 'unpriced_models' => [],
+            'hypothetical_usd' => 0.0, 'hypothetical_unknown' => 0,
+            'mismatched_calls' => 0, 'mismatched_models' => [],
+            'cache_hits' => 0, 'cache_saved_usd' => 0.0, 'cache_unpriced_hits' => 0,
+        ];
+
+        $tiers[$tier]['cache_hits']++;
+
+        // Same nullability rule as cost_usd: an unpriced model's saving is UNKNOWN, never
+        // $0.00. Counting it as zero would understate savings while looking precise; folding
+        // it into the total would invent a number. It gets its own counter instead.
+        $saved = $payload['cache_saved_usd'] ?? null;
+
+        if ($saved === null) {
+            $tiers[$tier]['cache_unpriced_hits']++;
+        } else {
+            $tiers[$tier]['cache_saved_usd'] += $saved;
+        }
     }
 }
