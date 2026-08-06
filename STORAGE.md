@@ -35,6 +35,7 @@ scrubbing in [`DECISIONS.md` §17](DECISIONS.md).
 |---|---|---|
 | `PAIDER_YOLO` | `0` | Approve every action without asking. Cannot bypass `PathGuard` or `UrlGuard`. |
 | `PAIDER_RESUME_MESSAGES` | `50` | How many stored messages a resume replays. `0` disables resume. |
+| `PAIDER_MEMORY_LIMIT` | `100` | How many durable facts ride in the system prompt. Oldest are trimmed first. |
 
 Truthy values are `1`, `true`, `on`, `yes` in any case; anything unrecognised **fails closed**.
 
@@ -49,6 +50,20 @@ project. Two deliberate asymmetries:
 - **Context files store the path, not the content.** They are re-read from disk on resume, so an
   edit between runs is picked up and `PatchFileTool`'s sha256 stamp describes what is actually
   there. A stored copy would hand it a stamp that can never match, and no patch would apply.
+
+## Memory
+
+The `remember` tool records durable project facts — conventions, decisions, where things live —
+which are replayed into the system prompt of every later session as their own message, separate
+from the tool protocol so a wrong fact can never corrupt the tool-call contract. They are labelled
+to the model as context, **not** as instructions.
+
+`remember` is the one tool with no approval prompt. Every gated tool acts *outside* the project;
+this one appends a row to the project's own gitignored database and nothing else. Prompting for it
+would train the user to approve reflexively, which is how a real approval prompt stops being read.
+
+Values are capped at 2 KB because every stored fact is re-sent on every turn of every future
+session — an unbounded value is a permanent recurring cost, not a one-off.
 
 **Privacy consequence, stated plainly:** anything that reached a prompt now outlives the process.
 `.paider/` is gitignored, but the conversation is on disk until the file is deleted. Set
@@ -73,7 +88,7 @@ chosen architecture, not just the v0.1 slice.
 | **Events** | append-only log, JSON payload per row | ✅ **v0.1** | all tier_calls, tool results, approvals; the source of truth for the cost ledger |
 | **Cost ledger** | per-tier token and spend accounting | ✅ **v0.1** | pure projection over events, never mutable; see below — this is a feature, not plumbing |
 | **Sessions** | conversation history, files in context | ✅ **v0.2** | `session_*` events, projected by `SessionStore`; resumable across runs, survives a reboot |
-| **Memory** | durable project facts worth carrying between sessions | ⬜ **v0.2** | the thing that makes the second run smarter than the first |
+| **Memory** | durable project facts worth carrying between sessions | ✅ **v0.2** | `memory_set`/`memory_retract` events, projected by `MemoryStore`; the thing that makes the second run smarter than the first |
 | **Response cache** | Laravel's `database` cache driver, same file | ⬜ **v0.2** | prompt-cache-aware; identical requests should not be paid for twice |
 | **Credentials** | AES-256-GCM blobs via `openssl` | ⬜ **v0.2** | no Node service, no keyring dependency; user-scoped in `~/.paider/paider.db` |
 | **Task board** | plan items and their state | ⬜ **v0.3** | what the v0.3 terminal kanban renders from |

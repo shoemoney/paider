@@ -5,6 +5,7 @@ namespace App\Agent;
 use App\Approval\Gate;
 use App\Providers\Contracts\ProviderClient;
 use App\Storage\EventLog;
+use App\Storage\MemoryStore;
 use App\Storage\SessionStore;
 use App\Support\ModelPricing;
 use App\Support\PhpSpinner;
@@ -314,6 +315,15 @@ class Loop
     private function buildMessages(Session $session): array
     {
         $messages = [['role' => 'system', 'content' => $this->systemInstruction()]];
+
+        // Durable facts ride as their own system message rather than being concatenated into
+        // the tool instructions: they are project data, not protocol, and keeping them separate
+        // means a bad remembered fact can never corrupt the tool-call contract.
+        $memory = (new MemoryStore($this->eventLog))->systemMessage();
+
+        if ($memory !== null) {
+            $messages[] = ['role' => 'system', 'content' => $memory];
+        }
 
         // /add'ed files must be disclosed with the same sha256 stamp PatchFileTool checks —
         // otherwise the model can never supply a stamp that will actually match on apply.

@@ -18,6 +18,7 @@ use App\Support\SettingsStore;
 use App\Tools\ArtisanTool;
 use App\Tools\FetchUrlTool;
 use App\Tools\GitTool;
+use App\Tools\MemoryTool;
 use App\Tools\PatchFileTool;
 use App\Tools\ReadFileTool;
 use App\Tools\ShellTool;
@@ -63,6 +64,7 @@ class ChatCommand extends Command
             new PatchFileTool($this->projectRoot),
             new ShellTool($this->projectRoot),
             new FetchUrlTool,
+            new MemoryTool($this->eventLog),
             $this->gitTool,
         ];
 

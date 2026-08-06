@@ -8,6 +8,7 @@ use App\Providers\Contracts\ProviderClient;
 use App\Providers\ProviderResponse;
 use App\Storage\Database;
 use App\Storage\EventLog;
+use App\Storage\MemoryStore;
 use App\Tools\Contracts\Tool;
 use App\Tools\FetchUrlTool;
 use App\Tools\GitTool;
@@ -630,4 +631,43 @@ test('yolo does not let a fetch reach a private address — UrlGuard is not a pr
 
     $toolCalls = array_values(array_filter($log->all(), fn ($e) => $e['type'] === 'tool_call'));
     expect($toolCalls[0]['payload']['ok'])->toBeFalse();
+});
+
+test('remembered facts are sent to the model as their own system message', function () {
+    // Guards against the built-tested-never-wired failure: MemoryStore can be perfectly correct
+    // and still never reach a prompt. This asserts the fact crosses into the request.
+    $log = new EventLog(Database::connect(':memory:'));
+    $log->append(MemoryStore::SET, ['key' => 'test-runner', 'value' => 'pest, not phpunit']);
+
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(content: 'Understood.', tokensIn: 5, tokensOut: 2, raw: []),
+    ]);
+
+    $loop = new Loop([], $provider, new TierRouter, $log, new Gate);
+    $loop->turn(loopTestSession(), 'what test runner?', neverApprove());
+
+    $systems = array_filter($provider->seenMessages[0], fn ($m) => $m['role'] === 'system');
+    $joined = implode("\n", array_column($systems, 'content'));
+
+    expect($joined)->toContain('test-runner: pest, not phpunit');
+
+    // Its own message, not concatenated into the tool protocol — a bad remembered fact must
+    // never be able to corrupt the tool-call contract.
+    expect(array_filter($systems, fn ($m) => str_contains($m['content'], 'test-runner')
+        && str_contains($m['content'], 'To call a tool')))->toBeEmpty();
+});
+
+test('a project with no memories sends no memory system message', function () {
+    $log = new EventLog(Database::connect(':memory:'));
+
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(content: 'Hi.', tokensIn: 5, tokensOut: 2, raw: []),
+    ]);
+
+    (new Loop([], $provider, new TierRouter, $log, new Gate))
+        ->turn(loopTestSession(), 'hello', neverApprove());
+
+    $joined = implode("\n", array_column($provider->seenMessages[0], 'content'));
+
+    expect($joined)->not->toContain('Durable facts');
 });
