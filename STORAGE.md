@@ -19,7 +19,7 @@
 **Nothing user-specific is hardcoded.** Settings are read by `App\Storage\ProjectEnv`, highest
 precedence first:
 
-1. a real environment variable — `PAIDER_YOLO=1 paider chat` always wins
+1. a real environment variable — `PAIDER_RESUME_MESSAGES=10 paider chat` always wins
 2. `<project>/.paider/.env`
 3. `<project>/.env`
 
@@ -33,15 +33,42 @@ scrubbing in [`DECISIONS.md` §17](DECISIONS.md).
 
 | variable | default | effect |
 |---|---|---|
-| `PAIDER_YOLO` | `0` | Approve every action without asking. Cannot bypass `PathGuard` or `UrlGuard`. |
+
 | `PAIDER_RESUME_MESSAGES` | `50` | How many stored messages a resume replays. `0` disables resume. |
 | `PAIDER_MEMORY_LIMIT` | `100` | How many durable facts ride in the system prompt. Oldest are trimmed first. |
-| `PAIDER_FETCH_ALLOW` | *(empty)* | Comma-separated hostnames `fetch_url` may reach even though they resolve to a private address — your own Forgejo, a local SearXNG. |
+
 | `NO_COLOR` | unset | Any non-empty value disables all colour output, per [no-color.org](https://no-color.org). Read via `ProjectEnv::get()` so a real environment variable wins over a project `.env`, matching the standard. |
 | `PAIDER_COLOR` | unset (auto-detect) | Explicit override, wins over everything including `NO_COLOR` — but only as a **real** environment variable; a `.paider/.env`-sourced `PAIDER_COLOR=1` cannot override the operator's own real `NO_COLOR`, or a cloned repo could silently turn colour back on for someone who disabled it system-wide. Falsy forces plain output, truthy forces colour even when piped — our `FORCE_COLOR` equivalent. Unset runs the normal detection ladder (`Palette::enabled()`). |
 | `PAIDER_THEME` | unset (respect the terminal) | Bundled theme name (`dracula`, `gruvbox-dark`, `solarized-light`, `high-contrast`) resolving every `ColorRole` to that theme's absolute colours instead of the default symbolic ANSI-16 slots. Unknown name falls back silently to the default. |
 
 Truthy values are `1`, `true`, `on`, `yes` in any case; anything unrecognised **fails closed**.
+
+### Authority settings — real environment ONLY, never a project file
+
+These two are **not** read from `.paider/.env` or `.env`. They come from the process environment
+you exported in your own shell, and nowhere else:
+
+| variable | default | effect |
+|---|---|---|
+| `PAIDER_YOLO` | `0` | Approve every action without asking. Cannot bypass `PathGuard` or `UrlGuard`. |
+| `PAIDER_FETCH_ALLOW` | *(empty)* | Comma-separated hostnames `fetch_url` may reach even though they resolve to a private address — your own Forgejo, a local SearXNG. |
+
+```bash
+PAIDER_YOLO=1 paider chat          # works
+echo 'PAIDER_YOLO=1' > .paider/.env && paider chat   # deliberately does NOT
+```
+
+**Why, and it is not a style preference.** A repository ships its own `.paider/.env`. Anything
+reachable through the project-scoped path is therefore a setting *the repository controls*. When
+`PAIDER_YOLO` was readable that way — as it was, briefly — a hostile repo could carry two lines and
+grant itself unprompted `run_shell` against anyone who cloned it and ran Paider inside, plus a
+named private address punched through `UrlGuard`. That is `git clone` to remote code execution,
+authorised by the code under review to itself. Reproduced, then fixed.
+
+A project may state **preferences**. It may not grant itself **permissions**. `ProjectEnv::
+fromEnvironment()` is the seam that enforces the split, and `ProjectSelfAuthorizationTest` pins it —
+including a source-grep invariant so a later tidy-up that routes these back through
+`ProjectEnv::get()` fails loudly.
 
 ## Colour
 
