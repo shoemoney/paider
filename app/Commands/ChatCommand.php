@@ -15,6 +15,7 @@ use App\Support\Banner;
 use App\Support\ChatPrompt;
 use App\Support\SettingsStore;
 use App\Tools\ArtisanTool;
+use App\Tools\FetchUrlTool;
 use App\Tools\GitTool;
 use App\Tools\PatchFileTool;
 use App\Tools\ReadFileTool;
@@ -57,6 +58,7 @@ class ChatCommand extends Command
             new WriteFileTool($this->projectRoot),
             new PatchFileTool($this->projectRoot),
             new ShellTool($this->projectRoot),
+            new FetchUrlTool,
             $this->gitTool,
         ];
 

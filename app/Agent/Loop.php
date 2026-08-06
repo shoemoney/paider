@@ -172,6 +172,10 @@ class Loop
             return $this->dispatchArtisan($tool, $input, $approvalPrompt);
         }
 
+        if ($name === 'fetch_url') {
+            return $this->dispatchFetch($tool, $input, $approvalPrompt);
+        }
+
         if ($name === 'write_file' || $name === 'patch_file') {
             return $this->dispatchWrite($tool, $session, $input, $approvalPrompt);
         }
@@ -197,6 +201,21 @@ class Loop
         }
 
         return $this->dispatchGated($tool, $input, $input['command'], $approvalPrompt);
+    }
+
+    /**
+     * The approval subject is the URL itself, so the human sees exactly where the request is
+     * going. Same fail-closed-before-the-gate discipline as dispatchShell: a non-string url
+     * would show the approver an empty subject, and a session grant on '' would then stand in
+     * for every later fetch.
+     */
+    private function dispatchFetch(Tool $tool, array $input, callable $approvalPrompt): ToolResult
+    {
+        if (! is_string($input['url'] ?? null) || $input['url'] === '') {
+            return ToolResult::fail('url must be a string');
+        }
+
+        return $this->dispatchGated($tool, $input, $input['url'], $approvalPrompt);
     }
 
     private function dispatchArtisan(Tool $tool, array $input, callable $approvalPrompt): ToolResult
