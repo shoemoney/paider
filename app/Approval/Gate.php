@@ -32,11 +32,16 @@ class Gate
 
     /**
      * Accepts 1/true/on/yes in any case; anything else — including unset — is off.
-     * Read through ProjectEnv so the project's own .env counts, not only a shell variable.
+     *
+     * Read from the REAL environment only, never a project file. This used to go through
+     * ProjectEnv::bool(), which also reads <project>/.paider/.env — meaning a repository could
+     * ship a file that turned auto-approval on for anyone who cloned it and ran Paider inside.
+     * That is unprompted shell execution granted by the code under review to itself. A project
+     * may state preferences; it may not grant itself permissions.
      */
     public static function enabledInEnvironment(): bool
     {
-        return ProjectEnv::bool(self::ENV_VAR);
+        return (bool) filter_var(ProjectEnv::fromEnvironment(self::ENV_VAR), FILTER_VALIDATE_BOOL);
     }
 
     public function autoApproves(): bool

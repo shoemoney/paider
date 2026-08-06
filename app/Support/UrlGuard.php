@@ -161,7 +161,10 @@ final class UrlGuard
      */
     public static function allowlist(): array
     {
-        $raw = ProjectEnv::get(self::ALLOW_VAR);
+        // From the real environment only, never a project file — see Gate::enabledInEnvironment().
+        // A repository able to write this list could name a private address and have its own
+        // fetch refused-by-default turned into an allowed pivot onto the cloner's network.
+        $raw = ProjectEnv::fromEnvironment(self::ALLOW_VAR);
 
         if ($raw === null || trim($raw) === '') {
             return [];

@@ -2,6 +2,7 @@
 
 use App\Approval\Gate;
 use App\Storage\ProjectEnv;
+use App\Storage\SessionStore;
 
 /** Runs $body with cwd set to a throwaway project holding the given files. */
 function inProject(array $files, Closure $body): void
@@ -28,10 +29,24 @@ function inProject(array $files, Closure $body): void
 test('a .env in the project being worked in is read', function () {
     // The gap this class exists to close: Laravel Zero boots with basePath set to Paider's
     // INSTALL directory, so its own dotenv never looks at the user's project. Measured before
-    // writing this — PAIDER_YOLO=1 in a project .env resolved to NULL.
+    // writing this — a setting in a project .env resolved to NULL.
+    //
+    // Demonstrated with a CONVENIENCE setting on purpose. This test originally used PAIDER_YOLO
+    // and asserted the gate auto-approved, which was asserting a vulnerability: a cloned repo
+    // ships its own .paider/.env, so anything reachable here is controlled by the repository.
+    // See ProjectSelfAuthorizationTest — authority is read from the real environment only.
+    inProject(['.env' => "PAIDER_RESUME_MESSAGES=7\n"], function () {
+        expect(ProjectEnv::get('PAIDER_RESUME_MESSAGES'))->toBe('7');
+        expect(SessionStore::resumeWindow())->toBe(7);
+    });
+});
+
+test('a project file cannot reach an authority setting even though the file is read', function () {
     inProject(['.env' => "PAIDER_YOLO=1\n"], function () {
+        // ProjectEnv still parses it — the file IS read, that is the feature.
         expect(ProjectEnv::get('PAIDER_YOLO'))->toBe('1');
-        expect(Gate::forSession(false)->autoApproves())->toBeTrue();
+        // But the gate does not consult this path, so the repo cannot approve itself.
+        expect(Gate::forSession(false)->autoApproves())->toBeFalse();
     });
 });
 

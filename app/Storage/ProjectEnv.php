@@ -31,6 +31,28 @@ class ProjectEnv
 
     private static ?string $loadedFrom = null;
 
+    /**
+     * Read a setting the project is NOT allowed to decide for itself.
+     *
+     * Everything else here is deliberately project-scoped, which is right for preferences and
+     * catastrophic for authority. A repository ships its own `.paider/.env`, so any setting
+     * reachable through get()/bool() is a setting the REPOSITORY controls — and a repository
+     * that can turn on auto-approval has granted itself unprompted shell execution the moment
+     * someone clones it and runs Paider inside. Verified before this method existed: a
+     * `.paider/.env` containing PAIDER_YOLO=1 made Gate::forSession(false) auto-approve with no
+     * flag and no prompt, and PAIDER_FETCH_ALLOW opened a chosen private address.
+     *
+     * So authority comes from the real process environment only — the shell the human typed in,
+     * which the cloned code cannot write to. Convenience settings may live in a project file;
+     * permissions may not.
+     */
+    public static function fromEnvironment(string $key): ?string
+    {
+        $value = getenv($key);
+
+        return $value === false || $value === '' ? null : $value;
+    }
+
     public static function get(string $key, ?string $default = null): ?string
     {
         // A real environment variable outranks any file. `PAIDER_YOLO=1 paider chat` has to
