@@ -553,3 +553,23 @@ test('a rejected out-of-root write does not poison the undo stack — /undo stay
     expect(file_get_contents($victim))->toBe('IMPORTANT USER DATA');
     expect($session->undo())->toBe(['status' => 'empty']);
 });
+
+test('a tool observation is sent back as a user turn, so the conversation never ends on an assistant prefill', function () {
+    $tool = new RecordingTool;
+    $call = json_encode(['name' => 'fake_tool', 'input' => []]);
+
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(content: "```tool\n{$call}\n```", tokensIn: 10, tokensOut: 5, raw: []),
+        new ProviderResponse(content: 'All done.', tokensIn: 5, tokensOut: 2, raw: []),
+    ]);
+
+    $loop = new Loop([$tool], $provider, new TierRouter, new EventLog(Database::connect(':memory:')), new Gate);
+
+    $loop->turn(loopTestSession(), 'do the thing', neverApprove());
+
+    // Anthropic rejects a trailing assistant turn as an unsupported prefill (400), so every
+    // request the loop makes after a tool call has to end on a user message.
+    foreach ($provider->seenMessages as $messages) {
+        expect(end($messages)['role'])->toBe('user');
+    }
+});

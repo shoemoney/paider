@@ -9,6 +9,7 @@ use App\Support\ModelPricing;
 use App\Tools\Contracts\Tool;
 use App\Tools\ToolResult;
 
+use function Laravel\Prompts\spin;
 use function Laravel\Prompts\stream;
 
 /**
@@ -44,7 +45,15 @@ class Loop
 
         for ($i = 0; $i < self::MAX_TOOL_CALLS_PER_TURN; $i++) {
             $resolved = $this->tierRouter->resolve('plan', $session->tierOverrides());
-            $response = $this->provider->send($this->buildMessages($session), $resolved['model']);
+
+            // The provider call is a blocking synchronous HTTP request that can sit for
+            // minutes; without this the terminal reads as hung. spin() degrades itself to a
+            // single static line when stdout isn't decorated or pcntl is missing, so it
+            // neither forks nor animates under the test suite or a piped run.
+            $response = spin(
+                fn () => $this->provider->send($this->buildMessages($session), $resolved['model']),
+                $resolved['model'],
+            );
 
             // 'model' now names what was actually billed, not what was asked for — a
             // provider can alias/route/fallback to a different id than requested, and
@@ -85,7 +94,14 @@ class Loop
                 'ok' => $result->ok,
             ]);
 
-            $session->pushHistory('assistant', $this->observationText($call['name'], $result));
+            // Observations go back as 'user', not 'assistant'. The next iteration re-sends the
+            // whole history, so an assistant-role observation would leave the conversation
+            // ENDING on an assistant turn — which Anthropic reads as a prefill and rejects
+            // outright ("This model does not support assistant message prefill. The
+            // conversation must end with a user message."), 400ing every turn that called a
+            // tool. Applies to both clients: AnthropicClient hits it natively, and OpenRouter
+            // surfaces the same provider error through the OpenAI-compatible path.
+            $session->pushHistory('user', $this->observationText($call['name'], $result));
         }
 
         $this->renderProse('Hit the 10 tool-call limit for this turn — stopping here. Ask again to continue.');
