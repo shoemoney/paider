@@ -12,6 +12,7 @@ use App\Providers\OpenAiCompatibleClient;
 use App\Storage\Database;
 use App\Storage\EventLog;
 use App\Support\Banner;
+use App\Support\ChatPrompt;
 use App\Support\SettingsStore;
 use App\Tools\ArtisanTool;
 use App\Tools\GitTool;
@@ -22,7 +23,6 @@ use App\Tools\WriteFileTool;
 use LaravelZero\Framework\Commands\Command;
 
 use function Laravel\Prompts\select;
-use function Laravel\Prompts\textarea;
 use function Termwind\render;
 
 class ChatCommand extends Command
@@ -81,11 +81,9 @@ class ChatCommand extends Command
         HTML);
 
         while (! $this->quitRequested) {
-            // textarea, not text: text() is a single line that scrolls horizontally and elides
-            // the overflow behind a '…', so a long prompt becomes unreadable while typing it.
-            // The trade is that Enter inserts a newline and Ctrl+D sends — the renderer prints
-            // that hint itself, so it needs no extra label here.
-            $line = textarea('paider>', rows: 3);
+            // ChatPrompt, not text()/textarea() — see that class for why neither stock
+            // prompt works here.
+            $line = ChatPrompt::ask('paider>');
 
             if ($this->handleSlashCommand($session, $line)) {
                 continue;

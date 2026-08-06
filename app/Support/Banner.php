@@ -35,11 +35,15 @@ final class Banner
     private const SUBTITLE_COL = 8;
 
     /**
-     * toilet's `--metal` filter sweeps blue -> white -> gray -> bright blue on the diagonal.
-     * Reproducing the sweep rather than pasting toilet's escape bytes keeps one plain copy of
-     * the art, which is what the undecorated branch below prints.
+     * A blue -> steel -> white sweep down the diagonal, after toilet's `--metal`. Reproducing
+     * the sweep rather than pasting toilet's escape bytes keeps one plain copy of the art,
+     * which is what the undecorated branch below prints.
+     *
+     * toilet's own palette runs through bright-black (1;30), which on a dark terminal renders
+     * as barely-visible charcoal and made the lower half of the mark look washed out. This
+     * brightens toward the bottom-right instead, so every row stays legible.
      */
-    private const METAL = ['0;34', '0;37', '1;30', '1;34'];
+    private const METAL = ['0;34', '0;94', '0;37', '1;37'];
 
     public static function render(): string
     {

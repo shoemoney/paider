@@ -6,12 +6,12 @@ use App\Approval\Gate;
 use App\Providers\Contracts\ProviderClient;
 use App\Storage\EventLog;
 use App\Support\ModelPricing;
+use App\Support\ProseStream;
 use App\Tools\Contracts\Tool;
 use App\Tools\ToolResult;
 use Symfony\Component\Console\Terminal;
 
 use function Laravel\Prompts\spin;
-use function Laravel\Prompts\stream;
 use function Termwind\render;
 
 /**
@@ -343,12 +343,12 @@ class Loop
             return;
         }
 
-        // Do NOT pre-wrap $content here: Stream already word-wraps every line to
-        // terminal cols - 20 (Stream::__construct), and wrapping first only means those
-        // already-broken lines get re-wrapped, which renders as alternating long/short
-        // ragged lines. Prose wrapping is Stream's job; the tool lines below wrap themselves
-        // because they don't go through Stream at all.
-        $out = stream();
+        // Do NOT pre-wrap $content here: the stream already word-wraps every line itself, and
+        // wrapping first only means those already-broken lines get re-wrapped, which renders
+        // as alternating long/short ragged lines. Prose wrapping is the stream's job — see
+        // ProseStream for the margin — and the tool lines below wrap themselves because they
+        // don't go through it at all.
+        $out = new ProseStream;
 
         foreach (str_split($content, 20) ?: [''] as $chunk) {
             $out->append($chunk);
