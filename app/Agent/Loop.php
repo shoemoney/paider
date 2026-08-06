@@ -6,12 +6,12 @@ use App\Approval\Gate;
 use App\Providers\Contracts\ProviderClient;
 use App\Storage\EventLog;
 use App\Support\ModelPricing;
+use App\Support\PhpSpinner;
 use App\Support\ProseStream;
 use App\Tools\Contracts\Tool;
 use App\Tools\ToolResult;
 use Symfony\Component\Console\Terminal;
 
-use function Laravel\Prompts\spin;
 use function Termwind\render;
 
 /**
@@ -49,12 +49,12 @@ class Loop
             $resolved = $this->tierRouter->resolve('plan', $session->tierOverrides());
 
             // The provider call is a blocking synchronous HTTP request that can sit for
-            // minutes; without this the terminal reads as hung. spin() degrades itself to a
+            // minutes; without this the terminal reads as hung. Spinner degrades itself to a
             // single static line when stdout isn't decorated or pcntl is missing, so it
             // neither forks nor animates under the test suite or a piped run.
-            $response = spin(
-                fn () => $this->provider->send($this->buildMessages($session), $resolved['model']),
+            $response = PhpSpinner::while(
                 $resolved['model'],
+                fn () => $this->provider->send($this->buildMessages($session), $resolved['model']),
             );
 
             // 'model' now names what was actually billed, not what was asked for — a

@@ -24,6 +24,7 @@ final class PromptTheme
         Prompt::addTheme(self::NAME, [
             ProseStream::class => StreamRenderer::class,
             ChatPrompt::class => ChatPromptRenderer::class,
+            PhpSpinner::class => PhpSpinnerRenderer::class,
         ]);
 
         Prompt::theme(self::NAME);
