@@ -2,6 +2,8 @@
 
 namespace App\Approval;
 
+use App\Storage\ProjectEnv;
+
 /**
  * In-memory-only approval state. Nothing here survives process exit, and the only
  * thing ever stored is a grant — there is no way to read a cached 'deny' as though
@@ -28,12 +30,13 @@ class Gate
         return new self($flagged || self::enabledInEnvironment());
     }
 
-    /** Accepts 1/true/on/yes in any case; anything else — including unset — is off. */
+    /**
+     * Accepts 1/true/on/yes in any case; anything else — including unset — is off.
+     * Read through ProjectEnv so the project's own .env counts, not only a shell variable.
+     */
     public static function enabledInEnvironment(): bool
     {
-        $value = getenv(self::ENV_VAR);
-
-        return $value !== false && filter_var($value, FILTER_VALIDATE_BOOL);
+        return ProjectEnv::bool(self::ENV_VAR);
     }
 
     public function autoApproves(): bool

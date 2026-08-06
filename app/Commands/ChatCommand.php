@@ -11,6 +11,7 @@ use App\Providers\Contracts\ProviderClient;
 use App\Providers\OpenAiCompatibleClient;
 use App\Storage\Database;
 use App\Storage\EventLog;
+use App\Storage\SessionStore;
 use App\Support\Banner;
 use App\Support\ChatPrompt;
 use App\Support\SettingsStore;
@@ -40,6 +41,8 @@ class ChatCommand extends Command
 
     private bool $quitRequested = false;
 
+    private ?EventLog $eventLog = null;
+
     public function __construct()
     {
         parent::__construct();
@@ -51,6 +54,7 @@ class ChatCommand extends Command
 
     public function handle(): int
     {
+        $this->eventLog = new EventLog(Database::connect());
         $session = new Session($this->readFileTool, $this->projectRoot);
 
         $tools = [
@@ -72,7 +76,7 @@ class ChatCommand extends Command
             $tools,
             $this->resolveProvider(),
             new TierRouter,
-            new EventLog(Database::connect()),
+            $this->eventLog,
             $gate,
         );
 
@@ -94,6 +98,8 @@ class ChatCommand extends Command
                 <span class="text-gray">type </span><span class="text-cyan">/quit</span><span class="text-gray"> to exit</span>
             </div>
         HTML);
+
+        $this->resume($session);
 
         while (! $this->quitRequested) {
             // ChatPrompt, not text()/textarea() — see that class for why neither stock
@@ -133,6 +139,7 @@ class ChatCommand extends Command
                 return true;
             case '/drop':
                 $session->dropFile($rest);
+                $this->eventLog?->append(SessionStore::FILE_DROPPED, ['path' => $rest]);
 
                 return true;
             case '/diff':
@@ -165,9 +172,57 @@ class ChatCommand extends Command
     {
         $result = $session->addFile($path);
 
+        // Recorded only on success: a path that failed to read is not in context, and
+        // replaying it later would re-fail on every resume for the rest of the project's life.
+        if ($result->ok) {
+            $this->eventLog?->append(SessionStore::FILE_ADDED, ['path' => $path]);
+        }
+
         render($result->ok
             ? "<div class=\"ml-2\">added {$path}</div>"
             : "<div class=\"ml-2 text-red-500\">{$result->output}</div>");
+    }
+
+    /**
+     * Rebuild the previous conversation before the first turn. Runs after the banner so the
+     * user is told what was restored rather than silently starting mid-conversation with a
+     * context they can no longer see.
+     */
+    private function resume(Session $session): void
+    {
+        if ($this->eventLog === null) {
+            return;
+        }
+
+        $store = new SessionStore($this->eventLog);
+        $window = SessionStore::resumeWindow();
+
+        if ($window === 0 || $store->isEmpty()) {
+            return;
+        }
+
+        $messages = $store->messages($window);
+
+        $session->replay($messages);
+
+        // Files are re-read from disk rather than restored from the log, so a file edited
+        // since the last run comes back current — and its sha256 stamp describes what is
+        // actually there, which is the only way a later patch can apply.
+        $files = 0;
+
+        foreach ($store->contextFiles() as $path) {
+            if ($session->addFile($path)->ok) {
+                $files++;
+            }
+        }
+
+        render(sprintf(
+            '<div class="mb-1"><span class="text-cyan">resumed</span>'
+            .'<span class="text-gray ml-1">%d message%s%s — /quit does not clear it</span></div>',
+            count($messages),
+            count($messages) === 1 ? '' : 's',
+            $files > 0 ? sprintf(', %d file%s', $files, $files === 1 ? '' : 's') : '',
+        ));
     }
 
     private function handleDiff(): void

@@ -73,6 +73,23 @@ class Session
         return $this->files;
     }
 
+    /**
+     * Rehydrate a stored conversation. Called after construction, so the system message this
+     * class derived from PAIDER.md/CLAUDE.md/AGENTS.md is already at the head of the history
+     * and the replayed turns land after it in the right order.
+     *
+     * $messages must not contain a 'system' entry — SessionStore filters those out — or the
+     * context file would be posted twice, once fresh from disk and once as a stale copy.
+     *
+     * @param  array<int, array{role: string, content: string}>  $messages
+     */
+    public function replay(array $messages): void
+    {
+        foreach ($messages as $message) {
+            $this->pushHistory($message['role'], $message['content']);
+        }
+    }
+
     public function pushHistory(string $role, string $content): void
     {
         $this->sealPendingUndo();

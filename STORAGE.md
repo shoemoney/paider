@@ -4,12 +4,55 @@
 `pdo_sqlite`, one of the twelve compiled extensions.
 
 ```
-.paider/paider.db        # project-scoped: ✅ events (append-only), cost ledger (projection)
+.paider/paider.db        # project-scoped: ✅ events (append-only), cost ledger (projection),
+                         #                 ✅ sessions (session_* events)
                          # gitignored: the event log accumulates all calls and is local-only
-                         # planned v0.2+: sessions, memory, response cache
+                         # planned v0.2+: memory, response cache
                          # planned v0.3+: task board
+.paider/.env             # ✅ project-scoped settings, read by ProjectEnv (gitignored with .paider/)
+<project>/.env           # ✅ also read, lower precedence than .paider/.env
 ~/.paider/paider.db      # planned v0.2: credentials (AES-256-GCM via openssl), global preferences
 ```
+
+## Configuration
+
+**Nothing user-specific is hardcoded.** Settings are read by `App\Storage\ProjectEnv`, highest
+precedence first:
+
+1. a real environment variable — `PAIDER_YOLO=1 paider chat` always wins
+2. `<project>/.paider/.env`
+3. `<project>/.env`
+
+This exists because Laravel Zero boots with `basePath` set to Paider's **install** directory, so
+its built-in `env()` reads a `.env` sitting next to the installation and never looks at the project
+you are working in. Anyone following "put it in your .env" was configuring nothing.
+
+Values are parsed array-backed and are **never** exported via `putenv()`/`$_ENV` — otherwise every
+project setting would leak into every subprocess `ShellTool` spawns, undoing the environment
+scrubbing in [`DECISIONS.md` §17](DECISIONS.md).
+
+| variable | default | effect |
+|---|---|---|
+| `PAIDER_YOLO` | `0` | Approve every action without asking. Cannot bypass `PathGuard` or `UrlGuard`. |
+| `PAIDER_RESUME_MESSAGES` | `50` | How many stored messages a resume replays. `0` disables resume. |
+
+Truthy values are `1`, `true`, `on`, `yes` in any case; anything unrecognised **fails closed**.
+
+## Sessions survive process exit
+
+Every turn is appended as a `session_message` event and replayed on the next run in the same
+project. Two deliberate asymmetries:
+
+- **The system message is never replayed.** `Session`'s constructor re-derives it from
+  `PAIDER.md`/`CLAUDE.md`/`AGENTS.md` on every run, so replaying a stored copy would post it twice
+  and pin a stale version of a file that may have been edited since.
+- **Context files store the path, not the content.** They are re-read from disk on resume, so an
+  edit between runs is picked up and `PatchFileTool`'s sha256 stamp describes what is actually
+  there. A stored copy would hand it a stamp that can never match, and no patch would apply.
+
+**Privacy consequence, stated plainly:** anything that reached a prompt now outlives the process.
+`.paider/` is gitignored, but the conversation is on disk until the file is deleted. Set
+`PAIDER_RESUME_MESSAGES=0` to keep the old behaviour where it died at exit.
 
 **Confirmed under the FrankenPHP embed binary** (measured 2026-08-02 — see
 [`DECISIONS.md` §8](DECISIONS.md)): an in-memory `pdo_sqlite` create/insert/select round-trip
@@ -29,7 +72,7 @@ chosen architecture, not just the v0.1 slice.
 |---|---|---|---|
 | **Events** | append-only log, JSON payload per row | ✅ **v0.1** | all tier_calls, tool results, approvals; the source of truth for the cost ledger |
 | **Cost ledger** | per-tier token and spend accounting | ✅ **v0.1** | pure projection over events, never mutable; see below — this is a feature, not plumbing |
-| **Sessions** | conversation history, files in context, current plan | ⬜ **v0.2** | resumable across runs, survives a reboot |
+| **Sessions** | conversation history, files in context | ✅ **v0.2** | `session_*` events, projected by `SessionStore`; resumable across runs, survives a reboot |
 | **Memory** | durable project facts worth carrying between sessions | ⬜ **v0.2** | the thing that makes the second run smarter than the first |
 | **Response cache** | Laravel's `database` cache driver, same file | ⬜ **v0.2** | prompt-cache-aware; identical requests should not be paid for twice |
 | **Credentials** | AES-256-GCM blobs via `openssl` | ⬜ **v0.2** | no Node service, no keyring dependency; user-scoped in `~/.paider/paider.db` |

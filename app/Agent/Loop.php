@@ -5,6 +5,7 @@ namespace App\Agent;
 use App\Approval\Gate;
 use App\Providers\Contracts\ProviderClient;
 use App\Storage\EventLog;
+use App\Storage\SessionStore;
 use App\Support\ModelPricing;
 use App\Support\PhpSpinner;
 use App\Support\ProseStream;
@@ -43,7 +44,7 @@ class Loop
     /** @param callable(string): string $approvalPrompt returns 'allow-once'|'allow-session'|'deny' */
     public function turn(Session $session, string $userInput, callable $approvalPrompt): void
     {
-        $session->pushHistory('user', $userInput);
+        $this->remember($session, 'user', $userInput);
 
         for ($i = 0; $i < self::MAX_TOOL_CALLS_PER_TURN; $i++) {
             $resolved = $this->tierRouter->resolve('plan', $session->tierOverrides());
@@ -80,7 +81,7 @@ class Loop
             ]);
 
             $call = $this->parseToolCall($response->content);
-            $session->pushHistory('assistant', $response->content);
+            $this->remember($session, 'assistant', $response->content);
 
             if ($call === null) {
                 $this->renderProse($response->content);
@@ -108,10 +109,23 @@ class Loop
             // conversation must end with a user message."), 400ing every turn that called a
             // tool. Applies to both clients: AnthropicClient hits it natively, and OpenRouter
             // surfaces the same provider error through the OpenAI-compatible path.
-            $session->pushHistory('user', $this->observationText($call['name'], $result));
+            $this->remember($session, 'user', $this->observationText($call['name'], $result));
         }
 
         $this->renderProse('Hit the 10 tool-call limit for this turn — stopping here. Ask again to continue.');
+    }
+
+    /**
+     * Every turn of the conversation goes to the in-memory Session AND to the append-only log,
+     * in that order, so a later run can replay it. The system message Session derives from
+     * PAIDER.md/CLAUDE.md/AGENTS.md is deliberately not routed through here — SessionStore
+     * re-derives it from disk instead of replaying a stale copy.
+     */
+    private function remember(Session $session, string $role, string $content): void
+    {
+        $session->pushHistory($role, $content);
+
+        $this->eventLog->append(SessionStore::MESSAGE, ['role' => $role, 'content' => $content]);
     }
 
     /**

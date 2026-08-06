@@ -1,0 +1,105 @@
+<?php
+
+namespace App\Storage;
+
+use Dotenv\Dotenv;
+
+/**
+ * Configuration read from the project Paider is being RUN in, not the directory Paider is
+ * installed in.
+ *
+ * Laravel Zero boots with `basePath: dirname(__DIR__)`, so its own dotenv reads the `.env`
+ * sitting next to the installation — a global `composer global require` directory, or the phar.
+ * Nothing in the user's project is ever consulted. Verified: with cwd set to a test project
+ * holding `PAIDER_YOLO=1` in its `.env`, `env('PAIDER_YOLO')` resolved to NULL. Every setting
+ * documented as "put it in your .env" was therefore silently inert for anyone who did not
+ * happen to be running from a checkout of Paider itself.
+ *
+ * Precedence, highest first:
+ *   1. a real environment variable (an explicit `FOO=1 paider chat` must always win)
+ *   2. <project>/.paider/.env   — Paider's own settings, beside the database, already gitignored
+ *   3. <project>/.env           — the project's existing file, for teams that keep one
+ *
+ * Nothing here is ever written back, and no value is exported into the process environment:
+ * putenv() would leak project settings into every subprocess ShellTool spawns, which is exactly
+ * what DECISIONS.md §17 scrubbed the child environment to prevent.
+ */
+class ProjectEnv
+{
+    /** @var array<string, string>|null */
+    private static ?array $cache = null;
+
+    private static ?string $loadedFrom = null;
+
+    public static function get(string $key, ?string $default = null): ?string
+    {
+        // A real environment variable outranks any file. `PAIDER_YOLO=1 paider chat` has to
+        // beat a `.env` that says otherwise, or the flag becomes unpredictable.
+        $live = getenv($key);
+
+        if ($live !== false && $live !== '') {
+            return $live;
+        }
+
+        return self::values()[$key] ?? $default;
+    }
+
+    public static function bool(string $key, bool $default = false): bool
+    {
+        $value = self::get($key);
+
+        return $value === null ? $default : (bool) filter_var($value, FILTER_VALIDATE_BOOL);
+    }
+
+    /** @return array<string, string> */
+    public static function values(): array
+    {
+        if (self::$cache !== null) {
+            return self::$cache;
+        }
+
+        $root = getcwd() ?: '.';
+        self::$cache = [];
+        self::$loadedFrom = null;
+
+        // Later files must not override earlier ones, so the more specific .paider/.env is
+        // read first and the project-wide .env only fills gaps.
+        foreach (['.paider/.env', '.env'] as $relative) {
+            $path = $root.'/'.$relative;
+
+            if (! is_file($path) || ! is_readable($path)) {
+                continue;
+            }
+
+            try {
+                // createArrayBacked: parses into an array WITHOUT touching $_ENV, $_SERVER or
+                // putenv(), so nothing here becomes visible to a spawned subprocess.
+                $parsed = Dotenv::createArrayBacked(dirname($path), basename($path))->load();
+            } catch (\Throwable) {
+                // A malformed .env must not make the tool unusable — it falls back to whatever
+                // the real environment says, exactly like a missing file would.
+                continue;
+            }
+
+            self::$cache += array_map('strval', array_filter($parsed, 'is_scalar'));
+            self::$loadedFrom ??= $path;
+        }
+
+        return self::$cache;
+    }
+
+    /** The first file that supplied any value, for showing the user where a setting came from. */
+    public static function loadedFrom(): ?string
+    {
+        self::values();
+
+        return self::$loadedFrom;
+    }
+
+    /** Test seam — the cache is process-lifetime, and getcwd() changes between tests. */
+    public static function forget(): void
+    {
+        self::$cache = null;
+        self::$loadedFrom = null;
+    }
+}
