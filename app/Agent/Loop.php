@@ -8,9 +8,11 @@ use App\Storage\EventLog;
 use App\Support\ModelPricing;
 use App\Tools\Contracts\Tool;
 use App\Tools\ToolResult;
+use Symfony\Component\Console\Terminal;
 
 use function Laravel\Prompts\spin;
 use function Laravel\Prompts\stream;
+use function Termwind\render;
 
 /**
  * The think -> tool-call -> apply -> observe cycle. One turn is: push the user's message,
@@ -86,7 +88,12 @@ class Loop
                 return;
             }
 
+            $this->renderToolCall($call['name'], $call['input']);
+
+            $startedAt = microtime(true);
             $result = $this->dispatch($session, $call['name'], $call['input'], $approvalPrompt);
+
+            $this->renderToolResult($result, microtime(true) - $startedAt);
 
             $this->eventLog->append('tool_call', [
                 'tool' => $call['name'],
@@ -336,6 +343,11 @@ class Loop
             return;
         }
 
+        // Do NOT pre-wrap $content here: Stream already word-wraps every line to
+        // terminal cols - 20 (Stream::__construct), and wrapping first only means those
+        // already-broken lines get re-wrapped, which renders as alternating long/short
+        // ragged lines. Prose wrapping is Stream's job; the tool lines below wrap themselves
+        // because they don't go through Stream at all.
         $out = stream();
 
         foreach (str_split($content, 20) ?: [''] as $chunk) {
@@ -343,5 +355,62 @@ class Loop
         }
 
         $out->close();
+    }
+
+    /**
+     * Tool activity is the part of a turn that used to print nothing at all — the loop would
+     * shell out, block on an approval prompt and apply writes in complete silence, which reads
+     * as a hung terminal. htmlspecialchars because Termwind parses its argument as markup and
+     * tool input is arbitrary text: an unescaped `>` in a shell redirect would be swallowed.
+     */
+    private function renderToolCall(string $name, array $input): void
+    {
+        $subject = htmlspecialchars($this->summarizeInput($input), ENT_QUOTES);
+        $label = htmlspecialchars($name, ENT_QUOTES);
+
+        // w-12/ml-* rather than str_pad and literal spaces: Termwind trims whitespace at the
+        // edges of an element, so padding baked into the text collapses and the columns lose
+        // their alignment.
+        render("<div class=\"mt-1\"><span class=\"text-cyan w-12\">⚒ {$label}</span><span class=\"text-gray\">{$subject}</span></div>");
+    }
+
+    private function renderToolResult(ToolResult $result, float $seconds): void
+    {
+        $lines = $result->output === '' ? 0 : substr_count($result->output, "\n") + 1;
+        $detail = sprintf('%.1fs · %d line%s', $seconds, $lines, $lines === 1 ? '' : 's');
+
+        render($result->ok
+            ? "<div><span class=\"text-green ml-2\">✓ ok</span><span class=\"text-gray ml-2\">{$detail}</span></div>"
+            : '<div><span class="text-red ml-2">✗ '.htmlspecialchars($this->oneLine($result->output), ENT_QUOTES).'</span></div>');
+    }
+
+    /**
+     * The one field worth showing per tool — the shell command, the file being touched, the git
+     * subcommand. Falls back to the first string in the input so a tool added later still shows
+     * something rather than a bare name.
+     */
+    private function summarizeInput(array $input): string
+    {
+        foreach (['command', 'path', 'op'] as $key) {
+            if (is_string($input[$key] ?? null) && $input[$key] !== '') {
+                return $this->oneLine($input[$key]);
+            }
+        }
+
+        foreach ($input as $value) {
+            if (is_string($value) && $value !== '') {
+                return $this->oneLine($value);
+            }
+        }
+
+        return '';
+    }
+
+    private function oneLine(string $text): string
+    {
+        $text = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+        $width = max(20, (new Terminal)->getWidth() - 16);
+
+        return mb_strlen($text) > $width ? mb_substr($text, 0, $width - 1).'…' : $text;
     }
 }

@@ -11,6 +11,7 @@ use App\Providers\Contracts\ProviderClient;
 use App\Providers\OpenAiCompatibleClient;
 use App\Storage\Database;
 use App\Storage\EventLog;
+use App\Support\Banner;
 use App\Support\SettingsStore;
 use App\Tools\ArtisanTool;
 use App\Tools\GitTool;
@@ -21,7 +22,7 @@ use App\Tools\WriteFileTool;
 use LaravelZero\Framework\Commands\Command;
 
 use function Laravel\Prompts\select;
-use function Laravel\Prompts\text;
+use function Laravel\Prompts\textarea;
 use function Termwind\render;
 
 class ChatCommand extends Command
@@ -71,15 +72,20 @@ class ChatCommand extends Command
             new Gate,
         );
 
+        echo Banner::render();
+
         render(<<<'HTML'
-            <div class="py-1 ml-2">
-                <div class="px-1 bg-blue-300 text-black">Paider</div>
-                <em class="ml-1">chat session started — type /quit to exit</em>
+            <div class="mb-1">
+                <span class="text-gray">type </span><span class="text-cyan">/quit</span><span class="text-gray"> to exit</span>
             </div>
         HTML);
 
         while (! $this->quitRequested) {
-            $line = text('paider>');
+            // textarea, not text: text() is a single line that scrolls horizontally and elides
+            // the overflow behind a '…', so a long prompt becomes unreadable while typing it.
+            // The trade is that Enter inserts a newline and Ctrl+D sends — the renderer prints
+            // that hint itself, so it needs no extra label here.
+            $line = textarea('paider>', rows: 3);
 
             if ($this->handleSlashCommand($session, $line)) {
                 continue;
