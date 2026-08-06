@@ -28,7 +28,7 @@ use function Termwind\render;
 
 class ChatCommand extends Command
 {
-    protected $signature = 'chat';
+    protected $signature = 'chat {--y|yolo : Approve every action without asking. Still cannot leave the project root or reach a private address.}';
 
     protected $description = 'Start an interactive Paider chat session in the current project.';
 
@@ -66,15 +66,28 @@ class ChatCommand extends Command
             $tools[] = new ArtisanTool($this->projectRoot);
         }
 
+        $gate = Gate::forSession((bool) $this->option('yolo'));
+
         $loop = new Loop(
             $tools,
             $this->resolveProvider(),
             new TierRouter,
             new EventLog(Database::connect()),
-            new Gate,
+            $gate,
         );
 
         echo Banner::render();
+
+        // Announced, never silent. A session that has stopped asking must say so, or the next
+        // unprompted `rm -rf` reads as a bug rather than as the setting the user chose — and
+        // PAIDER_YOLO in a shell profile is a setting it is very easy to forget you set.
+        if ($gate->autoApproves()) {
+            render(sprintf(
+                '<div class="mb-1"><span class="px-1 bg-red text-white">YOLO</span>'
+                .'<span class="text-gray ml-1">approving everything%s — writes and commands run unprompted</span></div>',
+                $this->option('yolo') ? '' : ' via '.Gate::ENV_VAR,
+            ));
+        }
 
         render(<<<'HTML'
             <div class="mb-1">

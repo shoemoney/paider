@@ -9,6 +9,7 @@ use App\Providers\ProviderResponse;
 use App\Storage\Database;
 use App\Storage\EventLog;
 use App\Tools\Contracts\Tool;
+use App\Tools\FetchUrlTool;
 use App\Tools\GitTool;
 use App\Tools\PatchFileTool;
 use App\Tools\ReadFileTool;
@@ -572,4 +573,61 @@ test('a tool observation is sent back as a user turn, so the conversation never 
     foreach ($provider->seenMessages as $messages) {
         expect(end($messages)['role'])->toBe('user');
     }
+});
+
+test('a yolo gate runs a shell command without ever asking the human', function () {
+    $tool = new RecordingShellTool;
+    $call = json_encode(['name' => 'run_shell', 'input' => ['command' => 'echo hi']]);
+
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(content: "```tool\n{$call}\n```", tokensIn: 10, tokensOut: 5, raw: []),
+        new ProviderResponse(content: 'Done.', tokensIn: 5, tokensOut: 2, raw: []),
+    ]);
+
+    // neverApprove() throws if the prompt is reached, so reaching the tool at all proves the
+    // gate answered on its own.
+    $loop = new Loop([$tool], $provider, new TierRouter, new EventLog(Database::connect(':memory:')), new Gate(autoApprove: true));
+
+    $loop->turn(loopTestSession(), 'run it', neverApprove());
+
+    expect($tool->lastInput['approval'])->toBe('allow-once');
+});
+
+test('yolo does not let a write escape the project root — that guard is not a prompt', function () {
+    [$session, $root] = loopTestSessionWithRoot();
+    $victimDir = sys_get_temp_dir().'/paider-yolo-victim-'.uniqid();
+    mkdir($victimDir, recursive: true);
+    $victim = $victimDir.'/secret_notes.txt';
+    file_put_contents($victim, 'IMPORTANT USER DATA');
+
+    $call = json_encode(['name' => 'write_file', 'input' => ['path' => $victim, 'content' => 'clobbered']]);
+
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(content: "```tool\n{$call}\n```", tokensIn: 10, tokensOut: 5, raw: []),
+        new ProviderResponse(content: 'Done.', tokensIn: 5, tokensOut: 2, raw: []),
+    ]);
+
+    $loop = new Loop([new WriteFileTool($root)], $provider, new TierRouter, new EventLog(Database::connect(':memory:')), new Gate(autoApprove: true));
+
+    $loop->turn($session, 'write outside root', neverApprove());
+
+    // PathGuard refuses on containment, not on consent, so auto-approval buys nothing here.
+    expect(file_get_contents($victim))->toBe('IMPORTANT USER DATA');
+});
+
+test('yolo does not let a fetch reach a private address — UrlGuard is not a prompt either', function () {
+    $call = json_encode(['name' => 'fetch_url', 'input' => ['url' => 'http://192.168.1.10/admin']]);
+
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(content: "```tool\n{$call}\n```", tokensIn: 10, tokensOut: 5, raw: []),
+        new ProviderResponse(content: 'Done.', tokensIn: 5, tokensOut: 2, raw: []),
+    ]);
+
+    $log = new EventLog(Database::connect(':memory:'));
+    $loop = new Loop([new FetchUrlTool], $provider, new TierRouter, $log, new Gate(autoApprove: true));
+
+    $loop->turn(loopTestSession(), 'fetch the nas', neverApprove());
+
+    $toolCalls = array_values(array_filter($log->all(), fn ($e) => $e['type'] === 'tool_call'));
+    expect($toolCalls[0]['payload']['ok'])->toBeFalse();
 });
