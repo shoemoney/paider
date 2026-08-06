@@ -51,16 +51,42 @@ final class Palette
         'muted' => 'text-gray',
         'success' => 'text-green',
         'error' => 'text-red',
-        'alert' => 'bg-red text-white',
+        'alert' => 'paideralertdefault',
         'brand' => '', // decorative-only, no Termwind consumer today
     ];
+
+    /**
+     * The YOLO badge is the one place a fixed colour beats deferring to the user's theme.
+     *
+     * It read as white-on-orange and was hard to make out, because `1;37;41` is *white* (not
+     * bright-white) over whatever the terminal calls red — and plenty of popular themes make
+     * that slot a bright orange-red, which white sits on at roughly 2:1. A safety announcement
+     * that says "I have stopped asking before running commands" has to survive every theme,
+     * so this one role pins an absolute dark red (#870000, xterm 88) under bright white:
+     * about 19:1, and unambiguously red rather than orange on every terminal.
+     *
+     * ALERT_FALLBACK_SGR is used where 256-colour is not advertised — same intent, 16-colour
+     * slots, bright-white instead of white so it stays the highest-contrast pairing available.
+     *
+     * The Termwind path cannot match that on a 16-colour terminal and deliberately does not try:
+     * `text-bright-white` is a TypeError in Termwind's class parser (it splits on dashes and
+     * wants an int variant), and ->color('bright-white') is rejected outright, so the registered
+     * hex simply degrades to plain white. Measured, not assumed. The badge is therefore
+     * bright-white via sgr() and plain white via tw() on 16-colour terminals only — an accepted
+     * asymmetry rather than a hidden one, since no expressible alternative exists.
+     */
+    public const ALERT_BG_HEX = '#870000';
+
+    public const ALERT_FG_HEX = '#ffffff';
+
+    private const ALERT_FALLBACK_SGR = '1;97;41';
 
     private const DEFAULT_SGR = [
         'accent' => '36',
         'muted' => '90',
         'success' => '32',
         'error' => '31',
-        'alert' => '1;37;41',
+        'alert' => '1;97;48;5;88',
         'brand' => '38;5;103', // the one absolute default colour — 256-colour, gated separately
     ];
 
@@ -212,7 +238,7 @@ final class Palette
      * Termwind class fragment for a role: 'text-cyan' by default, 'paider-accent'
      * under a named theme, '' when disabled. Compose straight into class="" strings —
      * an empty token is harmless. (Named tw, not class: Foo::class is reserved.)
-     * Alert returns a compound fragment: 'bg-red text-white' / 'paider-alert'.
+     * Alert returns a compound fragment: 'paideralertdefault' / 'paider-alert'.
      */
     public static function tw(ColorRole $role): string
     {
@@ -226,9 +252,11 @@ final class Palette
         // Idempotent and a no-op with no theme set, so unconditional here is free.
         self::boot();
 
-        return self::theme() !== null
-            ? 'paider-'.$role->value
-            : self::DEFAULT_TW[$role->value];
+        if (self::theme() !== null) {
+            return 'paider-'.$role->value;
+        }
+
+        return self::DEFAULT_TW[$role->value];
     }
 
     /**
@@ -250,6 +278,14 @@ final class Palette
 
         if ($role === ColorRole::Brand) {
             return self::supports256() ? "\e[".self::DEFAULT_SGR['brand'].'m' : '';
+        }
+
+        // Alert degrades rather than disappearing. Brand is decorative, so dropping its colour
+        // costs nothing; the YOLO badge is a safety announcement, so on a 16-colour terminal it
+        // falls back to bright-white-on-red instead of emitting a 256-colour escape the
+        // terminal would print as literal text.
+        if ($role === ColorRole::Alert && ! self::supports256()) {
+            return "\e[".self::ALERT_FALLBACK_SGR.'m';
         }
 
         return "\e[".self::DEFAULT_SGR[$role->value].'m';
@@ -351,6 +387,15 @@ final class Palette
         $name = self::theme();
 
         if ($name === null) {
+            // The default palette registers exactly one style: the YOLO badge, which pins an
+            // absolute dark red rather than deferring to the terminal's red slot (see
+            // ALERT_BG_HEX). Every other default role is a symbolic Termwind class needing no
+            // registration — that is the whole point of the ANSI-16 default.
+            self::$booted = true;
+            style('paideralertdefaultbg')->color(self::ALERT_BG_HEX);
+            style('paideralertdefaultfg')->color(self::ALERT_FG_HEX);
+            style('paideralertdefault')->apply('bg-paideralertdefaultbg text-paideralertdefaultfg');
+
             return;
         }
 

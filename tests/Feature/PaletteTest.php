@@ -145,3 +145,50 @@ CODE;
     expect($output)->toContain('The PHP Aider');   // it really rendered — not an empty string
     expect($output)->not->toContain("\e");         // ...and rendered without colour
 });
+
+test('the YOLO badge pins a dark red, because white on a bright-red slot was unreadable', function () {
+    // It rendered as white-on-orange on real themes: `1;37;41` is *white* (not bright-white)
+    // over whatever the terminal calls red, and popular themes make that slot a bright
+    // orange-red — about 3.1:1. A badge that announces "I have stopped asking before running
+    // commands" has to survive every theme, so this one role pins an absolute.
+    putenv('PAIDER_COLOR=1');
+    putenv('TERM=xterm-256color');
+    Palette::forget();
+
+    expect(Palette::sgr(ColorRole::Alert))->toBe("\e[1;97;48;5;88m");   // bright white on xterm 88
+    expect(Palette::ALERT_BG_HEX)->toBe('#870000');
+});
+
+test('the alert degrades to a 16-colour pairing rather than emitting an unsupported escape', function () {
+    // Brand is decorative and simply drops its colour on a 16-colour terminal. Alert is a safety
+    // announcement, so it must still be coloured — just with slots the terminal actually has.
+    putenv('PAIDER_COLOR=1');
+    putenv('TERM=xterm');       // no 256
+    putenv('COLORTERM');        // and no truecolor
+    Palette::forget();
+
+    expect(Palette::sgr(ColorRole::Alert))->toBe("\e[1;97;41m");
+    expect(Palette::sgr(ColorRole::Alert))->not->toContain('48;5;');
+    expect(Palette::sgr(ColorRole::Brand))->toBe('');   // decorative: dropped, as designed
+});
+
+test('the pinned alert colours clear WCAG AA', function () {
+    // Guards the actual property that was wrong. A future "nicer red" that drops back under
+    // 4.5:1 fails here rather than being discovered by squinting at a terminal.
+    $luminance = function (string $hex): float {
+        $hex = ltrim($hex, '#');
+        $channels = array_map(function (string $pair): float {
+            $v = hexdec($pair) / 255;
+
+            return $v <= 0.03928 ? $v / 12.92 : (($v + 0.055) / 1.055) ** 2.4;
+        }, str_split($hex, 2));
+
+        return 0.2126 * $channels[0] + 0.7152 * $channels[1] + 0.0722 * $channels[2];
+    };
+
+    $fg = $luminance(Palette::ALERT_FG_HEX);
+    $bg = $luminance(Palette::ALERT_BG_HEX);
+    $ratio = (max($fg, $bg) + 0.05) / (min($fg, $bg) + 0.05);
+
+    expect($ratio)->toBeGreaterThan(4.5);
+});
