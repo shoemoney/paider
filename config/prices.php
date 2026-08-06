@@ -85,10 +85,34 @@ return [
     'google/gemini-3.6-flash' => ['in' => 1.50, 'out' => 7.50, 'cache_write' => null, 'cache_read' => 0.15],  // cached input verified — BUT SEE THE GEMINI NOTE: hourly storage is unrepresentable here
     'google/gemma-4-26b-a4b-it' => ['in' => 0.07, 'out' => 0.34, 'cache_write' => null, 'cache_read' => null],  // context caching not available on the paid tier
 
-    'moonshotai/kimi-k3' => ['in' => 3.00, 'out' => 15.00, 'cache_write' => null, 'cache_read' => null],
+    // Moonshot publishes cache-HIT vs cache-MISS input and no separate write charge.
+    // Ratios are NOT uniform across their own models (0.10x k3, 0.168x k2.6, 0.20x
+    // k2.7-code) — the third vendor in this file to prove a borrowed multiplier is a
+    // guess. Only k3's base matches the vendor page, so only k3's hit rate is safe to
+    // record here; see the mismatch note below.
+    'moonshotai/kimi-k3' => ['in' => 3.00, 'out' => 15.00, 'cache_write' => 3.00, 'cache_read' => 0.30],  // hit 0.10x miss; no write surcharge
     'moonshotai/kimi-k2.7-code' => ['in' => 0.73, 'out' => 3.50, 'cache_write' => null, 'cache_read' => null],
     'moonshotai/kimi-k2.6' => ['in' => 0.60, 'out' => 3.41, 'cache_write' => null, 'cache_read' => null],
     'moonshotai/kimi-k2' => ['in' => 0.57, 'out' => 2.30, 'cache_write' => null, 'cache_read' => null],
+
+    // ⚠️ UNRESOLVED, 2026-08-05 — these two disagree with Moonshot's own pricing page:
+    //
+    //     model              here          platform.moonshot.ai
+    //     kimi-k2.7-code     0.73 / 3.50   0.95 / 4.00   (hit 0.19)
+    //     kimi-k2.6          0.60 / 3.41   0.95 / 4.00   (hit 0.16)
+    //
+    // CommitCommand routes 'kimi' to https://api.moonshot.ai/v1 — DIRECT — while these
+    // look like OpenRouter rates, which is also where the `moonshotai/` id prefix comes
+    // from and where the default client falls back to. Both numbers can be right for
+    // their own route; only one can be right for the route actually taken.
+    //
+    // If the direct endpoint is what runs, every kimi call is under-billed ~30% on input
+    // and ~14% on output. Left as-is rather than "fixed" because picking a side silently
+    // is how a ledger starts lying confidently, and because these values are asserted
+    // against presets.php comments by PricesSyncTest — the two must move together.
+    //
+    // Their cache-hit rates stay null for the same reason: grafting Moonshot's 0.16/0.19
+    // onto an OpenRouter base would blend two price sources into one row.
 
     'deepseek/deepseek-v4-pro' => ['in' => 0.435, 'out' => 0.87, 'cache_write' => 0.435, 'cache_read' => 0.003625],  // hit 0.0083x miss; no write surcharge
     'deepseek/deepseek-v3.2' => ['in' => 0.269, 'out' => 0.40, 'cache_write' => null, 'cache_read' => null],
