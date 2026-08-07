@@ -6,9 +6,8 @@ use App\Agent\Loop;
 use App\Agent\Session;
 use App\Agent\TierRouter;
 use App\Approval\Gate;
-use App\Providers\AnthropicClient;
 use App\Providers\Contracts\ProviderClient;
-use App\Providers\OpenAiCompatibleClient;
+use App\Providers\ProviderResolver;
 use App\Skills\SkillLibrary;
 use App\Storage\Database;
 use App\Storage\EventLog;
@@ -381,10 +380,9 @@ class ChatCommand extends Command
 
     private function resolveProvider(): ProviderClient
     {
-        // ponytail: every non-anthropic preset is OpenRouter-shaped per PLAN.md's Architecture
-        // section — one base URL covers them, no per-preset client wiring needed yet.
-        return SettingsStore::activePreset() === 'anthropic'
-            ? new AnthropicClient
-            : new OpenAiCompatibleClient('https://openrouter.ai/api/v1', 'OPENROUTER_API_KEY');
+        // Shared with CommitCommand::providerClient() via ProviderResolver, so a
+        // preset resolves to the identical endpoint and key in both -- see that
+        // class for the direct-endpoint/OpenRouter-fallback/qwen-plan-key rules.
+        return ProviderResolver::forPreset(SettingsStore::activePreset());
     }
 }

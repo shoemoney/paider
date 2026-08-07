@@ -3,9 +3,8 @@
 namespace App\Commands;
 
 use App\Agent\TierRouter;
-use App\Providers\AnthropicClient;
 use App\Providers\Contracts\ProviderClient;
-use App\Providers\OpenAiCompatibleClient;
+use App\Providers\ProviderResolver;
 use App\Storage\Database;
 use App\Storage\EventLog;
 use App\Support\ModelPricing;
@@ -106,55 +105,22 @@ class CommitCommand extends Command
 
     /**
      * Builds the ProviderClient for the resolved preset. Overridable so tests can
-     * inject a fake without a real network call. See PLAN.md's Provider layer table
-     * for the base URL / env var per preset.
+     * inject a fake without a real network call. Delegates to ProviderResolver,
+     * shared with ChatCommand::resolveProvider(), so a preset resolves to the
+     * identical endpoint and key in both commands.
      */
     protected function providerClient(string $presetName): ProviderClient
     {
-        return match ($presetName) {
-            'anthropic' => new AnthropicClient,
-            'kimi' => new OpenAiCompatibleClient('https://api.moonshot.ai/v1', 'MOONSHOT_API_KEY'),
-            'deepseek' => new OpenAiCompatibleClient('https://api.deepseek.com', 'DEEPSEEK_API_KEY'),
-            'qwen' => new OpenAiCompatibleClient($this->qwenBaseUrl(), 'DASHSCOPE_API_KEY'),
-            'xai' => new OpenAiCompatibleClient('https://api.x.ai/v1', 'XAI_API_KEY'),
-            'glm' => new OpenAiCompatibleClient('https://open.bigmodel.cn/api/paas/v4', 'GLM_API_KEY'),
-            // openai, google, open, open-frugal, balanced: no documented direct
-            // endpoint in PLAN.md's Provider layer table, fall back to OpenRouter.
-            default => new OpenAiCompatibleClient('https://openrouter.ai/api/v1', 'OPENROUTER_API_KEY'),
-        };
+        return ProviderResolver::forPreset($presetName);
     }
 
     /**
-     * A Coding Plan key (sk-sp-) only bills against the plan on the account's own
-     * "Plan Exclusive Base URL", which is region-scoped
-     * (token-plan.<region>.maas.aliyuncs.com) and therefore cannot be hardcoded
-     * here for everyone.
-     *
-     * Without this, a plan key fell through to the pay-as-you-go default and
-     * QwenPlanKeyGuard refused it — correct, but the operator is left holding a
-     * refusal with nothing telling them which URL would have worked. Name the
-     * setting and where to copy it from instead.
+     * Thin delegate to ProviderResolver::qwenBaseUrl() -- kept here so the existing
+     * reflection-based test in tests/Feature/CommitCommandTest.php (which invokes
+     * CommitCommand::qwenBaseUrl() directly) keeps passing unmodified.
      */
     private function qwenBaseUrl(): string
     {
-        $payg = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-
-        if (! str_starts_with((string) env('DASHSCOPE_API_KEY', ''), 'sk-sp-')) {
-            return $payg;
-        }
-
-        $plan = trim((string) env('DASHSCOPE_PLAN_BASE_URL', ''));
-
-        if ($plan === '') {
-            throw new \RuntimeException(
-                'DASHSCOPE_API_KEY is a Coding Plan key (sk-sp-...) but DASHSCOPE_PLAN_BASE_URL is unset, '
-                ."so the only endpoint available is pay-as-you-go ({$payg}) — which would bill per token "
-                .'instead of against the plan you already paid for. Copy "OpenAI API-Compatible Tools" from '
-                .'the "Plan Exclusive Base URL" panel of your plan console and set DASHSCOPE_PLAN_BASE_URL, '
-                .'e.g. https://token-plan.<your-region>.maas.aliyuncs.com/compatible-mode/v1'
-            );
-        }
-
-        return $plan;
+        return ProviderResolver::qwenBaseUrl();
     }
 }
