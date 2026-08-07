@@ -247,13 +247,11 @@ class ChatCommand extends Command
         }
 
         $store = new SessionStore($this->eventLog);
-        $window = SessionStore::resumeWindow();
+        $messages = $store->messages();
 
-        if ($window === 0 || $store->isEmpty()) {
+        if ($messages === []) {
             return;
         }
-
-        $messages = $store->messages($window);
 
         $session->replay($messages);
 

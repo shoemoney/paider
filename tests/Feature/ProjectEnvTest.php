@@ -100,17 +100,3 @@ test('loading never exports into the process environment, so subprocesses stay c
         expect($_SERVER['PAIDER_SECRET_CANARY'] ?? null)->toBeNull();
     });
 });
-
-test('bool() reads the documented truthy set and fails closed on anything else', function () {
-    inProject(['.env' => "T1=1\nT2=true\nT3=on\nT4=YES\nF1=0\nF2=false\nF3=banana\n"], function () {
-        foreach (['T1', 'T2', 'T3', 'T4'] as $key) {
-            expect(ProjectEnv::bool($key))->toBeTrue();
-        }
-
-        foreach (['F1', 'F2', 'F3'] as $key) {
-            expect(ProjectEnv::bool($key))->toBeFalse();
-        }
-
-        expect(ProjectEnv::bool('ABSENT', true))->toBeTrue();
-    });
-});

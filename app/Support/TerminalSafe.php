@@ -51,7 +51,10 @@ final class TerminalSafe
 
                 $params = explode(';', $sgr[1]);
 
-                return in_array('8', $params, true) || self::sgrConceals($params) ? '' : $m[0];
+                // Zero-padded decimal ("08", "008") is a legal ECMA-48 spelling of SGR 8 — every
+                // terminal parser accumulates param*10+digit, so an exact string compare against
+                // '8' alone lets '\e[08m' conceal text right past this allowlist.
+                return in_array(8, array_map('intval', $params), true) || self::sgrConceals($params) ? '' : $m[0];
             },
             $text,
         ) ?? $text;

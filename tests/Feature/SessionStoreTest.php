@@ -90,17 +90,6 @@ test('re-adding a dropped file brings it back — forgetting is an event, not a 
     expect((new SessionStore($log))->contextFiles())->toBe(['a.php']);
 });
 
-test('an empty log reports itself empty so a fresh project shows no resume banner', function () {
-    $log = sessionLog();
-    $log->append('tier_call', ['tier' => 'orchestrator']);
-
-    expect((new SessionStore($log))->isEmpty())->toBeTrue();
-
-    $log->append(SessionStore::MESSAGE, ['role' => 'user', 'content' => 'hi']);
-
-    expect((new SessionStore($log))->isEmpty())->toBeFalse();
-});
-
 test('the resume window is configurable and falls back to the default on nonsense', function (?string $value, int $expected) {
     ProjectEnv::forget();
     $value === null ? putenv('PAIDER_RESUME_MESSAGES') : putenv("PAIDER_RESUME_MESSAGES={$value}");

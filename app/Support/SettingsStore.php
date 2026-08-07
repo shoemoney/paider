@@ -31,7 +31,12 @@ class SettingsStore
             return 'balanced';
         }
 
-        $preset = is_array($data) ? ($data['preset'] ?? 'balanced') : 'balanced';
+        // Well-formed JSON of the wrong shape (preset as an array/object) is not caught by the
+        // JsonException above — it decodes fine and then array_key_exists() below throws a
+        // TypeError on a non-scalar key, breaking the "never blow up a session" promise this
+        // method makes for itself. is_string() is the correct total check anyway: the return
+        // type is string and every real preset name is one.
+        $preset = is_array($data) && is_string($data['preset'] ?? null) ? $data['preset'] : 'balanced';
 
         return ($preset === 'accounts' || ! array_key_exists($preset, config('presets')))
             ? 'balanced'

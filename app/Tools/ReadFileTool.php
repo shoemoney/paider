@@ -33,7 +33,14 @@ final class ReadFileTool implements Tool
 
     public function execute(array $input, bool $approved = false): ToolResult
     {
-        $path = $input['path'];
+        $path = $input['path'] ?? null;
+
+        // Root-cause guard, matching PatchFileTool: a non-string path throws a TypeError out of
+        // str_starts_with() that no error handler intercepts, killing the chat session.
+        if (! is_string($path) || $path === '') {
+            return ToolResult::fail('path is a required string', ['invalid_input' => true]);
+        }
+
         $absolute = str_starts_with($path, '/') ? $path : $this->projectRoot.'/'.$path;
 
         if (! PathGuard::containedIn($this->projectRoot, $absolute)) {

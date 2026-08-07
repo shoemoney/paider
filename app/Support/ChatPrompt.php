@@ -20,14 +20,17 @@ use Laravel\Prompts\TextareaPrompt;
  */
 final class ChatPrompt extends TextareaPrompt
 {
-    public function __construct(string $label, int $rows = 3)
+    public function __construct(string $label)
     {
         // Before parent::__construct(), which renders — and rendering an unregistered Prompt
         // subclass is a fatal, not a fallback. Registering here rather than in the caller
         // means there is no way to construct this class into that fatal.
         PromptTheme::activate();
 
-        parent::__construct(label: $label, rows: $rows);
+        // rows is a literal, not a parameter — nothing in app/ or tests/ ever passes anything
+        // but the default 3, and TextareaPrompt itself defaults to 5, so dropping this silently
+        // would grow the box.
+        parent::__construct(label: $label, rows: 3);
 
         // The parent constructor bound Enter->newline (trackTypedValue with submit: false) and
         // Ctrl+D->submit. Both live in 'key' listeners, and listeners accumulate rather than
@@ -61,8 +64,8 @@ final class ChatPrompt extends TextareaPrompt
         });
     }
 
-    public static function ask(string $label, int $rows = 3): string
+    public static function ask(string $label): string
     {
-        return (new self($label, $rows))->prompt();
+        return (new self($label))->prompt();
     }
 }

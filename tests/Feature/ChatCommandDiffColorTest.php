@@ -3,7 +3,6 @@
 use App\Commands\ChatCommand;
 use App\Storage\ProjectEnv;
 use App\Support\Palette;
-use App\Support\TerminalSafe;
 
 /**
  * colorizeDiff() is pure (string in, string out) — exercised via Reflection on the private
@@ -82,20 +81,6 @@ test('+++ and --- file headers are coloured as headers, never as added/removed c
     // Muted (90), not Error (31) / Success (32) — the off-by-one this brief calls out by name.
     expect($lines[0])->toContain("\e[90m")->not->toContain("\e[31m");
     expect($lines[1])->toContain("\e[90m")->not->toContain("\e[32m");
-});
-
-test('an ESC embedded in the diff body is stripped before colouring is applied', function () {
-    putenv('PAIDER_COLOR=1');
-    Palette::forget();
-
-    // handleDiff() runs TerminalSafe::clean() before colorizeDiff() ever sees the text —
-    // exercise that same ordering directly, since colorizeDiff() alone has no cleaning of its own.
-    $malicious = "+safe\x1b]8;;https://evil\x07line";
-    $cleaned = TerminalSafe::clean($malicious);
-    expect($cleaned)->not->toContain("\x1b");
-
-    $out = colorizeDiff($cleaned);
-    expect($out)->not->toContain("\x1b]8");
 });
 
 test('handleDiff() itself — not just colorizeDiff() in isolation — sanitises the raw git diff before it reaches the terminal', function () {

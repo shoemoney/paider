@@ -124,7 +124,7 @@ class Loop
             $this->remember($session, 'user', $this->observationText($call['name'], $result));
         }
 
-        $this->renderProse('Hit the 10 tool-call limit for this turn — stopping here. Ask again to continue.');
+        $this->renderProse('Hit the '.self::MAX_TOOL_CALLS_PER_TURN.' tool-call limit for this turn — stopping here. Ask again to continue.');
     }
 
     /**

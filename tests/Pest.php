@@ -23,37 +23,6 @@ uses(TestCase::class)->in('Feature');
 
 /*
 |--------------------------------------------------------------------------
-| Expectations
-|--------------------------------------------------------------------------
-|
-| When you're writing tests, you often need to check that values meet certain conditions. The
-| "expect()" function gives you access to a set of "expectations" methods that you can use
-| to assert different things. Of course, you may extend the Expectation API at any time.
-|
-*/
-
-expect()->extend('toBeOne', function () {
-    return $this->toBe(1);
-});
-
-/*
-|--------------------------------------------------------------------------
-| Functions
-|--------------------------------------------------------------------------
-|
-| While Pest is very powerful out-of-the-box, you may have some testing code specific to your
-| project that you don't want to repeat in every file. Here you can also expose helpers as
-| global functions to help you to reduce the number of lines of code in your test files.
-|
-*/
-
-function something(): void
-{
-    // ..
-}
-
-/*
-|--------------------------------------------------------------------------
 | Shared Loop test doubles
 |--------------------------------------------------------------------------
 |
@@ -185,18 +154,15 @@ class QueuedProviderClient implements ProviderClient
 
 function loopTestSession(): Session
 {
-    // uniqid('', true) — plain uniqid() is microsecond-clock based and collides across
-    // concurrent test processes (measured: two parallel `pest` runs hit `mkdir(): File
-    // exists`). The extra entropy suffix makes that collision practically impossible.
-    $root = sys_get_temp_dir().'/paider-loop-'.uniqid('', true);
-    mkdir($root, recursive: true);
-
-    return new Session(new ReadFileTool(realpath($root)), realpath($root));
+    return loopTestSessionWithRoot()[0];
 }
 
 /** @return array{0: Session, 1: string} */
 function loopTestSessionWithRoot(): array
 {
+    // uniqid('', true) — plain uniqid() is microsecond-clock based and collides across
+    // concurrent test processes (measured: two parallel `pest` runs hit `mkdir(): File
+    // exists`). The extra entropy suffix makes that collision practically impossible.
     $root = sys_get_temp_dir().'/paider-loop-'.uniqid('', true);
     mkdir($root, recursive: true);
     $root = realpath($root);

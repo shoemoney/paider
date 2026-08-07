@@ -66,11 +66,6 @@ class MemoryStore
         return $this->all()[$key] ?? null;
     }
 
-    public function isEmpty(): bool
-    {
-        return $this->all() === [];
-    }
-
     /**
      * The block handed to the model, or null when there is nothing to say. Returning null
      * rather than an empty header matters: an empty "Known facts:" section reads to a model as

@@ -11,6 +11,25 @@ class CostLedger
 {
     public function __construct(private readonly EventLog $events) {}
 
+    /**
+     * The zero-initialised shape of one tier's (or the session's) row. Pulled out because it was
+     * written out as a literal three times across this class and its own history shows columns
+     * being added three separate times — one place to add the next one.
+     *
+     * @return array<string, int|float|array>
+     */
+    private static function emptyRow(): array
+    {
+        return [
+            'calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0,
+            'tokens_cache_write' => 0, 'tokens_cache_read' => 0, 'spend_usd' => 0.0,
+            'unpriced_calls' => 0, 'unpriced_models' => [],
+            'hypothetical_usd' => 0.0, 'hypothetical_unknown' => 0,
+            'mismatched_calls' => 0, 'mismatched_models' => [],
+            'cache_hits' => 0, 'cache_saved_usd' => 0.0, 'cache_unpriced_hits' => 0,
+        ];
+    }
+
     public function summary(): array
     {
         $tiers = [];
@@ -29,14 +48,7 @@ class CostLedger
             $payload = $event['payload'];
             $tier = $payload['tier'];
 
-            $tiers[$tier] ??= [
-                'calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0,
-                'tokens_cache_write' => 0, 'tokens_cache_read' => 0, 'spend_usd' => 0.0,
-                'unpriced_calls' => 0, 'unpriced_models' => [],
-                'hypothetical_usd' => 0.0, 'hypothetical_unknown' => 0,
-                'mismatched_calls' => 0, 'mismatched_models' => [],
-                'cache_hits' => 0, 'cache_saved_usd' => 0.0, 'cache_unpriced_hits' => 0,
-            ];
+            $tiers[$tier] ??= self::emptyRow();
 
             $tiers[$tier]['calls']++;
             $tiers[$tier]['tokens_in'] += $payload['tokens_in'];
@@ -83,15 +95,14 @@ class CostLedger
             }
         }
 
-        $session = [
-            'calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0,
-            'tokens_cache_write' => 0, 'tokens_cache_read' => 0, 'spend_usd' => 0.0,
-            'unpriced_calls' => 0, 'unpriced_models' => [],
-            'hypothetical_usd' => 0.0, 'hypothetical_unknown' => 0,
-            'mismatched_calls' => 0, 'mismatched_models' => [],
-            'cache_hits' => 0, 'cache_saved_usd' => 0.0, 'cache_unpriced_hits' => 0,
-        ];
+        $session = self::emptyRow();
 
+        // Deliberately explicit, not a generic `foreach ($tier as $key => $value)` loop: not
+        // every per-tier column rolls up by summing. share_pct (computed downstream in
+        // CostCommand, not here) is a percentage and must NOT be summed across tiers — a
+        // generic loop would silently average nothing and add percentages together the moment
+        // it moved into this row shape. Each column's roll-up rule is stated here rather than
+        // assumed.
         foreach ($tiers as $tier) {
             $session['calls'] += $tier['calls'];
             $session['tokens_in'] += $tier['tokens_in'];
@@ -137,14 +148,7 @@ class CostLedger
             return;
         }
 
-        $tiers[$tier] ??= [
-            'calls' => 0, 'tokens_in' => 0, 'tokens_out' => 0,
-            'tokens_cache_write' => 0, 'tokens_cache_read' => 0, 'spend_usd' => 0.0,
-            'unpriced_calls' => 0, 'unpriced_models' => [],
-            'hypothetical_usd' => 0.0, 'hypothetical_unknown' => 0,
-            'mismatched_calls' => 0, 'mismatched_models' => [],
-            'cache_hits' => 0, 'cache_saved_usd' => 0.0, 'cache_unpriced_hits' => 0,
-        ];
+        $tiers[$tier] ??= self::emptyRow();
 
         $tiers[$tier]['cache_hits']++;
 

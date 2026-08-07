@@ -220,14 +220,26 @@ final class SkillLibrary
     private static function countSkillFiles(string $dir): int
     {
         $count = 0;
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
-        );
 
-        foreach ($iterator as $file) {
-            if ($file->getFilename() === 'SKILL.md') {
-                $count++;
+        // This walks a REFUSED, untrusted, project-controlled directory (see the docblock
+        // above), so an unreadable subtree — or the root itself — must not throw
+        // UnexpectedValueException and abort chat startup. The count is advisory only: the
+        // trust-boundary refusal above is unconditional on is_dir() and prints regardless of
+        // what this returns, so undercounting on a permission error is cosmetic, not a security
+        // gap.
+        try {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
+            );
+
+            foreach ($iterator as $file) {
+                if ($file->getFilename() === 'SKILL.md') {
+                    $count++;
+                }
             }
+        } catch (\UnexpectedValueException) {
+            // Unreadable directory somewhere in the tree (root or nested) — return what we
+            // counted so far rather than crash the whole chat session over a cosmetic number.
         }
 
         return $count;

@@ -83,3 +83,21 @@ test('rejects a read through a symlinked directory that escapes root', function 
     expect($result->ok)->toBeFalse();
     expect($result->output)->toBe('path escapes project root');
 });
+
+test('rejects a non-string path instead of throwing', function () {
+    $tool = new ReadFileTool(readFileToolRoot());
+
+    $result = $tool->execute(['path' => ['nope']]);
+
+    expect($result->ok)->toBeFalse();
+    expect($result->meta['invalid_input'] ?? null)->toBeTrue();
+});
+
+test('rejects a call missing path instead of throwing', function () {
+    $tool = new ReadFileTool(readFileToolRoot());
+
+    $result = $tool->execute([]);
+
+    expect($result->ok)->toBeFalse();
+    expect($result->meta['invalid_input'] ?? null)->toBeTrue();
+});

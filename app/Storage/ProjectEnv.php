@@ -29,14 +29,12 @@ class ProjectEnv
     /** @var array<string, string>|null */
     private static ?array $cache = null;
 
-    private static ?string $loadedFrom = null;
-
     /**
      * Read a setting the project is NOT allowed to decide for itself.
      *
      * Everything else here is deliberately project-scoped, which is right for preferences and
      * catastrophic for authority. A repository ships its own `.paider/.env`, so any setting
-     * reachable through get()/bool() is a setting the REPOSITORY controls — and a repository
+     * reachable through get() is a setting the REPOSITORY controls — and a repository
      * that can turn on auto-approval has granted itself unprompted shell execution the moment
      * someone clones it and runs Paider inside. Verified before this method existed: a
      * `.paider/.env` containing PAIDER_YOLO=1 made Gate::forSession(false) auto-approve with no
@@ -66,13 +64,6 @@ class ProjectEnv
         return self::values()[$key] ?? $default;
     }
 
-    public static function bool(string $key, bool $default = false): bool
-    {
-        $value = self::get($key);
-
-        return $value === null ? $default : (bool) filter_var($value, FILTER_VALIDATE_BOOL);
-    }
-
     /** @return array<string, string> */
     public static function values(): array
     {
@@ -82,7 +73,6 @@ class ProjectEnv
 
         $root = getcwd() ?: '.';
         self::$cache = [];
-        self::$loadedFrom = null;
 
         // Later files must not override earlier ones, so the more specific .paider/.env is
         // read first and the project-wide .env only fills gaps.
@@ -104,24 +94,14 @@ class ProjectEnv
             }
 
             self::$cache += array_map('strval', array_filter($parsed, 'is_scalar'));
-            self::$loadedFrom ??= $path;
         }
 
         return self::$cache;
-    }
-
-    /** The first file that supplied any value, for showing the user where a setting came from. */
-    public static function loadedFrom(): ?string
-    {
-        self::values();
-
-        return self::$loadedFrom;
     }
 
     /** Test seam — the cache is process-lifetime, and getcwd() changes between tests. */
     public static function forget(): void
     {
         self::$cache = null;
-        self::$loadedFrom = null;
     }
 }

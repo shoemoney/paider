@@ -73,3 +73,13 @@ it('falls back to the default preset when the settings file holds valid JSON of 
 
     expect(SettingsStore::activePreset())->toBe('balanced');
 });
+
+it('falls back to the default preset instead of throwing when preset itself is an array or object', function () {
+    mkdir(getcwd().'/.paider');
+
+    file_put_contents(getcwd().'/.paider/settings.json', '{"preset": []}');
+    expect(SettingsStore::activePreset())->toBe('balanced');
+
+    file_put_contents(getcwd().'/.paider/settings.json', '{"preset": {"a": 1}}');
+    expect(SettingsStore::activePreset())->toBe('balanced');
+});

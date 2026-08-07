@@ -117,3 +117,25 @@ test('rejects a write through a symlinked directory that escapes root', function
     expect($result->output)->toBe('path escapes project root');
     expect(file_exists($outside.'/pwned.txt'))->toBeFalse();
 });
+
+test('rejects a malformed call missing content instead of truncating an existing file', function () {
+    $root = writeFileToolRoot();
+    file_put_contents($root.'/keep.txt', 'seventeen bytes!');
+
+    $tool = new WriteFileTool($root);
+
+    $result = $tool->execute(['path' => 'keep.txt']);
+
+    expect($result->ok)->toBeFalse();
+    expect($result->meta['invalid_input'] ?? null)->toBeTrue();
+    expect(file_get_contents($root.'/keep.txt'))->toBe('seventeen bytes!');
+});
+
+test('rejects a non-string path instead of throwing', function () {
+    $tool = new WriteFileTool(writeFileToolRoot());
+
+    $result = $tool->execute(['path' => ['nope'], 'content' => 'x']);
+
+    expect($result->ok)->toBeFalse();
+    expect($result->meta['invalid_input'] ?? null)->toBeTrue();
+});

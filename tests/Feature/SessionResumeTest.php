@@ -9,7 +9,9 @@ use App\Tools\ReadFileTool;
 /** @return array{0: Session, 1: string} */
 function resumeProject(array $files = []): array
 {
-    $root = sys_get_temp_dir().'/paider-resume-'.uniqid();
+    // uniqid('', true) — plain uniqid() collides across concurrent test processes, same
+    // measured fix as tests/Pest.php's loopTestSessionWithRoot().
+    $root = sys_get_temp_dir().'/paider-resume-'.uniqid('', true);
     mkdir($root, recursive: true);
     $root = realpath($root);
 

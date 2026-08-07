@@ -101,17 +101,6 @@ class SessionStore
         return array_keys($paths);
     }
 
-    public function isEmpty(): bool
-    {
-        foreach ($this->events->stream() as $event) {
-            if ($event['type'] === self::MESSAGE) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     /**
      * How many stored messages a resume replays. 0 disables resume entirely, which is the
      * escape hatch for anyone who does not want a conversation surviving process exit at all.

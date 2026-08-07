@@ -19,12 +19,17 @@ class FetchUrlTool implements Tool
 {
     private const MAX_BYTES = 262_144;
 
+    // Slowloris bound — the time-domain counterpart of MAX_BYTES: a hostile server trickling
+    // bytes forever otherwise costs the full window instead of the byte cap. Never turned by a
+    // caller (verified: every construction site passes no argument), so it is a constant, not a
+    // constructor parameter — a param that is always the same value is one more thing to get
+    // wrong at the call site for zero flexibility gained.
+    private const TIMEOUT_SECONDS = 15;
+
     private ClientInterface $http;
 
-    public function __construct(
-        private readonly int $timeoutSeconds = 15,
-        ?ClientInterface $httpClient = null,
-    ) {
+    public function __construct(?ClientInterface $httpClient = null)
+    {
         $this->http = $httpClient ?? new Client;
     }
 
@@ -123,7 +128,7 @@ class FetchUrlTool implements Tool
     private function options(array $verdict): array
     {
         return [
-            'timeout' => $this->timeoutSeconds,
+            'timeout' => self::TIMEOUT_SECONDS,
             'allow_redirects' => false,
             'headers' => ['User-Agent' => 'paider/0.2 (+https://paider.dev)'],
             'stream' => true,

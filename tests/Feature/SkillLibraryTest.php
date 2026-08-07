@@ -341,6 +341,27 @@ test('refusedProjectSkillsNotice counts a nested SKILL.md, not just one level de
     });
 });
 
+test('refusedProjectSkillsNotice does not crash chat startup when a nested skills directory is unreadable', function () {
+    // The refused tree is project-controlled — a hostile or merely broken repo can ship a
+    // directory chat cannot open. The count must degrade, never throw out of startup.
+    withFakeHome(function () {
+        $projectRoot = sys_get_temp_dir().'/paider-skills-project-'.uniqid('', true);
+        inProjectDir($projectRoot, function () use ($projectRoot) {
+            mkdir($projectRoot.'/.claude/skills/locked', recursive: true);
+            chmod($projectRoot.'/.claude/skills/locked', 0000);
+
+            try {
+                $notice = SkillLibrary::refusedProjectSkillsNotice();
+
+                expect($notice)->not->toBeNull();
+                expect($notice)->toContain('.claude/skills');
+            } finally {
+                chmod($projectRoot.'/.claude/skills/locked', 0755);
+            }
+        });
+    });
+});
+
 test('refusedProjectSkillsNotice is null when the project ships no skills of its own', function () {
     withFakeHome(function () {
         $projectRoot = sys_get_temp_dir().'/paider-skills-project-'.uniqid();

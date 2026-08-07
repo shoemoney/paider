@@ -129,8 +129,15 @@ class Session
     {
         $this->sealPendingUndo();
 
+        // Tools resolve relative paths themselves before touching disk (WriteFileTool,
+        // ReadFileTool, PatchFileTool); Loop pushes whatever raw path the model sent, which is
+        // relative in the normal case. Resolving once here — rather than in every consumer of
+        // the stack (undo(), sealPendingUndo()) — means PathGuard::containedIn() and the
+        // is_file/file_get_contents/unlink/file_put_contents calls all see an absolute path,
+        // instead of PathGuard rejecting a relative one as "outside the project" and /undo
+        // silently no-op'ing with a false "conflict".
         $this->undoStack[] = [
-            'path' => $path,
+            'path' => str_starts_with($path, DIRECTORY_SEPARATOR) ? $path : $this->projectRoot.DIRECTORY_SEPARATOR.$path,
             'previous' => $previousContent,
             'postApplyHash' => null,
             'sealed' => false,

@@ -1,6 +1,5 @@
 <?php
 
-use App\Providers\AppServiceProvider;
 use Composer\InstalledVersions;
 
 return [
@@ -73,8 +72,6 @@ return [
     |
     */
 
-    'providers' => [
-        AppServiceProvider::class,
-    ],
+    'providers' => [],
 
 ];

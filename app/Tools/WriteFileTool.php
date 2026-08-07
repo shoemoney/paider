@@ -34,7 +34,17 @@ final class WriteFileTool implements Tool
 
     public function execute(array $input, bool $approved = false): ToolResult
     {
-        $path = $input['path'];
+        $path = $input['path'] ?? null;
+        $content = $input['content'] ?? null;
+
+        // Root-cause guard, matching PatchFileTool: a malformed tool call (missing/wrong-type
+        // key) must not fatal — undefined-key access here either kills the whole chat session
+        // or, worse, writes 0 bytes over a real file before the framework's error handler stops
+        // it. Fail closed and let the model retry with a valid call.
+        if (! is_string($path) || $path === '' || ! is_string($content)) {
+            return ToolResult::fail('path and content are required strings', ['invalid_input' => true]);
+        }
+
         $absolute = str_starts_with($path, '/') ? $path : $this->projectRoot.'/'.$path;
 
         if (! PathGuard::containedIn($this->projectRoot, $absolute)) {
@@ -48,7 +58,6 @@ final class WriteFileTool implements Tool
             ]);
         }
 
-        $content = $input['content'];
         $dir = dirname($absolute);
 
         if (! is_dir($dir) && ! mkdir($dir, 0755, recursive: true) && ! is_dir($dir)) {

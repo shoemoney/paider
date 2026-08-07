@@ -69,6 +69,22 @@ test('recordApply and undo round-trip a write', function () {
     expect(file_get_contents($path))->toBe('before');
 });
 
+test('recordApply resolves a relative path against the project root, the shape Loop actually sends', function () {
+    $root = sessionRoot();
+    file_put_contents($root.'/file.txt', 'before');
+
+    $session = makeSession($root);
+
+    $session->recordApply('file.txt', 'before');
+    file_put_contents($root.'/file.txt', 'after');
+    $session->pushHistory('assistant', 'applied a write');
+
+    $result = $session->undo();
+
+    expect($result)->toBe(['status' => 'ok', 'path' => $root.'/file.txt']);
+    expect(file_get_contents($root.'/file.txt'))->toBe('before');
+});
+
 test('recordApply and undo round-trip a new file by deleting it', function () {
     $root = sessionRoot();
     $path = $root.'/new.txt';

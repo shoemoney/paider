@@ -24,7 +24,7 @@ function fetchToolWith(array $responses, ?array &$history = null): FetchUrlTool
     $stack = HandlerStack::create(new MockHandler($responses));
     $stack->push(Middleware::history($history));
 
-    return new FetchUrlTool(15, new Client(['handler' => $stack]));
+    return new FetchUrlTool(new Client(['handler' => $stack]));
 }
 
 function allow(string $url): array
@@ -226,8 +226,11 @@ test('the allowlist matches exactly — no suffix or wildcard matching', functio
         expect(UrlGuard::inspect('http://127.0.0.1/')['ok'] ?? false)->toBeFalse();
     });
 
-    withAllowlist('192.168.1.10', function () {
-        expect(UrlGuard::inspect('http://1192.168.1.10/')['ok'] ?? false)->toBeFalse();
+    // An IP literal needs no DNS, so this actually reaches the allowlist match — a hostname
+    // like '1192.168.1.10' does not: it fails FILTER_VALIDATE_IP and doesn't resolve, so it
+    // dies earlier at "could not resolve" and never exercises the suffix-match code at all.
+    withAllowlist('92.168.1.10', function () {
+        expect(UrlGuard::inspect('http://192.168.1.10/')['ok'] ?? false)->toBeFalse();
     });
 });
 

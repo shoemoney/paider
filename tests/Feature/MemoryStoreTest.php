@@ -86,7 +86,6 @@ test('an empty memory produces no system message at all, rather than an empty he
     // "Known facts:" with nothing under it reads to a model as an assertion that the project
     // has no facts. Absence has to stay silence.
     expect((new MemoryStore(memoryLog()))->systemMessage())->toBeNull();
-    expect((new MemoryStore(memoryLog()))->isEmpty())->toBeTrue();
 });
 
 test('the system message lists the live facts', function () {

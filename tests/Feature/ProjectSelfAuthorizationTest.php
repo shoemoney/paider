@@ -84,17 +84,27 @@ test('convenience settings are still project-scoped — only authority was withd
 test('no authority setting is read through the project-file path', function () {
     // Invariant, in the spirit of SecretsGuardTest's proc_open sweep: grep the source so a
     // future edit that "tidies" these back onto ProjectEnv::get()/bool() fails here loudly.
+    //
+    // Must interpolate the constant NAME, not its VALUE — {$var} used to be the value
+    // ('PAIDER_YOLO'), so the negative assertions searched for a string
+    // ("ProjectEnv::get(self::PAIDER_YOLO") that can never appear in any PHP source, making
+    // them structurally unable to fail. Carrying name and value separately fixes that, and
+    // pinning the positive assertion to fromEnvironment(self::{$name}) — not just
+    // 'ProjectEnv::fromEnvironment' anywhere in the file — makes it assert the specific call
+    // this test is named after, not just that the string survives somewhere unrelated.
     $sources = [
-        'app/Approval/Gate.php' => Gate::ENV_VAR,
-        'app/Support/UrlGuard.php' => UrlGuard::ALLOW_VAR,
+        'app/Approval/Gate.php' => ['ENV_VAR', Gate::ENV_VAR],
+        'app/Support/UrlGuard.php' => ['ALLOW_VAR', UrlGuard::ALLOW_VAR],
     ];
 
-    foreach ($sources as $file => $var) {
+    foreach ($sources as $file => [$name, $value]) {
         $code = file_get_contents(base_path($file));
 
-        expect($code)->toContain('ProjectEnv::fromEnvironment');
+        expect($code)->toContain("ProjectEnv::fromEnvironment(self::{$name})");
         expect($code)
-            ->not->toContain("ProjectEnv::get(self::{$var}")
-            ->not->toContain("ProjectEnv::bool(self::{$var}");
+            ->not->toContain("ProjectEnv::get(self::{$name}")
+            ->not->toContain("ProjectEnv::bool(self::{$name}")
+            ->not->toContain("ProjectEnv::get('{$value}'")
+            ->not->toContain("ProjectEnv::bool('{$value}'");
     }
 });

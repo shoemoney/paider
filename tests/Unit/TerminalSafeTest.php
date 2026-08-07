@@ -46,3 +46,12 @@ test('SGR 8 conceal and a cursor-up-plus-erase sequence are removed', function (
     expect(TerminalSafe::clean($conceal))->toBe("hidden\e[0m")
         ->and(TerminalSafe::clean($cursorAndErase))->toBe('line oneline two');
 });
+
+test('zero-padded SGR 8 conceal is removed just like the unpadded spelling', function () {
+    // ECMA-48 params are decimal with leading zeros permitted; every real terminal parser
+    // accumulates param*10+digit, so '08'/'008' conceal exactly like '8' and must not survive
+    // an exact string compare against the unpadded form.
+    expect(TerminalSafe::clean("\e[08mhidden\e[0m"))->toBe("hidden\e[0m")
+        ->and(TerminalSafe::clean("\e[008mhidden\e[0m"))->toBe("hidden\e[0m")
+        ->and(TerminalSafe::clean("\e[1;08mhidden\e[0m"))->toBe("hidden\e[0m");
+});
