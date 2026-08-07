@@ -61,7 +61,7 @@ jobs:
         run: composer validate --strict
 
       - name: Cache composer packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.composer/cache
           key: composer-${{ matrix.php }}-${{ matrix.deps }}-${{ hashFiles('composer.lock') }}
