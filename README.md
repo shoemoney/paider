@@ -9,7 +9,7 @@
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
 [![packagist](https://img.shields.io/badge/packagist-v0.1.0-blueviolet?style=for-the-badge)](https://packagist.org/packages/paider/paider)
 [![ci](https://img.shields.io/github/actions/workflow/status/shoemoney/paider/tests.yml?style=for-the-badge&label=tests)](https://github.com/shoemoney/paider/actions/workflows/tests.yml)
-[![tests](https://img.shields.io/badge/tests-220%20passing-brightgreen?style=for-the-badge)](tests/)
+[![tests](https://img.shields.io/badge/tests-430%20passing-brightgreen?style=for-the-badge)](tests/)
 [![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
@@ -30,7 +30,7 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `cost`, `config:provider`, `config:show` all register and run |
 | 🔧 six native tools | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `git`, `artisan` |
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection; stored in `.paider/` (gitignored locally) |
-| 🧪 test suite | ✅ **332 passing**, 1153 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
+| 🧪 test suite | ✅ **430 passing**, 2489 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
 | 📦 published on Packagist | ✅ **published** | `paider/paider` at https://packagist.org/packages/paider/paider |
 | 📦 `curl \| sh` installer | ✅ **live** | `curl -fsSL paider.dev/install \| sh` — served from GitHub Pages, installs via Composer; the standalone binary channel is still deferred |
@@ -321,7 +321,7 @@ vendor/bin/pest --group=live
   Measure both. Never derive one from the other.
 -->
 
-**Hermetic suite** (`vendor/bin/pest`, 332 tests) — all provider interactions mocked via Guzzle;
+**Hermetic suite** (`vendor/bin/pest`, 430 tests) — all provider interactions mocked via Guzzle;
 proves self-consistency, zero cost. Excluded group: `live`. This is the number in the badge above;
 the live suite is 3 more on top, **not** part of it.
 
@@ -573,7 +573,7 @@ flowchart LR
 | **v1.0** | MCP **server** mode — external clients drive Paider's tools; published semver policy | ⬜ planned |
 
 <details>
-<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 201 tests pass?</b></summary>
+<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 430 tests pass?</b></summary>
 
 Because [`PLAN.md`](PLAN.md) wrote v0.1's definition of done *before* the code existed, and
 grading against it honestly leaves one box unticked:
