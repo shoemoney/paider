@@ -245,6 +245,42 @@ function inProjectDir(string $root, Closure $body): void
 |
 */
 
+function ptyAvailable(): bool
+{
+    return shell_exec('command -v python3') !== null;
+}
+
+/**
+ * Run $argv under a real pty and return everything it wrote.
+ *
+ * python3's pty module, NOT script(1). script's argument grammar DIVERGES BY PLATFORM:
+ * macOS/BSD is `script [-q] file command [args]`, util-linux is `script [-q] -c command [file]`.
+ * The BSD form was used here, so on the ubuntu-latest CI runners the command was never executed
+ * at all — four tests failed deterministically on every job while passing locally, and the local
+ * intermittency (a separate load problem) made it look like flakiness rather than a hard break.
+ * pty.spawn() takes an argv list, behaves identically on both platforms, and needs no
+ * controlling terminal, which is exactly the CI condition.
+ *
+ * @param  array<int, string>  $argv
+ */
+function ptyRun(array $argv, string $captureFile): string
+{
+    shell_exec(
+        'python3 -c '.escapeshellarg('import pty, sys; pty.spawn(sys.argv[1:])').' '
+        .implode(' ', array_map('escapeshellarg', $argv))
+        .' > '.escapeshellarg($captureFile).' 2>&1'
+    );
+
+    return (string) file_get_contents($captureFile);
+}
+
+/**
+ * Retried on a missing $marker — text the probe prints unconditionally, independent of the
+ * behaviour under test, so its absence means the harness never got going rather than that the
+ * code is wrong. Kept after the platform fix because pty allocation still competes for system
+ * resources under load. It cannot mask a regression: a probe that renders the WRONG thing still
+ * prints the marker and is still asserted on.
+ */
 function ptyCapture(string $phpCode, string $marker, int $attempts = 3): string
 {
     $output = '';
@@ -252,22 +288,17 @@ function ptyCapture(string $phpCode, string $marker, int $attempts = 3): string
     for ($attempt = 0; $attempt < $attempts; $attempt++) {
         $captureFile = tempnam(sys_get_temp_dir(), 'paider-tty-');
 
-        shell_exec(
-            'cd '.escapeshellarg(base_path()).' && '
-            .'env -u NO_COLOR PAIDER_COLOR=0 script -q '.escapeshellarg($captureFile).' '
-            .'php -r '.escapeshellarg($phpCode).' >/dev/null 2>&1'
+        $output = ptyRun(
+            ['env', '-u', 'NO_COLOR', 'PAIDER_COLOR=0', 'php', '-r', $phpCode],
+            $captureFile
         );
 
-        $output = (string) file_get_contents($captureFile);
         unlink($captureFile);
 
         if (str_contains($output, $marker)) {
             return $output;
         }
 
-        // Linear backoff. The contention that causes this is short-lived (another process
-        // finishing), so a few tens of milliseconds is enough; a long sleep would just make a
-        // real failure slow to report.
         usleep(50_000 * ($attempt + 1));
     }
 

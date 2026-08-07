@@ -56,8 +56,8 @@ test('an OSC 52 injection in a model reply is stripped on the non-tty echo branc
 });
 
 test('an OSC 52 injection in a model reply is stripped on the real-tty stream branch', function () {
-    if (shell_exec('command -v script') === null) {
-        $this->markTestSkipped('script(1) not available to allocate a pty');
+    if (! ptyAvailable()) {
+        $this->markTestSkipped('python3 not available to allocate a pty');
     }
 
     // script(1) allocates a real pty for the child regardless of this test process's own stdout

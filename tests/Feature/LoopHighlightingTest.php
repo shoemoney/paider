@@ -123,13 +123,14 @@ function renderProseInPty(string $content, string $paiderColor = '1', string $hi
     for ($attempt = 0; $attempt < 3; $attempt++) {
         $captureFile = tempnam(sys_get_temp_dir(), 'paider-tty-');
 
-        shell_exec(
-            'cd '.escapeshellarg(base_path()).' && '
-            .'env -u NO_COLOR PAIDER_COLOR='.escapeshellarg($paiderColor).' script -q '.escapeshellarg($captureFile).' '
-            .'php '.escapeshellarg($scriptFile).' >/dev/null 2>&1'
+        // ptyRun (tests/Pest.php) uses python3's pty, not script(1) — script's argument grammar
+        // differs between BSD and util-linux, and the BSD form used here meant the command never
+        // ran at all on the ubuntu CI runners.
+        $output = ptyRun(
+            ['env', '-u', 'NO_COLOR', 'PAIDER_COLOR='.$paiderColor, 'php', $scriptFile],
+            $captureFile
         );
 
-        $output = (string) file_get_contents($captureFile);
         unlink($captureFile);
 
         if (trim($output) !== '') {
@@ -145,8 +146,8 @@ function renderProseInPty(string $content, string $paiderColor = '1', string $hi
 }
 
 test('a reply shaped like the tool-fence collision — a real tool call plus a second fence — renders without exception and without added colour', function () {
-    if (shell_exec('command -v script') === null) {
-        $this->markTestSkipped('script(1) not available to allocate a pty');
+    if (! ptyAvailable()) {
+        $this->markTestSkipped('python3 not available to allocate a pty');
     }
 
     // Four ``` total: parseToolCall's exactly-two-backtick check fails this in the real flow
@@ -168,8 +169,8 @@ test('a reply shaped like the tool-fence collision — a real tool call plus a s
 });
 
 test('a highlighter that throws internally does not break renderProse', function () {
-    if (shell_exec('command -v script') === null) {
-        $this->markTestSkipped('script(1) not available to allocate a pty');
+    if (! ptyAvailable()) {
+        $this->markTestSkipped('python3 not available to allocate a pty');
     }
 
     $classSource = 'final class ThrowingHighlighter implements App\Support\Contracts\Highlighter {'
@@ -196,8 +197,8 @@ test('a highlighter that throws internally does not break renderProse', function
 });
 
 test('a fenced code block keeps its ``` delimiters and language tag in tty output — matching the non-tty echo path even with colour and highlighting both off', function () {
-    if (shell_exec('command -v script') === null) {
-        $this->markTestSkipped('script(1) not available to allocate a pty');
+    if (! ptyAvailable()) {
+        $this->markTestSkipped('python3 not available to allocate a pty');
     }
 
     $content = "Here's the fix:\n```php\n<?php echo 1;\n```\nDone.";
