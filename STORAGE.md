@@ -70,6 +70,30 @@ fromEnvironment()` is the seam that enforces the split, and `ProjectSelfAuthoriz
 including a source-grep invariant so a later tidy-up that routes these back through
 `ProjectEnv::get()` fails loudly.
 
+### Provider configuration — API keys and endpoints
+
+Every command (`chat`, `commit`) routes to the same provider endpoint for a given preset, resolved by
+`App\Providers\ProviderResolver`. A preset like `kimi` will use its direct endpoint **only** when
+its own API key is set; otherwise both commands fall back to OpenRouter. This prevents the same
+preset from silently switching endpoints and billing accounts between sessions.
+
+| variable | effect |
+|---|---|
+| `OPENROUTER_API_KEY` | Fallback for any preset without a dedicated key; also enables the `openai`, `google`, `open`, `open-frugal`, and `balanced` presets. |
+| `ANTHROPIC_API_KEY` | Enables the `anthropic` preset. Read by `AnthropicClient` itself, not the resolver, and routed to `api.anthropic.com` regardless of `OPENROUTER_API_KEY`. |
+| `MOONSHOT_API_KEY` | Enables the `kimi` preset; routes directly to `https://api.moonshot.ai/v1` when set, otherwise falls back to OpenRouter. |
+| `DEEPSEEK_API_KEY` | Enables the `deepseek` preset; routes directly to `https://api.deepseek.com` when set, otherwise falls back to OpenRouter. |
+| `XAI_API_KEY` | Enables the `xai` preset; routes directly to `https://api.x.ai/v1` when set, otherwise falls back to OpenRouter. |
+| `GLM_API_KEY` | Enables the `glm` preset; routes directly to `https://open.bigmodel.cn/api/paas/v4` when set, otherwise falls back to OpenRouter. |
+| `DASHSCOPE_API_KEY` | Enables the `qwen` preset. Routes to pay-as-you-go PAYG endpoint by default. |
+| `DASHSCOPE_PLAN_BASE_URL` | **Required** if using a Coding Plan key (`sk-sp-*`) with qwen. Must point to your region's plan-exclusive base URL; e.g., `https://token-plan.<region>.maas.aliyuncs.com/compatible-mode/v1`. Without this, a plan key falls back to OpenRouter (with a warning) or throws if OpenRouter key is also unset. Copy this from your Dashscope plan console's "Plan Exclusive Base URL" panel. |
+
+**Routing logic:** Both `chat` and `commit` commands consult the same resolver. For a given preset:
+1. If it's `anthropic`, use `AnthropicClient` with `ANTHROPIC_API_KEY`. There is no fallback — an unset key raises rather than quietly billing a different vendor.
+2. If it's `qwen`, check `DASHSCOPE_API_KEY` and its plan URL if the key looks like a plan key (`sk-sp-*`)
+3. If the preset has a direct endpoint and its own key is set, use that endpoint
+4. Otherwise, fall back to OpenRouter with `OPENROUTER_API_KEY`
+
 ### Skills — fixed to `~/.paider/skills`, no override at all
 
 Not in the table above because there is nothing to configure: `App\Skills\SkillLibrary` discovers

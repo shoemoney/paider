@@ -387,6 +387,7 @@ someone got right first try:
 | 🔄 `/undo` boundary | `/undo` respects project root, cannot delete files outside it or poison the stack |
 | 📤 JSON-array commands | array-form `command` in shell execution is displayed plainly in approval prompts, grants cache by displayed text, no auto-grant on later arrays |
 | ✅ result checking | `paider commit` returned SUCCESS when nothing was committed, and fed a SecretsGuard *refusal* to the model as though it were a diff |
+| 🧹 output sanitisation | `paider commit` routes model-generated commit messages and provider errors through `TerminalSafe::clean()` at the display boundary only, stripping OSC 52 clipboard injection, cursor movement, and other unsafe sequences while preserving SGR colour output |
 
 <details>
 <summary><b>🔬 Where these came from — and the incomplete fix that was already verified</b></summary>
