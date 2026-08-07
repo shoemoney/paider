@@ -6,6 +6,7 @@ use App\Providers\ProviderResponse;
 use App\Storage\Database;
 use App\Storage\EventLog;
 use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\NullOutput;
 
 /**
@@ -187,6 +188,39 @@ test('an unignored .env staged alongside a tracked change fails closed with no c
     exec('git -C '.escapeshellarg($this->root).' status --porcelain', $statusOutput);
     expect($statusOutput)->toContain('M  tracked.txt')
         ->and($statusOutput)->toContain('A  .env');
+});
+
+test('an escape sequence in the model reply is cleaned before note() but reaches the actual commit untouched', function () {
+    file_put_contents($this->root.'/tracked.txt', 'original');
+    exec('git -C '.escapeshellarg($this->root).' add tracked.txt 2>&1');
+    exec('git -C '.escapeshellarg($this->root).' commit -m seed 2>&1');
+    file_put_contents($this->root.'/tracked.txt', 'changed');
+
+    // OSC 0 (set window title), terminated by BEL — TerminalSafe strips this whole,
+    // it is not an SGR colour sequence.
+    $injected = "feat: add file\x1b]0;pwned\x07 safe tail";
+    $spy = new SpyProviderClient(response: new ProviderResponse($injected, 12, 4, []));
+
+    // note()/error() write through Prompt's static output, which Illuminate\Console\
+    // Command::run() overwrites with $this->output at the top of every run() call
+    // (Concerns\ConfiguresPrompts::configurePrompts) — so a BufferedOutput handed
+    // to run() itself, not a Prompt::setOutput() done beforehand, is what's needed
+    // to capture what note() actually renders.
+    $promptOutput = new BufferedOutput;
+    $command = new FakeCommitCommand($spy);
+    $command->setLaravel($this->app);
+    $exitCode = $command->run(new ArrayInput([]), $promptOutput);
+
+    expect($exitCode)->toBe(0);
+
+    $rendered = $promptOutput->fetch();
+    expect($rendered)->not->toContain("\x1b]0;pwned\x07")
+        ->and($rendered)->toContain('safe tail');
+
+    // Display-only cleaning: the commit itself must carry the model's message
+    // byte-for-byte, escape sequence and all.
+    exec('git -C '.escapeshellarg($this->root).' log -1 --format=%s', $output);
+    expect(implode("\n", $output))->toBe($injected);
 });
 
 test('a provider failure leaves the tree staged but uncommitted and returns FAILURE', function () {

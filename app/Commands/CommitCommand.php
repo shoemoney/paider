@@ -9,6 +9,7 @@ use App\Providers\OpenAiCompatibleClient;
 use App\Storage\Database;
 use App\Storage\EventLog;
 use App\Support\ModelPricing;
+use App\Support\TerminalSafe;
 use App\Tools\GitTool;
 use LaravelZero\Framework\Commands\Command;
 
@@ -94,11 +95,11 @@ class CommitCommand extends Command
                 return Command::FAILURE;
             }
 
-            note($message);
+            note(TerminalSafe::clean($message));
 
             return Command::SUCCESS;
         } catch (\Throwable $e) {
-            error($e->getMessage());
+            error(TerminalSafe::clean($e->getMessage()));
 
             return Command::FAILURE;
         }
