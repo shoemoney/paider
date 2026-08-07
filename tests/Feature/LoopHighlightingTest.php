@@ -112,19 +112,36 @@ function renderProseInPty(string $content, string $paiderColor = '1', string $hi
     $scriptFile = tempnam(sys_get_temp_dir(), 'paider-highlight-').'.php';
     file_put_contents($scriptFile, highlightProbeScript($content, $highlighterClassSource, $highlighterExpr));
 
-    $captureFile = tempnam(sys_get_temp_dir(), 'paider-tty-');
+    // Retried on an EMPTY capture only. Allocating a pty via script(1) competes for system
+    // resources, and under load the child is starved and writes nothing — which then reads as
+    // "the renderer produced no output", a failure with nothing to do with the code under test.
+    // An empty capture is never a legitimate result here (every probe prints something), so it
+    // is a safe retry condition that cannot paper over a real regression: a probe that renders
+    // the WRONG thing still returns non-empty and is still asserted on.
+    $output = '';
 
-    shell_exec(
-        'cd '.escapeshellarg(base_path()).' && '
-        .'env -u NO_COLOR PAIDER_COLOR='.escapeshellarg($paiderColor).' script -q '.escapeshellarg($captureFile).' '
-        .'php '.escapeshellarg($scriptFile).' >/dev/null 2>&1'
-    );
+    for ($attempt = 0; $attempt < 3; $attempt++) {
+        $captureFile = tempnam(sys_get_temp_dir(), 'paider-tty-');
 
-    $output = file_get_contents($captureFile);
-    unlink($captureFile);
+        shell_exec(
+            'cd '.escapeshellarg(base_path()).' && '
+            .'env -u NO_COLOR PAIDER_COLOR='.escapeshellarg($paiderColor).' script -q '.escapeshellarg($captureFile).' '
+            .'php '.escapeshellarg($scriptFile).' >/dev/null 2>&1'
+        );
+
+        $output = (string) file_get_contents($captureFile);
+        unlink($captureFile);
+
+        if (trim($output) !== '') {
+            break;
+        }
+
+        usleep(50_000 * ($attempt + 1));
+    }
+
     unlink($scriptFile);
 
-    return $output === false ? '' : $output;
+    return $output;
 }
 
 test('a reply shaped like the tool-fence collision — a real tool call plus a second fence — renders without exception and without added colour', function () {

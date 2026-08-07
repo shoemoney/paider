@@ -87,7 +87,15 @@ class MemoryStore
         $lines = [];
 
         foreach ($facts as $key => $value) {
-            $lines[] = "- {$key}: {$value}";
+            // A remembered key/value can carry a literal newline (the remember tool only trims
+            // the ends, not the middle) — collapsed to one line so a single fact can't forge
+            // extra "- key: value" lines that read as separate facts. Same fix, same reasoning,
+            // as SkillLibrary::index() applies to a skill's name/description.
+            $lines[] = sprintf(
+                '- %s: %s',
+                trim(preg_replace('/\s+/', ' ', (string) $key) ?? (string) $key),
+                trim(preg_replace('/\s+/', ' ', $value) ?? $value),
+            );
         }
 
         return 'Durable facts about this project, remembered from earlier sessions. '

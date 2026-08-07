@@ -60,19 +60,10 @@ test('an OSC 52 injection in a model reply is stripped on the real-tty stream br
         $this->markTestSkipped('script(1) not available to allocate a pty');
     }
 
-    $captureFile = tempnam(sys_get_temp_dir(), 'paider-tty-');
-
-    // macOS `script -q <file> <command...>` allocates a real pty for the child regardless of
-    // this test process's own stdout — the only way to genuinely exercise stream_isatty(STDOUT)
-    // === true without touching Loop's production code to make that seam injectable.
-    shell_exec(
-        'cd '.escapeshellarg(base_path()).' && '
-        .'env -u NO_COLOR PAIDER_COLOR=0 script -q '.escapeshellarg($captureFile).' '
-        .'php -r '.escapeshellarg(terminalSafeWiringProbe()).' >/dev/null 2>&1'
-    );
-
-    $output = file_get_contents($captureFile);
-    unlink($captureFile);
+    // script(1) allocates a real pty for the child regardless of this test process's own stdout
+    // — the only way to genuinely exercise stream_isatty(STDOUT) === true without adding a seam
+    // to Loop purely for testability. Retried via ptyCapture(): see tests/Pest.php for why.
+    $output = ptyCapture(terminalSafeWiringProbe(), 'before');
 
     expect($output)->not->toBeFalse()
         ->and($output)->toContain('before')

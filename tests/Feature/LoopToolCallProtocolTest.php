@@ -4,163 +4,23 @@ use App\Agent\Loop;
 use App\Agent\Session;
 use App\Agent\TierRouter;
 use App\Approval\Gate;
-use App\Providers\Contracts\ProviderClient;
 use App\Providers\ProviderResponse;
 use App\Storage\Database;
 use App\Storage\EventLog;
 use App\Storage\MemoryStore;
-use App\Tools\Contracts\Tool;
 use App\Tools\FetchUrlTool;
 use App\Tools\GitTool;
 use App\Tools\PatchFileTool;
 use App\Tools\ReadFileTool;
 use App\Tools\ShellTool;
-use App\Tools\ToolResult;
 use App\Tools\WriteFileTool;
 
-/** Records exactly what it was dispatched with — never touches disk or a network. */
-class RecordingTool implements Tool
-{
-    public int $callCount = 0;
-
-    public ?array $lastInput = null;
-
-    public function name(): string
-    {
-        return 'fake_tool';
-    }
-
-    public function description(): string
-    {
-        return 'test double, records dispatches';
-    }
-
-    public function inputSchema(): array
-    {
-        return ['type' => 'object'];
-    }
-
-    // ponytail: unused, only read/write/patch/git use the out-of-band signal — see Tool::execute() doc
-    public function execute(array $input, bool $approved = false): ToolResult
-    {
-        $this->callCount++;
-        $this->lastInput = $input;
-
-        return ToolResult::ok('done');
-    }
-}
-
-/** Records whether 'approval' was present in $input when Loop dispatched it — proves the gate ran first. */
-class RecordingArtisanTool implements Tool
-{
-    public int $callCount = 0;
-
-    public ?array $lastInput = null;
-
-    public function name(): string
-    {
-        return 'artisan';
-    }
-
-    public function description(): string
-    {
-        return 'test double for the artisan tool';
-    }
-
-    public function inputSchema(): array
-    {
-        return ['type' => 'object'];
-    }
-
-    // ponytail: unused, only read/write/patch/git use the out-of-band signal — see Tool::execute() doc
-    public function execute(array $input, bool $approved = false): ToolResult
-    {
-        $this->callCount++;
-        $this->lastInput = $input;
-
-        return ToolResult::ok('[]');
-    }
-}
-
-/** Records whether 'approval' was present in $input when Loop dispatched it — proves the gate ran first, same as RecordingArtisanTool but for run_shell. */
-class RecordingShellTool implements Tool
-{
-    public int $callCount = 0;
-
-    public ?array $lastInput = null;
-
-    public function name(): string
-    {
-        return 'run_shell';
-    }
-
-    public function description(): string
-    {
-        return 'test double for the shell tool';
-    }
-
-    public function inputSchema(): array
-    {
-        return ['type' => 'object'];
-    }
-
-    // ponytail: unused, only read/write/patch/git use the out-of-band signal — see Tool::execute() doc
-    public function execute(array $input, bool $approved = false): ToolResult
-    {
-        $this->callCount++;
-        $this->lastInput = $input;
-
-        return ToolResult::ok('done');
-    }
-}
-
-/** Replays a fixed queue of responses, repeating the last one if the loop asks for more. */
-class QueuedProviderClient implements ProviderClient
-{
-    private int $cursor = 0;
-
-    /** @var array<int, array<int, array{role: string, content: string}>> every it was sent */
-    public array $seenMessages = [];
-
-    /** @param array<int, ProviderResponse> $responses */
-    public function __construct(private readonly array $responses) {}
-
-    public function send(array $messages, string $model, array $options = []): ProviderResponse
-    {
-        $this->seenMessages[] = $messages;
-
-        $response = $this->responses[$this->cursor] ?? end($this->responses);
-        $this->cursor++;
-
-        return $response;
-    }
-}
-
-function loopTestSession(): Session
-{
-    $root = sys_get_temp_dir().'/paider-loop-'.uniqid();
-    mkdir($root, recursive: true);
-
-    return new Session(new ReadFileTool(realpath($root)), realpath($root));
-}
-
-/** @return array{0: Session, 1: string} */
-function loopTestSessionWithRoot(): array
-{
-    $root = sys_get_temp_dir().'/paider-loop-'.uniqid();
-    mkdir($root, recursive: true);
-    $root = realpath($root);
-
-    return [new Session(new ReadFileTool($root), $root), $root];
-}
-
-function neverApprove(): callable
-{
-    return function (string $subject): never {
-        throw new RuntimeException("approval should not have been requested for: {$subject}");
-    };
-}
-
+/**
+ * RecordingTool, RecordingArtisanTool, RecordingShellTool, QueuedProviderClient,
+ * loopTestSession(), loopTestSessionWithRoot() and neverApprove() used to live here — moved to
+ * tests/Pest.php so a targeted run of a single test file that reuses them (e.g.
+ * SkillToolEndToEndTest.php) doesn't fatal with "class not found". See Pest.php for why.
+ */
 test('a well-formed fenced tool block dispatches the matching tool with the parsed input', function () {
     $tool = new RecordingTool;
 

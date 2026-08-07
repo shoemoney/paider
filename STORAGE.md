@@ -70,6 +70,19 @@ fromEnvironment()` is the seam that enforces the split, and `ProjectSelfAuthoriz
 including a source-grep invariant so a later tidy-up that routes these back through
 `ProjectEnv::get()` fails loudly.
 
+### Skills — fixed to `~/.paider/skills`, no override at all
+
+Not in the table above because there is nothing to configure: `App\Skills\SkillLibrary` discovers
+skills from exactly one path and there is no env var, `.paider/.env` key, or flag that changes it.
+
+A skill is instructions loaded from disk and injected into the prompt — the same class of problem
+as `PAIDER_YOLO` one step further along. `<project>/.paider/skills` and `<project>/.claude/skills`
+are therefore **refused unconditionally**, with one printed line so the user knows skills were
+present and skipped rather than silently believing their project skills loaded. There is
+deliberately no knob that re-enables them, project-scoped or otherwise: a project-readable one
+would just be the `.paider/.env` hole one layer down — a repository able to say "load my skills
+anyway" grants itself standing instructions the moment someone clones it and runs Paider inside.
+
 ## Colour
 
 Every colour Paider emits is named by meaning, never by hex or SGR code, through `App\Support\Palette`
@@ -113,6 +126,26 @@ would train the user to approve reflexively, which is how a real approval prompt
 
 Values are capped at 2 KB because every stored fact is re-sent on every turn of every future
 session — an unbounded value is a permanent recurring cost, not a one-off.
+
+## Skills
+
+`load_skill` fetches the full body of one skill from `~/.paider/skills/<name>/SKILL.md`, by name,
+chosen by the model from an index (`name` + truncated `description`) `Loop` injects as its own
+system message — separate from the memory block and the tool protocol, same reasoning as Memory
+above: author-written prose that turns out wrong must never be able to corrupt the tool-call
+contract. Only sent at all when at least one skill was found, so a user with none pays zero prompt
+tokens for an empty catalogue or a tool doc for a tool that would do nothing.
+
+Every loaded body is stamped with a provenance header before the model sees it: a skill is a
+*procedure the model asked for*, not an instruction from the operator, and the header says so in
+those words — it cannot grant approval (`run_shell`/`fetch_url` still hit `Gate::decide()` no
+matter what a skill's own text claims) and it cannot change the tool-call format. It also names
+which of the four capability categories a corpus census measured (subagents, MCP, browser,
+artifacts) the body references, since Paider has none of them and a step that assumes one will
+just fail rather than silently no-op.
+
+`load_skill` is ungated, same reasoning as `remember`: it reads one file under the user's own home
+directory and nothing else — no shell, no network, no write.
 
 ## Reaching your own infrastructure
 

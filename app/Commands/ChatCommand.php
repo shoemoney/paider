@@ -9,6 +9,7 @@ use App\Approval\Gate;
 use App\Providers\AnthropicClient;
 use App\Providers\Contracts\ProviderClient;
 use App\Providers\OpenAiCompatibleClient;
+use App\Skills\SkillLibrary;
 use App\Storage\Database;
 use App\Storage\EventLog;
 use App\Storage\SessionStore;
@@ -19,8 +20,10 @@ use App\Support\Palette;
 use App\Support\SettingsStore;
 use App\Support\TerminalSafe;
 use App\Tools\ArtisanTool;
+use App\Tools\Contracts\Tool;
 use App\Tools\FetchUrlTool;
 use App\Tools\GitTool;
+use App\Tools\LoadSkillTool;
 use App\Tools\MemoryTool;
 use App\Tools\PatchFileTool;
 use App\Tools\ReadFileTool;
@@ -60,19 +63,11 @@ class ChatCommand extends Command
         $this->eventLog = new EventLog(Database::connect());
         $session = new Session($this->readFileTool, $this->projectRoot);
 
-        $tools = [
-            $this->readFileTool,
-            new WriteFileTool($this->projectRoot),
-            new PatchFileTool($this->projectRoot),
-            new ShellTool($this->projectRoot),
-            new FetchUrlTool,
-            new MemoryTool($this->eventLog),
-            $this->gitTool,
-        ];
-
-        if (file_exists($this->projectRoot.'/artisan')) {
-            $tools[] = new ArtisanTool($this->projectRoot);
-        }
+        // Index built once and reused for both the tool registration decision and the message
+        // Loop injects — a user with zero skills under ~/.paider/skills pays for neither the
+        // load_skill tool doc nor an empty catalogue in the prompt.
+        $skillIndex = SkillLibrary::index();
+        $tools = $this->buildTools($skillIndex);
 
         $gate = Gate::forSession((bool) $this->option('yolo'));
 
@@ -82,6 +77,7 @@ class ChatCommand extends Command
             new TierRouter,
             $this->eventLog,
             $gate,
+            skillIndex: $skillIndex,
         );
 
         echo Banner::render();
@@ -98,6 +94,19 @@ class ChatCommand extends Command
                 Palette::tw(ColorRole::Alert),
                 Palette::tw(ColorRole::Muted),
                 $this->option('yolo') ? '' : ' via '.Gate::ENV_VAR,
+            ));
+        }
+
+        // Mandatory, not cosmetic: a project shipping its own .paider/skills or .claude/skills
+        // is refused unconditionally (SkillLibrary's trust-boundary doc), and the user must be
+        // told that happened rather than silently believe their project skills loaded.
+        $skillsNotice = SkillLibrary::refusedProjectSkillsNotice();
+
+        if ($skillsNotice !== null) {
+            Palette::render(sprintf(
+                '<div class="mb-1 %s">%s</div>',
+                Palette::tw(ColorRole::Muted),
+                htmlspecialchars($skillsNotice, ENT_QUOTES),
             ));
         }
 
@@ -124,6 +133,39 @@ class ChatCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * The tool roster for this session — pulled out of handle() so the composition-root wiring
+     * (does load_skill actually get registered when there are skills to load?) is reachable
+     * from a test without standing up a live REPL, an EventLog, or a real ProviderClient. This
+     * is the exact seam a prior review found completely untested: a mutated `if (false) {
+     * $tools[] = new LoadSkillTool; }` here left the whole suite green.
+     *
+     * @param  array<int, array{name: string, description: string}>  $skillIndex
+     * @return array<int, Tool>
+     */
+    private function buildTools(array $skillIndex): array
+    {
+        $tools = [
+            $this->readFileTool,
+            new WriteFileTool($this->projectRoot),
+            new PatchFileTool($this->projectRoot),
+            new ShellTool($this->projectRoot),
+            new FetchUrlTool,
+            new MemoryTool($this->eventLog),
+            $this->gitTool,
+        ];
+
+        if (file_exists($this->projectRoot.'/artisan')) {
+            $tools[] = new ArtisanTool($this->projectRoot);
+        }
+
+        if ($skillIndex !== []) {
+            $tools[] = new LoadSkillTool;
+        }
+
+        return $tools;
     }
 
     /**
