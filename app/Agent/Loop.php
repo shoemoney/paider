@@ -8,10 +8,13 @@ use App\Storage\EventLog;
 use App\Storage\MemoryStore;
 use App\Storage\SessionStore;
 use App\Support\ColorRole;
+use App\Support\Contracts\Highlighter;
 use App\Support\ModelPricing;
 use App\Support\Palette;
 use App\Support\PhpSpinner;
 use App\Support\ProseStream;
+use App\Support\TempestHighlighter;
+use App\Support\TerminalSafe;
 use App\Tools\Contracts\Tool;
 use App\Tools\ToolResult;
 use Symfony\Component\Console\Terminal;
@@ -36,6 +39,10 @@ class Loop
         private readonly TierRouter $tierRouter,
         private readonly EventLog $eventLog,
         private readonly Gate $gate,
+        // Defaulted, not required: ChatCommand (and every existing test) constructs Loop with
+        // the original 5 args, and a `new` default expression is a legal PHP 8.1+ constant
+        // expression — no call site needs to change for this to be injectable in tests.
+        private readonly Highlighter $highlighter = new TempestHighlighter,
     ) {
         foreach ($tools as $tool) {
             $this->tools[$tool->name()] = $tool;
@@ -380,6 +387,12 @@ class Loop
      */
     private function renderProse(string $content): void
     {
+        // Untrusted model output goes straight to the user's real terminal — this is the
+        // security half of colour support, not cosmetics (see TerminalSafe's own docblock for
+        // the threat model). Runs before the isatty branch below so BOTH the echo path and the
+        // stream path are covered by one guard, not two that could drift apart.
+        $content = TerminalSafe::clean($content);
+
         if (! stream_isatty(STDOUT)) {
             echo $content.PHP_EOL;
 
@@ -393,11 +406,121 @@ class Loop
         // don't go through it at all.
         $out = new ProseStream;
 
-        foreach (str_split($content, 20) ?: [''] as $chunk) {
-            $out->append($chunk);
+        foreach ($this->splitFences($content) as $segment) {
+            if ($segment['fence']) {
+                // The ``` delimiters and language tag are appended as their own plain-text
+                // calls, not chunked and not passed to the highlighter — without them a fenced
+                // block is visually indistinguishable from prose the moment colour or
+                // highlighting is off (PAIDER_COLOR=0, NO_COLOR, TERM=dumb, a piped run),
+                // which is strictly worse than the non-tty echo path that still prints them.
+                $out->append('```'.$segment['language']."\n");
+
+                // str_split is byte-based and ANSI-unaware: splitting an already-highlighted
+                // string across a 20-byte boundary bisects an escape sequence, and the stream's
+                // own fade-in wrapping then wraps each fragment separately, leaking the tail of
+                // the orphaned sequence as literal text on screen. A highlighted block MUST
+                // reach the stream in exactly one append() call — never chunk it. The try/catch
+                // is defence in depth against a Highlighter implementation that breaks its own
+                // never-throws contract; TempestHighlighter itself already guards the vendor call.
+                try {
+                    $out->append($this->highlighter->highlight($segment['code'], $segment['language']));
+                } catch (\Throwable) {
+                    $out->append($segment['code']);
+                }
+
+                $out->append("\n```");
+
+                continue;
+            }
+
+            // Same one-call-per-sequence rule as fenced code, applied to prose: TerminalSafe
+            // deliberately preserves model-supplied SGR (our own Palette output, or a model
+            // just using colour), so a plain str_split(...,20) here would reproduce the exact
+            // ANSI-bisection bug the fence path above exists to avoid, just for colour that
+            // arrived as ordinary text instead of through the highlighter.
+            foreach ($this->splitAnsiSafe($segment['text']) as $chunk) {
+                $out->append($chunk);
+            }
         }
 
         $out->close();
+    }
+
+    /**
+     * str_split() alone is byte-based and ANSI-unaware — chunking prose straight through it
+     * bisects any SGR sequence TerminalSafe left in place, leaking the escape's tail as literal
+     * text (the same failure mode renderProse's fence handling above exists to avoid). Split on
+     * SGR boundaries first so every escape sequence reaches the stream in exactly one append()
+     * call, then 20-byte-chunk only the plain runs between them — same fade-in cadence as before
+     * for everything that isn't an escape sequence.
+     *
+     * @return list<string>
+     */
+    private function splitAnsiSafe(string $text): array
+    {
+        $tokens = preg_split('/(\x1b\[[0-9;]*m)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+
+        if ($tokens === false) {
+            return str_split($text, 20) ?: [''];
+        }
+
+        $chunks = [];
+
+        foreach ($tokens as $token) {
+            if (preg_match('/^\x1b\[[0-9;]*m$/', $token)) {
+                $chunks[] = $token;
+
+                continue;
+            }
+
+            array_push($chunks, ...(str_split($token, 20) ?: []));
+        }
+
+        return $chunks ?: [''];
+    }
+
+    /**
+     * Splits already-sanitised prose into alternating prose / fenced-code segments. Runs
+     * strictly downstream of parseToolCall()'s own exactly-two-backtick check (turn() only
+     * reaches renderProse when that returned null) and never re-derives anything from it — a
+     * 'tool'-tagged fence that fell through because the reply carried a SECOND fence too is just
+     * another code segment here, passed to the highlighter like any other language tag (which
+     * treats 'tool' as unsupported and returns it unchanged — see TempestHighlighter).
+     *
+     * Same fence grammar as parseToolCall: a closing ``` must be preceded by a newline, so a
+     * fence with no matching close is left as plain prose rather than guessed at. The closing
+     * ``` must also be followed by a newline or end-of-string (not another language tag) — an
+     * inner ```lang opener inside a nested block (a ```markdown reply that itself contains a
+     * ```php example) would otherwise be mistaken for the outer fence's closer, and its
+     * language tag would leak into the output as bare prose text. Trailing spaces/tabs after
+     * the language tag (```php␠␠␠) are tolerated so invisible whitespace doesn't silently fall
+     * back to unfenced prose.
+     *
+     * @return list<array{fence: bool, text?: string, language?: string, code?: string}>
+     */
+    private function splitFences(string $content): array
+    {
+        if (! preg_match_all('/```(\S*)[ \t]*\n(.*?)\n```(?=\n|$)/s', $content, $matches, PREG_OFFSET_CAPTURE)) {
+            return [['fence' => false, 'text' => $content]];
+        }
+
+        $segments = [];
+        $cursor = 0;
+
+        foreach ($matches[0] as $i => [$whole, $offset]) {
+            if ($offset > $cursor) {
+                $segments[] = ['fence' => false, 'text' => substr($content, $cursor, $offset - $cursor)];
+            }
+
+            $segments[] = ['fence' => true, 'language' => $matches[1][$i][0], 'code' => $matches[2][$i][0]];
+            $cursor = $offset + strlen($whole);
+        }
+
+        if ($cursor < strlen($content)) {
+            $segments[] = ['fence' => false, 'text' => substr($content, $cursor)];
+        }
+
+        return $segments;
     }
 
     /**
@@ -408,8 +531,12 @@ class Loop
      */
     private function renderToolCall(string $name, array $input): void
     {
-        $subject = htmlspecialchars($this->summarizeInput($input), ENT_QUOTES);
-        $label = htmlspecialchars($name, ENT_QUOTES);
+        // Both $name and every value inside $input are the model's own tool-call JSON — the
+        // same untrusted-terminal-output threat renderProse guards against (see TerminalSafe's
+        // docblock). htmlspecialchars alone stops Termwind from parsing an embedded '<' or '>'
+        // as markup; it does nothing about raw ANSI, which Termwind passes straight through.
+        $subject = htmlspecialchars(TerminalSafe::clean($this->summarizeInput($input)), ENT_QUOTES);
+        $label = htmlspecialchars(TerminalSafe::clean($name), ENT_QUOTES);
 
         // w-12/ml-* rather than str_pad and literal spaces: Termwind trims whitespace at the
         // edges of an element, so padding baked into the text collapses and the columns lose
@@ -425,9 +552,12 @@ class Loop
         $detail = sprintf('%.1fs · %d line%s', $seconds, $lines, $lines === 1 ? '' : 's');
         $muted = Palette::tw(ColorRole::Muted);
 
+        // $result->output on the failure branch is shell stderr, a file-read error, a fetch
+        // failure — all untrusted (a shell command's stderr is attacker-shaped the moment the
+        // model controls the command), same threat as renderToolCall above.
         Palette::render($result->ok
             ? '<div><span class="'.Palette::tw(ColorRole::Success)." ml-2\">✓ ok</span><span class=\"{$muted} ml-2\">{$detail}</span></div>"
-            : '<div><span class="'.Palette::tw(ColorRole::Error).' ml-2">✗ '.htmlspecialchars($this->oneLine($result->output), ENT_QUOTES).'</span></div>');
+            : '<div><span class="'.Palette::tw(ColorRole::Error).' ml-2">✗ '.htmlspecialchars($this->oneLine(TerminalSafe::clean($result->output)), ENT_QUOTES).'</span></div>');
     }
 
     /**

@@ -17,6 +17,7 @@ use App\Support\ChatPrompt;
 use App\Support\ColorRole;
 use App\Support\Palette;
 use App\Support\SettingsStore;
+use App\Support\TerminalSafe;
 use App\Tools\ArtisanTool;
 use App\Tools\FetchUrlTool;
 use App\Tools\GitTool;
@@ -240,7 +241,47 @@ class ChatCommand extends Command
     {
         $result = $this->gitTool->execute(['op' => 'diff']);
 
-        echo $result->output.PHP_EOL;
+        echo self::colorizeDiff(TerminalSafe::clean($result->output)).PHP_EOL;
+    }
+
+    /**
+     * Structural colour only — which lines were added/removed/where a hunk starts — not
+     * per-hunk syntax highlighting. That needs a diff parser plus extension-to-language
+     * mapping plus old/new alignment; prefix colour solves the actual readability problem
+     * ("which lines changed") with zero new dependencies, so it's the deliberate stopping
+     * point here, not an oversight.
+     *
+     * '+++'/'---' file headers are checked BEFORE the bare +/- prefixes below — the classic
+     * off-by-one in prefix-based diff colouring, since every '+++' line also starts with '+'.
+     *
+     * That header check only applies BEFORE the first hunk of each file, tracked via $inHunk:
+     * a real '---'/'+++' pair only ever appears between a 'diff --git' line and that file's
+     * first '@@' line. Once a hunk has started, a line that happens to start with '--' or '++'
+     * is deleted/added CONTENT (a SQL comment, a YAML/markdown separator, C '--x') — colouring
+     * it Muted instead of Error/Success would make a reviewer lose real diff lines.
+     */
+    private static function colorizeDiff(string $diff): string
+    {
+        $lines = explode("\n", $diff);
+        $inHunk = false;
+
+        foreach ($lines as &$line) {
+            if (str_starts_with($line, 'diff --git')) {
+                $inHunk = false;
+            } elseif (str_starts_with($line, '@@')) {
+                $inHunk = true;
+            }
+
+            $line = match (true) {
+                ! $inHunk && (str_starts_with($line, '+++') || str_starts_with($line, '---')) => Palette::wrap(ColorRole::Muted, $line),
+                str_starts_with($line, '@@') => Palette::wrap(ColorRole::Accent, $line),
+                str_starts_with($line, '+') => Palette::wrap(ColorRole::Success, $line),
+                str_starts_with($line, '-') => Palette::wrap(ColorRole::Error, $line),
+                default => $line,
+            };
+        }
+
+        return implode("\n", $lines);
     }
 
     private function handleUndo(Session $session): void
@@ -284,8 +325,12 @@ class ChatCommand extends Command
 
     private function promptApproval(string $subject): string
     {
+        // $subject is model-controlled (dispatchShell/dispatchFetch pass $input['command']/
+        // $input['url'] verbatim from the parsed reply) — a prompt injection with an embedded
+        // erase-line sequence could otherwise repaint this label after the human reads it,
+        // making them approve a different command than the one that actually runs.
         return select(
-            label: "Approve: {$subject}?",
+            label: 'Approve: '.TerminalSafe::clean($subject).'?',
             options: [
                 'allow-once' => 'Allow once',
                 'allow-session' => 'Allow for this session',
