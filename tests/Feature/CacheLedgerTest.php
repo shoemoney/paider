@@ -112,7 +112,11 @@ test('the saving is frozen at write time, so a later price change cannot restate
 
     // Same discipline as cost_usd (LOCKED #2): editing config/prices.php must not silently
     // rewrite savings already claimed in an earlier session.
-    config()->set('prices.'.ModelPricing::REFERENCE_MODEL.'.input', 999.0);
+    // The key is 'in', not 'input'. This test previously set 'input' — a key costFor() never
+    // reads — so the price never actually moved and the assertion compared an unchanged value
+    // to itself. It passed identically with the freeze REMOVED, which is the definition of a
+    // test that cannot fail. Verified: with 'in', neutering the freeze turns this red.
+    config()->set('prices.'.ModelPricing::REFERENCE_MODEL.'.in', 999.0);
 
     expect((new CostLedger($log))->summary()['orchestrator']['cache_saved_usd'])->toBe($recorded);
 });

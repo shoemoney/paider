@@ -179,13 +179,18 @@ test('an allowlisted host may resolve to a private address', function () {
     // Self-hosted infrastructure legitimately lives on a private address. Refusing it forever
     // is the wrong default for someone who owns the network — but it stays opt-in and per-host.
     withAllowlist('git.internal.example', function () {
-        expect(UrlGuard::inspect('http://git.internal.example/')['ok'] ?? false)
-            ->toBe(UrlGuard::inspect('http://git.internal.example/')['ok'] ?? false);
+        // An IP literal, not a hostname: no DNS is involved, so the assertion is deterministic
+        // on any machine. The refused case is asserted FIRST so the two states are proven
+        // different — an allowlist test that only checks the allowed state would pass even if
+        // the guard allowed everything.
+        expect(UrlGuard::inspect('http://192.168.1.10/')['ok'] ?? false)->toBeFalse();
+    });
 
-        // An IP literal named directly in the list is the deterministic case — no DNS involved.
-        withAllowlist('192.168.1.10', function () {
-            expect(UrlGuard::inspect('http://192.168.1.10/')['ok'])->toBeTrue();
-        });
+    withAllowlist('192.168.1.10', function () {
+        $verdict = UrlGuard::inspect('http://192.168.1.10/');
+
+        expect($verdict['ok'])->toBeTrue();
+        expect($verdict['ips'])->toBe(['192.168.1.10']);
     });
 });
 
