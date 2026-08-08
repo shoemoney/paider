@@ -54,3 +54,32 @@ if ($files) {
 } else {
     echo "  no fixture files found\n";
 }
+
+$realFlag = in_array('--real-app', $argv, true) || in_array('--real', $argv, true);
+if ($realFlag) {
+    echo "\n==> TokenKiller real app/ probe (6k LOC)\n";
+    $appRoot = __DIR__.'/..';
+    $appFiles = [];
+    $iter = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($appRoot.'/app'));
+    foreach ($iter as $file) {
+        if ($file->isFile() && $file->getExtension() === 'php') {
+            $appFiles[] = $file->getPathname();
+        }
+    }
+    sort($appFiles);
+    $count = count($appFiles);
+    $fullBytes = 0;
+    foreach ($appFiles as $f) {
+        $fullBytes += strlen(file_get_contents($f));
+    }
+    $fullToks = (int) ceil($fullBytes / 4);
+    $query2 = 'add discount to Receipt';
+    $pruned2 = TokenKiller::prune($query2, $appFiles);
+    $prunedToks2 = (int) ceil(strlen($pruned2) / 4);
+    printf("  files: %d php files in app/\n", $count);
+    printf("  full: %d bytes ~%d toks\n", $fullBytes, $fullToks);
+    printf("  pruned: %d bytes ~%d toks (budget %d)\n", strlen($pruned2), $prunedToks2, TokenKiller::budget());
+    printf("  win: %.1fx smaller\n", $fullToks ? $fullToks / max(1, $prunedToks2) : 0);
+    echo "\n--- pruned output preview (real app) ---\n";
+    echo substr($pruned2, 0, 1200)."\n";
+}

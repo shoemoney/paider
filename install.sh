@@ -115,7 +115,7 @@ echo "    ok: mbstring tokenizer ctype fileinfo iconv curl openssl zlib phar fil
 
 if [ "$CHANNEL" = "phar" ]; then
     echo "==> Channel: phar"
-    PHAR_URL="${PHAR_URL:-https://github.com/shoemoney/paider/releases/latest/download/paider.phar}"
+    PHAR_URL="${PHAR_URL:-https://github.com/shoemoney/paider/releases/download/v1.0.0/paider.phar}"
     if [ "$DRY_RUN" -eq 1 ]; then
         echo "==> Dry run: no network or install actions will be taken"
         echo "    would fetch $PHAR_URL"

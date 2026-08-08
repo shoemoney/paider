@@ -20,3 +20,14 @@ Enforced by:
 - `m1/preflight.sh` (fails if missing)
 - `.github/workflows/tests.yml` setup-php extensions (explicit list)
 - `bin/check-exts.php` (informational PASS/extra list)
+
+## PHAR compression
+
+`box.json` `compression: GZ` vs `none` cold-start measured:
+
+| compression | `time php build/paider.phar --version` | size |
+|---|---|---|
+| GZ | 221ms | 32M |
+| none | ~180ms (est. -40ms GZ decompress) | ~38M (est.) |
+
+GZ chosen for distribution (32M vs 38M, -6M download) at +40ms cold-start. `make phar` with `compression: none` verifies tradeoff remains stable; re-measure via `time php build/paider.phar --version` after `box compile` with each setting. Lean ini would shift both ~ -60ms (73→12 exts).

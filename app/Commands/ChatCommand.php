@@ -7,6 +7,7 @@ use App\Agent\Session;
 use App\Agent\TierRouter;
 use App\Approval\Gate;
 use App\Providers\Contracts\ProviderClient;
+use App\Providers\McpClient;
 use App\Providers\ProviderResolver;
 use App\Skills\SkillLibrary;
 use App\Storage\Database;
@@ -77,6 +78,7 @@ class ChatCommand extends Command
             $this->eventLog,
             $gate,
             skillIndex: $skillIndex,
+            projectRoot: $this->projectRoot,
         );
 
         echo Banner::render();
@@ -164,7 +166,18 @@ class ChatCommand extends Command
             $tools[] = new LoadSkillTool;
         }
 
+        // MCP client: only when PAIDER_MCP flag is set and mcp.json exists
+        foreach (McpClient::tools($this->projectRoot) as $mcpTool) {
+            $tools[] = $mcpTool;
+        }
+
         return $tools;
+    }
+
+    /** @return array<int, Tool> public for RunCommand reuse and testing */
+    public function buildToolsPublic(array $skillIndex): array
+    {
+        return $this->buildTools($skillIndex);
     }
 
     /**

@@ -14,6 +14,23 @@ final class ProseStream extends Stream
 {
     private const MARGIN = 4;
 
+    /**
+     * Scrub AIGATE_TOKEN (and other provider keys) from text before it reaches the terminal
+     * or prompt history. A model that echoes a key it saw in tool output would otherwise
+     * persist that secret into the next prompt and the event log.
+     */
+    public static function scrubSecrets(string $text): string
+    {
+        foreach (['AIGATE_TOKEN', 'AIGATE_URL', 'OPENROUTER_API_KEY', 'ANTHROPIC_API_KEY', 'META_API_KEY', 'MOONSHOT_API_KEY', 'DEEPSEEK_API_KEY', 'DASHSCOPE_API_KEY', 'XAI_API_KEY', 'GLM_API_KEY'] as $key) {
+            $value = getenv($key);
+            if (is_string($value) && $value !== '' && strlen($value) >= 8) {
+                $text = str_replace($value, '[redacted:'.$key.']', $text);
+            }
+        }
+
+        return $text;
+    }
+
     public function __construct()
     {
         // See ChatPrompt: registration goes before the parent constructor renders anything,

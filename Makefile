@@ -33,3 +33,6 @@ preflight:
 
 token-budget:
 	php bin/token-budget.php
+
+token-budget-real:
+	php bin/token-budget.php --real-app

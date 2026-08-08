@@ -50,3 +50,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: build/paider.phar
+
+      # cosign PHAR signing deferred to v1.1 — requires OIDC + keyless setup and
+      # key distribution docs. PHAR is fetched over HTTPS from github.com/shoemoney/paider
+      # releases; signature verification will use `cosign verify-blob` once wired.

@@ -50,9 +50,15 @@ class CostCommand extends Command
         // real (zeroed) shape below, not human prose, so only short-circuit for the
         // table render.
         if ($tiers === [] && ! $this->option('json')) {
-            Palette::render(<<<'HTML'
-                <div class="px-1 my-1">no usage recorded yet — run `paider chat` or `paider commit` to start one</div>
-            HTML);
+            if ($this->option('session')) {
+                Palette::render(<<<'HTML'
+                    <div class="px-1 my-1">no usage in this session — run `paider chat` or `paider commit` to start one</div>
+                HTML);
+            } else {
+                Palette::render(<<<'HTML'
+                    <div class="px-1 my-1">no usage recorded yet — run `paider chat` or `paider commit` to start one</div>
+                HTML);
+            }
 
             return Command::SUCCESS;
         }

@@ -28,27 +28,50 @@ class Aigate
 
         $endpoint = rtrim($url, '/').'/api/keys/'.rawurlencode($provider);
 
-        try {
-            $client = new Client(['timeout' => 5, 'http_errors' => false]);
-            $res = $client->get($endpoint, [
-                'headers' => ['Authorization' => 'Bearer '.$token, 'Accept' => 'application/json'],
-            ]);
+        $attempts = 0;
+        $maxAttempts = 3;
 
-            if ($res->getStatusCode() !== 200) {
-                return null;
+        while ($attempts < $maxAttempts) {
+            $attempts++;
+
+            try {
+                $client = new Client(['timeout' => 5, 'http_errors' => false]);
+                $res = $client->get($endpoint, [
+                    'headers' => ['Authorization' => 'Bearer '.$token, 'Accept' => 'application/json'],
+                ]);
+
+                $status = $res->getStatusCode();
+
+                // 429 TTL-park: retry with exponential backoff, same as aigate-run.sh
+                if ($status === 429 && $attempts < $maxAttempts) {
+                    $retryAfter = (int) $res->getHeaderLine('Retry-After');
+                    $delay = $retryAfter > 0 ? $retryAfter : (int) pow(2, $attempts);
+                    sleep($delay);
+
+                    continue;
+                }
+
+                if ($status !== 200) {
+                    return null;
+                }
+
+                $data = json_decode((string) $res->getBody(), true);
+                $key = $data['key'] ?? null;
+                $key = is_string($key) && $key !== '' ? $key : null;
+                if ($key !== null) {
+                    self::$cache[$provider] = $key;
+                }
+
+                return $key;
+            } catch (\Throwable) {
+                if ($attempts >= $maxAttempts) {
+                    return null;
+                }
+                sleep((int) pow(2, $attempts));
             }
-
-            $data = json_decode((string) $res->getBody(), true);
-            $key = $data['key'] ?? null;
-            $key = is_string($key) && $key !== '' ? $key : null;
-            if ($key !== null) {
-                self::$cache[$provider] = $key;
-            }
-
-            return $key;
-        } catch (\Throwable) {
-            return null;
         }
+
+        return null;
     }
 
     /**

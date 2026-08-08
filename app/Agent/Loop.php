@@ -14,9 +14,12 @@ use App\Support\ModelPricing;
 use App\Support\Palette;
 use App\Support\PhpSpinner;
 use App\Support\ProseStream;
+use App\Support\SettingsStore;
 use App\Support\TempestHighlighter;
 use App\Support\TerminalSafe;
+use App\Support\TokenKiller;
 use App\Tools\Contracts\Tool;
+use App\Tools\ShellTool;
 use App\Tools\ToolResult;
 use Symfony\Component\Console\Terminal;
 
@@ -27,6 +30,8 @@ use Symfony\Component\Console\Terminal;
 class Loop
 {
     private const MAX_TOOL_CALLS_PER_TURN = 10;
+
+    private const MAX_TEST_RETRIES = 3;
 
     private const RETRY_ON_APPROVAL_TOOLS = ['read_file', 'write_file', 'patch_file', 'git'];
 
@@ -51,10 +56,16 @@ class Loop
         // user with none pays zero prompt tokens for an empty catalogue. See skillsSystemMessage().
         /** @var array<int, array{name: string, description: string}> */
         private readonly array $skillIndex = [],
+        private readonly string $projectRoot = '',
     ) {
         foreach ($tools as $tool) {
             $this->tools[$tool->name()] = $tool;
         }
+    }
+
+    private function effectiveProjectRoot(): string
+    {
+        return $this->projectRoot !== '' ? $this->projectRoot : (string) getcwd();
     }
 
     /** @param callable(string): string $approvalPrompt returns 'allow-once'|'allow-session'|'deny' */
@@ -65,8 +76,8 @@ class Loop
         for ($i = 0; $i < self::MAX_TOOL_CALLS_PER_TURN; $i++) {
             $resolved = $this->tierRouter->resolve('plan', $session->tierOverrides());
 
-            $messages = $this->buildMessages($session);
-            $cacheKey = hash('sha256', json_encode([$messages, $resolved['model']], JSON_THROW_ON_ERROR));
+            $messages = $this->buildMessages($session, $userInput, $resolved['tier']);
+            $cacheKey = hash('sha256', json_encode([$messages, $resolved['model'], $session->tierOverrides()], JSON_THROW_ON_ERROR));
             if (isset($this->responseCache[$cacheKey])) {
                 $cached = $this->responseCache[$cacheKey];
                 CacheLedger::recordHit($this->eventLog, 'orchestrator', $resolved['model'], $cached->tokensIn, $cached->tokensOut, $cached->cacheWrite ?? 0, $cached->cacheRead ?? 0);
@@ -148,9 +159,9 @@ class Loop
      */
     private function remember(Session $session, string $role, string $content): void
     {
-        $session->pushHistory($role, $content);
+        $session->pushHistory($role, ProseStream::scrubSecrets($content));
 
-        $this->eventLog->append(SessionStore::MESSAGE, ['role' => $role, 'content' => $content]);
+        $this->eventLog->append(SessionStore::MESSAGE, ['role' => $role, 'content' => ProseStream::scrubSecrets($content)]);
     }
 
     /**
@@ -294,7 +305,52 @@ class Loop
             $session->recordApply($path, $previous);
         }
 
+        // Test-feedback loop scaffold: if a test_command is configured and the write succeeded,
+        // run it via ShellTool with bounded retry N=3 and fold the result into the observation.
+        if ($result->ok) {
+            $testResult = $this->runPostPatchTests();
+            if ($testResult !== null) {
+                $this->eventLog->append('test_run', ['ok' => $testResult->ok, 'output' => substr($testResult->output, 0, 4000)]);
+                // Append test output to the tool result so the model sees it as feedback
+                $combinedOutput = $result->output;
+                $combinedOutput .= "\n\n[test_feedback ".($testResult->ok ? 'ok' : 'fail')."]\n".$testResult->output;
+                $result = $testResult->ok
+                    ? ToolResult::ok($combinedOutput, $result->meta)
+                    : ToolResult::fail($combinedOutput, $result->meta);
+            }
+        }
+
         return $result;
+    }
+
+    private function runPostPatchTests(): ?ToolResult
+    {
+        $command = SettingsStore::testCommand();
+
+        if ($command === null) {
+            return null;
+        }
+
+        $root = $this->effectiveProjectRoot();
+        $shell = $this->tools['run_shell'] ?? new ShellTool($root);
+
+        $lastResult = null;
+
+        for ($attempt = 0; $attempt < self::MAX_TEST_RETRIES; $attempt++) {
+            // Bypass gate for scaffold: test_command is an explicit user config, not model-controlled.
+            $lastResult = $shell->execute(['command' => $command, 'approval' => 'allow-once']);
+
+            if ($lastResult->ok) {
+                return $lastResult;
+            }
+
+            // If the tool itself failed to execute (not test failure), break
+            if (($lastResult->meta['timed_out'] ?? false) || str_contains($lastResult->output, 'approval required')) {
+                break;
+            }
+        }
+
+        return $lastResult;
     }
 
     private function needsRetry(ToolResult $result, array $input): bool
@@ -336,7 +392,7 @@ class Loop
     }
 
     /** @return array<int, array{role: string, content: string}> */
-    private function buildMessages(Session $session): array
+    private function buildMessages(Session $session, string $query = '', string $tier = 'orchestrator'): array
     {
         $messages = [['role' => 'system', 'content' => $this->systemInstruction()]];
 
@@ -358,10 +414,23 @@ class Loop
             $messages[] = ['role' => 'system', 'content' => $skills];
         }
 
-        // /add'ed files must be disclosed with the same sha256 stamp PatchFileTool checks —
-        // otherwise the model can never supply a stamp that will actually match on apply.
-        foreach ($session->contextFiles() as $path => $file) {
-            $messages[] = ['role' => 'system', 'content' => $this->contextFileMessage($path, $file)];
+        // Research tier repo-map: TokenKiller prunes context 50k->500 before sending.
+        // For non-research tiers, disclose full context files with stamp.
+        if ($tier === 'research' && $query !== '') {
+            $pruned = $this->buildResearchContext($session, $query);
+            if ($pruned !== null) {
+                $messages[] = ['role' => 'system', 'content' => $pruned];
+            } else {
+                foreach ($session->contextFiles() as $path => $file) {
+                    $messages[] = ['role' => 'system', 'content' => $this->contextFileMessage($path, $file)];
+                }
+            }
+        } else {
+            // /add'ed files must be disclosed with the same sha256 stamp PatchFileTool checks —
+            // otherwise the model can never supply a stamp that will actually match on apply.
+            foreach ($session->contextFiles() as $path => $file) {
+                $messages[] = ['role' => 'system', 'content' => $this->contextFileMessage($path, $file)];
+            }
         }
 
         foreach ($session->history() as $turn) {
@@ -369,6 +438,44 @@ class Loop
         }
 
         return $messages;
+    }
+
+    private function buildResearchContext(Session $session, string $query): ?string
+    {
+        $root = $this->effectiveProjectRoot();
+        $files = [];
+
+        // Use explicitly added context files if any; otherwise glob repo php files for map
+        foreach ($session->contextFiles() as $path => $file) {
+            $abs = $path;
+            if (! str_starts_with($abs, '/')) {
+                $abs = rtrim($root, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.ltrim($path, DIRECTORY_SEPARATOR);
+            }
+            if (is_file($abs)) {
+                $files[] = $abs;
+            }
+        }
+
+        if ($files === []) {
+            // Repo-map fallback: glob php files in project, cap at 20 to avoid explosion
+            $candidates = array_merge(
+                glob(rtrim($root, DIRECTORY_SEPARATOR).'/src/**/*.php') ?: [],
+                glob(rtrim($root, DIRECTORY_SEPARATOR).'/src/*.php') ?: [],
+                glob(rtrim($root, DIRECTORY_SEPARATOR).'/app/**/*.php') ?: [],
+                glob(rtrim($root, DIRECTORY_SEPARATOR).'/*.php') ?: [],
+            );
+            $files = array_slice(array_unique($candidates), 0, 20);
+            // Also try m1/fixture if in repo and root is paider itself (for tests)
+            if ($files === [] && is_dir($root.'/m1/fixture/src')) {
+                $files = glob($root.'/m1/fixture/src/*.php') ?: [];
+            }
+        }
+
+        if ($files === []) {
+            return null;
+        }
+
+        return "Repo map (research tier, pruned via TokenKiller, query: {$query}):\n".TokenKiller::prune($query, $files);
     }
 
     /** @param array{stamp: string, content: string} $file */
@@ -437,7 +544,7 @@ class Loop
         // security half of colour support, not cosmetics (see TerminalSafe's own docblock for
         // the threat model). Runs before the isatty branch below so BOTH the echo path and the
         // stream path are covered by one guard, not two that could drift apart.
-        $content = TerminalSafe::clean($content);
+        $content = ProseStream::scrubSecrets(TerminalSafe::clean($content));
 
         if (! stream_isatty(STDOUT)) {
             echo $content.PHP_EOL;

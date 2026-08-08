@@ -43,6 +43,76 @@ class SettingsStore
             : $preset;
     }
 
+    public static function testCommand(): ?string
+    {
+        $path = self::path();
+
+        if (! is_file($path)) {
+            return null;
+        }
+
+        try {
+            $data = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return null;
+        }
+
+        if (! is_array($data) || ! is_string($data['test_command'] ?? null)) {
+            return null;
+        }
+
+        $cmd = trim($data['test_command']);
+
+        return $cmd === '' ? null : $cmd;
+    }
+
+    public static function setTestCommand(?string $command): void
+    {
+        $path = self::path();
+        $dir = dirname($path);
+
+        if (! is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+
+        $existing = [];
+
+        if (is_file($path)) {
+            try {
+                $decoded = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+                if (is_array($decoded)) {
+                    $existing = $decoded;
+                }
+            } catch (\JsonException) {
+                $existing = [];
+            }
+        }
+
+        if ($command === null || trim($command) === '') {
+            unset($existing['test_command']);
+        } else {
+            $existing['test_command'] = trim($command);
+        }
+
+        if (! isset($existing['preset'])) {
+            try {
+                $existing['preset'] = self::activePreset();
+            } catch (\Throwable) {
+                $existing['preset'] = 'balanced';
+            }
+        }
+
+        $tmp = $path.'.'.uniqid('', true).'.tmp';
+        $json = json_encode($existing, JSON_THROW_ON_ERROR);
+
+        if (file_put_contents($tmp, $json) !== strlen($json)) {
+            @unlink($tmp);
+            throw new \RuntimeException("Failed to write settings to {$tmp}");
+        }
+
+        rename($tmp, $path);
+    }
+
     public static function setActivePreset(string $preset): void
     {
         $presets = config('presets');
@@ -59,7 +129,22 @@ class SettingsStore
         }
         $tmp = $path.'.'.uniqid('', true).'.tmp';
 
-        $json = json_encode(['preset' => $preset], JSON_THROW_ON_ERROR);
+        // Preserve existing keys like test_command when updating preset
+        $existing = [];
+
+        if (is_file($path)) {
+            try {
+                $decoded = json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+                if (is_array($decoded)) {
+                    $existing = $decoded;
+                }
+            } catch (\JsonException) {
+                $existing = [];
+            }
+        }
+
+        $existing['preset'] = $preset;
+        $json = json_encode($existing, JSON_THROW_ON_ERROR);
 
         // Renaming an unwritten or partially-written temp file over good settings loses them.
         // The point of write-then-rename is atomicity, which only holds if the write is checked.
