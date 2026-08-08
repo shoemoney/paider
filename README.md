@@ -9,7 +9,7 @@
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
 [![packagist](https://img.shields.io/badge/packagist-v0.1.0-blueviolet?style=for-the-badge)](https://packagist.org/packages/paider/paider)
 [![ci](https://img.shields.io/github/actions/workflow/status/shoemoney/paider/tests.yml?style=for-the-badge&label=tests)](https://github.com/shoemoney/paider/actions/workflows/tests.yml)
-[![tests](https://img.shields.io/badge/tests-456%20passing-brightgreen?style=for-the-badge)](tests/)
+[![tests](https://img.shields.io/badge/tests-461%20passing-brightgreen?style=for-the-badge)](tests/)
 [![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
@@ -28,7 +28,7 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | | state | evidence |
 |---|---|---|
 | 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `cost`, `config:provider`, `config:show` all register and run |
-| 🔧 six native tools | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `git`, `artisan` |
+| 🔧 nine tools (7 + 2 conditional) | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `fetch_url`, `memory`, `git` + `artisan` (when `artisan` file exists) + `load_skill` (when skills indexed) |
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection; stored in `.paider/` (gitignored locally) |
 | 🧪 test suite | ✅ **461 passing**, 2611 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
@@ -156,8 +156,7 @@ checkable by the person paying.
 
 ### The presets
 
-Eleven ship in [`config/presets.php`](config/presets.php), every model ID and price verified
-against the live OpenRouter catalogue. Modelled on a session planning 50k/20k and working 2M/300k:
+Twelve model presets + one `accounts` rotation strategy ship in [`config/presets.php`](config/presets.php), every model ID and price verified against the live OpenRouter catalogue. Modelled on a session planning 50k/20k and working 2M/300k:
 
 | stack | cost |
 |---|---|
@@ -243,10 +242,11 @@ flowchart TB
     Gate -->|denied| Loop
     Gate -->|allowed| Tools
 
-    subgraph Tools [🔧 native tools]
+    subgraph Tools [🔧 9 tools]
         direction LR
         T1[read_file] ~~~ T2[write_file] ~~~ T3[patch_file]
-        T4[run_shell] ~~~ T5[git] ~~~ T6[artisan]
+        T4[run_shell] ~~~ T5[fetch_url] ~~~ T6[memory]
+        T7[git] ~~~ T8[artisan<br/>conditional] ~~~ T9[load_skill<br/>conditional]
     end
 
     Tools -->|every path checked| Guard[🛡️ PathGuard]
@@ -321,7 +321,7 @@ vendor/bin/pest --group=live
   Measure both. Never derive one from the other.
 -->
 
-**Hermetic suite** (`vendor/bin/pest`, 456 tests) — all provider interactions mocked via Guzzle;
+**Hermetic suite** (`vendor/bin/pest`, 461 tests, 2611 assertions) — all provider interactions mocked via Guzzle;
 proves self-consistency, zero cost. Excluded group: `live`. This is the number in the badge above;
 the live suite is 3 more on top, **not** part of it.
 
@@ -569,12 +569,12 @@ flowchart LR
 
 | milestone | scope | state |
 |---|---|---|
-| **v0.1** | 5 commands, 6 tools, approval gate, event log, cost ledger, tier router, CI pipeline, ~94.8ms cold start | 🔨 **in progress** |
+| **v0.1** | 5 commands, 9 tools, approval gate, event log, cost ledger, tier router, CI pipeline, ~94.8ms cold start | 🔨 **in progress** |
 | **v0.2** | `mcp/sdk` client, `paider run --yes`, repo-map on the research tier, test-feedback loop | ⬜ planned |
 | **v1.0** | MCP **server** mode — external clients drive Paider's tools; published semver policy | ⬜ planned |
 
 <details>
-<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 456 tests pass?</b></summary>
+<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 461 tests pass?</b></summary>
 
 Because [`PLAN.md`](PLAN.md) wrote v0.1's definition of done *before* the code existed, and
 grading against it honestly leaves one box unticked:
@@ -582,7 +582,7 @@ grading against it honestly leaves one box unticked:
 | v0.1 definition-of-done | state |
 |---|---|
 | the four commands | ✅ built |
-| the five native tools + `ArtisanTool` | ✅ **six built** |
+| the seven base tools + `ArtisanTool` + `LoadSkillTool` | ✅ **nine built** |
 | `sk-sp-` key/base-URL guard | ✅ built |
 | diff-apply staleness, syntax gate, `/undo`, secrets guard | ✅ built |
 | honest comparison table vs Maestro | ✅ **added above** |
