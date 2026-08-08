@@ -193,6 +193,13 @@ return [
         'fast' => 'deepseek/deepseek-v4-flash',   //  $0.14 /   $0.28
     ],
 
+    'meta' => [
+        'orchestrator' => 'meta/muse-spark-1.2',           // via https://api.meta.ai/v1, key from aigate provider=meta or META_API_KEY
+        'coder' => 'meta/muse-spark-1.2',
+        'research' => 'meta/muse-spark-1.1',
+        'fast' => 'meta/muse-spark-1.1',
+    ],
+
     /*
     | Subscription accounts, not API keys.
     |

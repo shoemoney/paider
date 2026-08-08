@@ -22,6 +22,16 @@ class ProviderResolver
         'deepseek' => ['https://api.deepseek.com', 'DEEPSEEK_API_KEY'],
         'xai' => ['https://api.x.ai/v1', 'XAI_API_KEY'],
         'glm' => ['https://open.bigmodel.cn/api/paas/v4', 'GLM_API_KEY'],
+        'meta' => ['https://api.meta.ai/v1', 'META_API_KEY'],
+    ];
+
+    /** aigate provider id per preset (for Aigate::fetchKey) */
+    private const AIGATE_PROVIDER = [
+        'meta' => 'meta',
+        'kimi' => 'kimi',
+        'deepseek' => 'deepseek',
+        'xai' => 'xai',
+        'glm' => 'glm',
     ];
 
     private const OPENROUTER_URL = 'https://openrouter.ai/api/v1';
@@ -39,10 +49,20 @@ class ProviderResolver
         // Only take the direct endpoint when its own key is actually set -- a
         // preset like 'kimi' with no MOONSHOT_API_KEY falls through to OpenRouter
         // rather than hard-failing a session that has a perfectly good aggregator key.
-        if (isset(self::DIRECT[$preset]) && (string) getenv(self::DIRECT[$preset][1]) !== '') {
+        // Also try aigate if the direct env var is empty but AIGATE_URL/AIGATE_TOKEN are set.
+        if (isset(self::DIRECT[$preset])) {
             [$baseUrl, $envVar] = self::DIRECT[$preset];
+            $aigateProvider = self::AIGATE_PROVIDER[$preset] ?? $preset;
 
-            return new OpenAiCompatibleClient($baseUrl, $envVar);
+            // Prefer direct env, else try aigate
+            $hasKey = (string) getenv($envVar) !== '';
+            if (! $hasKey) {
+                $hasKey = Aigate::resolveKey($envVar, $aigateProvider) !== null;
+            }
+
+            if ($hasKey) {
+                return new OpenAiCompatibleClient($baseUrl, $envVar);
+            }
         }
 
         // openai, google, open, open-frugal, balanced have no documented direct

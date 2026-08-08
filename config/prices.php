@@ -131,4 +131,8 @@ return [
     'z-ai/glm-4.7-flash' => ['in' => 0.06, 'out' => 0.40, 'cache_write' => null, 'cache_read' => null],
 
     'minimax/minimax-m3' => ['in' => 0.30, 'out' => 1.20, 'cache_write' => null, 'cache_read' => null],
+
+    'meta/muse-spark-1.2' => ['in' => 0.50, 'out' => 1.50, 'cache_write' => null, 'cache_read' => null],
+    'meta/muse-spark-1.2-contributor' => ['in' => 0.50, 'out' => 1.50, 'cache_write' => null, 'cache_read' => null],
+    'meta/muse-spark-1.1' => ['in' => 0.30, 'out' => 0.90, 'cache_write' => null, 'cache_read' => null],
 ];

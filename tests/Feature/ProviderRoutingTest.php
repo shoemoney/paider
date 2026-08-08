@@ -17,7 +17,8 @@ use App\Support\SettingsStore;
 function withProviderRoutingEnv(array $vars, callable $callback): mixed
 {
     $keys = ['ANTHROPIC_API_KEY', 'OPENROUTER_API_KEY', 'MOONSHOT_API_KEY', 'DEEPSEEK_API_KEY',
-        'XAI_API_KEY', 'GLM_API_KEY', 'DASHSCOPE_API_KEY', 'DASHSCOPE_PLAN_BASE_URL'];
+        'XAI_API_KEY', 'GLM_API_KEY', 'DASHSCOPE_API_KEY', 'DASHSCOPE_PLAN_BASE_URL',
+        'META_API_KEY', 'AIGATE_URL', 'AIGATE_TOKEN'];
 
     $previous = [];
     foreach ($keys as $key) {
