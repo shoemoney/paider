@@ -1,7 +1,6 @@
 <?php
 
 use App\Agent\Loop;
-use App\Agent\Session;
 use App\Agent\TierRouter;
 use App\Approval\Gate;
 use App\Providers\ProviderResponse;

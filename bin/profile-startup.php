@@ -1,5 +1,6 @@
 #!/usr/bin/env php
 <?php
+
 // bin/profile-startup.php — measure 48.6ms floor vs lean Laravel Zero cold start.
 // See DECISIONS.md §3/§8/§9, PLAN-PHASES-1-10.md Phase 4.
 // Usage: php -n -c lean.ini bin/profile-startup.php  (or plain php bin/profile-startup.php)
@@ -21,7 +22,7 @@ try {
         $c1 = hrtime(true);
         $configTime = ($c1 - $c0) / 1e6;
     }
-} catch (\Throwable $e) {
+} catch (Throwable $e) {
     $configTime = 0;
 }
 

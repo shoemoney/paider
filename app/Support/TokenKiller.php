@@ -15,8 +15,8 @@ class TokenKiller
     /**
      * Prune files to budgeted context for a query.
      *
-     * @param string $query e.g. "add discount to Receipt"
-     * @param array<int, string> $files absolute paths
+     * @param  string  $query  e.g. "add discount to Receipt"
+     * @param  array<int, string>  $files  absolute paths
      * @return string pruned context (symbols + top file excerpts)
      */
     public static function prune(string $query, array $files): string
@@ -25,14 +25,14 @@ class TokenKiller
         $ranked = [];
 
         foreach ($files as $file) {
-            if (!is_file($file)) {
+            if (! is_file($file)) {
                 continue;
             }
             // Guard: don't prune outside project root (TokenKiller could be fed glob outside)
             // Use PathGuard if available — relative path handling for duplicate basenames
-            if (class_exists(\App\Support\PathGuard::class)) {
+            if (class_exists(PathGuard::class)) {
                 $root = getcwd();
-                if (!\App\Support\PathGuard::containedIn($root, $file) && !str_starts_with($file, $root)) {
+                if (! PathGuard::containedIn($root, $file) && ! str_starts_with($file, $root)) {
                     // Allow absolute fixture paths in tests, but still guard ~/.paider
                     if (str_contains($file, '.paider/paider.db')) {
                         continue;
@@ -53,7 +53,7 @@ class TokenKiller
 
         foreach ($ranked as $item) {
             $rel = str_starts_with($item['file'], getcwd().DIRECTORY_SEPARATOR) ? substr($item['file'], strlen(getcwd()) + 1) : basename($item['file']);
-            $chunk = $rel.": ".$item['sigs']."\n";
+            $chunk = $rel.': '.$item['sigs']."\n";
             $chunkTokens = self::approxTokens($chunk);
             if ($tokens + $chunkTokens > self::BUDGET_TOKENS && $included > 0) {
                 break;
@@ -68,7 +68,7 @@ class TokenKiller
         $out .= "</symbols>\n";
 
         // Append top file excerpt (first 100 lines) for best match only
-        if (!empty($ranked)) {
+        if (! empty($ranked)) {
             $top = $ranked[0];
             $relTop = str_starts_with($top['file'], getcwd().DIRECTORY_SEPARATOR) ? substr($top['file'], strlen(getcwd()) + 1) : basename($top['file']);
             $excerpt = implode("\n", array_slice(explode("\n", $top['content']), 0, 100));
@@ -86,7 +86,7 @@ class TokenKiller
             $count = count($tokens);
             for ($i = 0; $i < $count; $i++) {
                 $tok = $tokens[$i];
-                if (!is_array($tok)) {
+                if (! is_array($tok)) {
                     continue;
                 }
                 [$id, $text] = $tok;
@@ -106,7 +106,8 @@ class TokenKiller
                     $sigs[] = trim("$kind $next");
                 }
             }
-            return $sigs ? implode("; ", array_slice($sigs, 0, 20)) : substr($content, 0, 500);
+
+            return $sigs ? implode('; ', array_slice($sigs, 0, 20)) : substr($content, 0, 500);
         }
 
         return substr($content, 0, 500);
@@ -116,6 +117,7 @@ class TokenKiller
     {
         $q = strtolower($query);
         $q = preg_split('/[^a-z0-9]+/', $q, -1, PREG_SPLIT_NO_EMPTY);
+
         return array_unique($q ?: []);
     }
 
@@ -128,6 +130,7 @@ class TokenKiller
                 $score += 10;
             }
         }
+
         return $score;
     }
 
