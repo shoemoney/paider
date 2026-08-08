@@ -4,6 +4,7 @@ namespace App\Agent;
 
 use App\Approval\Gate;
 use App\Providers\Contracts\ProviderClient;
+use App\Storage\CacheLedger;
 use App\Storage\EventLog;
 use App\Storage\MemoryStore;
 use App\Storage\SessionStore;
@@ -31,6 +32,9 @@ class Loop
 
     /** @var array<string, Tool> */
     private array $tools = [];
+
+    /** @var array<string, ProviderResponse> in-memory cache hash => response */
+    private array $responseCache = [];
 
     /** @param array<int, Tool> $tools */
     public function __construct(
@@ -61,14 +65,23 @@ class Loop
         for ($i = 0; $i < self::MAX_TOOL_CALLS_PER_TURN; $i++) {
             $resolved = $this->tierRouter->resolve('plan', $session->tierOverrides());
 
-            // The provider call is a blocking synchronous HTTP request that can sit for
-            // minutes; without this the terminal reads as hung. Spinner degrades itself to a
-            // single static line when stdout isn't decorated or pcntl is missing, so it
-            // neither forks nor animates under the test suite or a piped run.
-            $response = PhpSpinner::while(
-                $resolved['model'],
-                fn () => $this->provider->send($this->buildMessages($session), $resolved['model']),
-            );
+            $messages = $this->buildMessages($session);
+            $cacheKey = hash('sha256', json_encode([$messages, $resolved['model']], JSON_THROW_ON_ERROR));
+            if (isset($this->responseCache[$cacheKey])) {
+                $cached = $this->responseCache[$cacheKey];
+                CacheLedger::recordHit($this->eventLog, 'orchestrator', $resolved['model'], $cached->tokensIn, $cached->tokensOut, $cached->cacheWrite ?? 0, $cached->cacheRead ?? 0);
+                $response = $cached;
+            } else {
+                // The provider call is a blocking synchronous HTTP request that can sit for
+                // minutes; without this the terminal reads as hung. Spinner degrades itself to a
+                // single static line when stdout isn't decorated or pcntl is missing, so it
+                // neither forks nor animates under the test suite or a piped run.
+                $response = PhpSpinner::while(
+                    $resolved['model'],
+                    fn () => $this->provider->send($messages, $resolved['model']),
+                );
+                $this->responseCache[$cacheKey] = $response;
+            }
 
             // 'model' now names what was actually billed, not what was asked for — a
             // provider can alias/route/fallback to a different id than requested, and

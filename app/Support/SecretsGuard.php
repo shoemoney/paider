@@ -27,6 +27,10 @@ class SecretsGuard
             return true;
         }
 
+        if (str_contains($absolutePath, '.claude/aigate') || str_contains($absolutePath, 'aigate')) {
+            return true;
+        }
+
         return self::isGitIgnored($absolutePath);
     }
 
