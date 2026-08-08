@@ -1,17 +1,12 @@
 #!/bin/sh
 # install.sh — install Paider via Composer.
 #
-# Distribution scope: composer-only. The FrankenPHP standalone-binary channel
-# is intentionally NOT implemented here — see DECISIONS.md:609-613. Summary of
-# why: the binary is invoked as `<binary> php-cli paider <cmd>`, not
-# `./paider <cmd>`; naming a binary `paider` in a directory that also has a
-# `paider` script makes PHP try to `include` the 178MB binary and OOM; and it
-# untars to $TMPDIR (often world-writable) on every start. None of that is
-# reachable from this script.
+# Distribution scope: composer-only + PHAR channel (FrankenPHP still deferred).
+# PHAR: `PAIDER_CHANNEL=phar` fetches `build/paider.phar` from GitHub releases via `install.sh --phar`.
+# FrankenPHP deferred — see DECISIONS.md:609-613. Summary: invoked as `<binary> php-cli paider <cmd>`,
+# naming collision OOM, $TMPDIR world-writable untar. Add binary channel only if those three get resolved.
 #
-# ponytail: composer-only, add binary channel only if DECISIONS.md's three
-# deferred issues (invocation, naming collision, TMPDIR world-writable untar)
-# get resolved.
+# ponytail: composer (default) + phar (PAIDER_CHANNEL=phar), FrankenPHP still deferred.
 set -eu
 
 PREFIX="${PREFIX:-$HOME/.local/bin}"
@@ -20,34 +15,39 @@ DRY_RUN=0
 
 usage() {
     cat <<'EOF'
-install.sh — install Paider (paider/paider) via Composer
+install.sh — install Paider (paider/paider) via Composer or PHAR
 
 Usage:
   ./install.sh [options]
   curl -fsSL <url> | sh
+  PAIDER_CHANNEL=phar ./install.sh
+  ./install.sh --phar
 
 Options:
   -h, --help       show this help and exit
   --dry-run        run all checks, print what would happen, take no action
+  --phar           install PHAR (build/paider.phar from GitHub releases) instead of composer
 
 Environment:
   PREFIX            directory to symlink the paider binary into
                      (default: $HOME/.local/bin)
+  PAIDER_CHANNEL    phar or composer (default: composer)
 
 What it does:
-  1. Verifies PHP >= 8.4 and required extensions (dom, mbstring, tokenizer,
-     pdo_sqlite) are loaded.
-  2. Installs paider/paider with `composer global require`, using an
-     already-installed `composer` if found, else downloading and
-     signature-verifying composer.phar into a temp dir.
-  3. Symlinks the resulting `paider` binary into PREFIX.
-  4. Warns if PREFIX is not on PATH.
+  composer (default):
+    1. Verifies PHP >= 8.4 and 12 required extensions.
+    2. Installs paider/paider with `composer global require`.
+    3. Symlinks into PREFIX.
+  phar (PAIDER_CHANNEL=phar or --phar):
+    1. Verifies PHP >= 8.4 and 12 required extensions.
+    2. Fetches paider.phar from GitHub releases.
+    3. Installs to PREFIX/paider.
 
-Does NOT install a standalone binary — see the top-of-file comment in
-install.sh for why the FrankenPHP channel is out of scope.
+FrankenPHP binary channel still deferred — see top-of-file comment.
 EOF
 }
 
+CHANNEL="${PAIDER_CHANNEL:-composer}"
 for arg in "$@"; do
     case "$arg" in
         -h|--help)
@@ -56,6 +56,9 @@ for arg in "$@"; do
             ;;
         --dry-run)
             DRY_RUN=1
+            ;;
+        --phar)
+            CHANNEL="phar"
             ;;
         *)
             echo "install.sh: unknown option: $arg" >&2
@@ -110,6 +113,54 @@ if [ -n "$missing" ]; then
 fi
 echo "    ok: mbstring tokenizer ctype fileinfo iconv curl openssl zlib phar filter pdo_sqlite dom (12)"
 
+if [ "$CHANNEL" = "phar" ]; then
+    echo "==> Channel: phar"
+    PHAR_URL="${PHAR_URL:-https://github.com/shoemoney/paider/releases/latest/download/paider.phar}"
+    if [ "$DRY_RUN" -eq 1 ]; then
+        echo "==> Dry run: no network or install actions will be taken"
+        echo "    would fetch $PHAR_URL"
+        echo "    would install to $PREFIX/paider"
+        echo "    would verify $PREFIX/paider --version"
+        echo "PREFIX=$PREFIX CHANNEL=phar"
+        exit 0
+    fi
+    echo "==> Fetching PHAR from $PHAR_URL"
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "error: curl is required to fetch paider.phar but was not found." >&2
+        exit 1
+    fi
+    mkdir -p "$PREFIX"
+    tmp_phar="$(mktemp)"
+    trap 'rm -f "$tmp_phar"' EXIT
+    if ! curl -fL "$PHAR_URL" -o "$tmp_phar"; then
+        echo "error: failed to fetch $PHAR_URL" >&2
+        exit 1
+    fi
+    chmod +x "$tmp_phar"
+    if ! php "$tmp_phar" --version >/dev/null 2>&1; then
+        echo "error: fetched PHAR did not run (php $tmp_phar --version failed)" >&2
+        exit 1
+    fi
+    mv "$tmp_phar" "$PREFIX/paider"
+    echo "    installed $PREFIX/paider"
+    echo "    ok: $PREFIX/paider --version runs"
+    case ":$PATH:" in
+        *":$PREFIX:"*) path_status="on PATH" ;;
+        *) path_status="NOT on PATH" ;;
+    esac
+    echo ""
+    echo "==> Summary"
+    echo "    channel: phar"
+    echo "    installed: $PREFIX/paider"
+    echo "    PATH:      $path_status"
+    if [ "$path_status" != "on PATH" ]; then
+        echo ""
+        echo "    Add this to your shell rc (~/.zshrc, ~/.bashrc, ...):"
+        echo "        export PATH=\"$PREFIX:\$PATH\""
+    fi
+    exit 0
+fi
+
 if [ "$DRY_RUN" -eq 1 ]; then
     echo "==> Dry run: no network or install actions will be taken"
     if command -v composer >/dev/null 2>&1; then
@@ -122,7 +173,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
     echo "    would resolve composer's global bin-dir"
     echo "    would symlink <bin-dir>/paider -> $PREFIX/paider"
     echo "    would verify $PREFIX/paider runs"
-    echo "PREFIX=$PREFIX"
+    echo "PREFIX=$PREFIX CHANNEL=composer"
     exit 0
 fi
 
