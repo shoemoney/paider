@@ -1,5 +1,8 @@
 {
+    "alias": "paider.phar",
+    "banner": "Paider — https://paider.dev",
     "chmod": "0755",
+    "check-requirements": true,
     "directories": [
         "app",
         "bootstrap",
@@ -7,8 +10,12 @@
         "vendor"
     ],
     "files": [
+        "paider",
         "composer.json"
     ],
+    "main": "paider",
+    "output": "build/paider.phar",
+    "stub": true,
     "exclude-composer-files": false,
     "compression": "GZ",
     "compactors": [

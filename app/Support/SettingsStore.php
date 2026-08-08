@@ -51,13 +51,12 @@ class SettingsStore
             throw new \InvalidArgumentException("Unknown preset: {$preset}");
         }
 
-        $dir = getcwd().'/.paider';
+        $path = self::path();
+        $dir = dirname($path);
 
         if (! is_dir($dir)) {
             mkdir($dir, 0777, true);
         }
-
-        $path = self::path();
         $tmp = $path.'.'.uniqid('', true).'.tmp';
 
         $json = json_encode(['preset' => $preset], JSON_THROW_ON_ERROR);
