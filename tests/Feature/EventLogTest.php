@@ -14,14 +14,16 @@ it('appends events and returns them via all() in insertion order with valid uuid
 
     $all = $log->all();
 
-    expect($all)->toHaveCount(3)
-        ->and($all[0]['id'])->toBe($id1)
-        ->and($all[1]['id'])->toBe($id2)
-        ->and($all[2]['id'])->toBe($id3)
-        ->and($all[0]['type'])->toBe('tier_call')
-        ->and($all[0]['payload'])->toBe(['tier' => 'coder', 'n' => 1])
-        ->and($all[2]['type'])->toBe('note')
-        ->and($all[2]['payload'])->toBe(['text' => 'hello']);
+    // First event is lazy session_start; real appends follow
+    expect($all)->toHaveCount(4)
+        ->and($all[0]['type'])->toBe('session_start')
+        ->and($all[1]['id'])->toBe($id1)
+        ->and($all[2]['id'])->toBe($id2)
+        ->and($all[3]['id'])->toBe($id3)
+        ->and($all[1]['type'])->toBe('tier_call')
+        ->and($all[1]['payload'])->toBe(['tier' => 'coder', 'n' => 1, 'session_id' => $log->sessionId()])
+        ->and($all[3]['type'])->toBe('note')
+        ->and($all[3]['payload'])->toBe(['text' => 'hello', 'session_id' => $log->sessionId()]);
 
     foreach ([$id1, $id2, $id3] as $id) {
         expect(Uuid::isValid($id))->toBeTrue();

@@ -32,6 +32,7 @@ class ProviderResolver
         'deepseek' => 'deepseek',
         'xai' => 'xai',
         'glm' => 'glm',
+        'qwen' => 'qwencloud',
     ];
 
     private const OPENROUTER_URL = 'https://openrouter.ai/api/v1';

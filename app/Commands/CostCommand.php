@@ -20,14 +20,27 @@ use LaravelZero\Framework\Commands\Command;
  */
 class CostCommand extends Command
 {
-    protected $signature = 'cost {--json : Emit machine-readable JSON instead of a table}';
+    protected $signature = 'cost {--json : Emit machine-readable JSON instead of a table} {--session : Only show current session, not all-time}';
 
     protected $description = 'Show token/spend usage per tier from the event log';
 
     public function handle(): int
     {
         $eventLog = new EventLog(Database::connect());
-        $summary = (new CostLedger($eventLog))->summary();
+        $sessionId = null;
+        if ($this->option('session')) {
+            // Find most recent session_id from stream (last session_start's id)
+            $lastSessionId = null;
+            foreach ($eventLog->stream() as $event) {
+                if ($event['type'] === 'session_start') {
+                    $lastSessionId = $event['payload']['session_id'] ?? null;
+                } elseif (isset($event['payload']['session_id'])) {
+                    $lastSessionId = $event['payload']['session_id'];
+                }
+            }
+            $sessionId = $lastSessionId;
+        }
+        $summary = (new CostLedger($eventLog))->summary($sessionId);
 
         $tiers = array_diff_key($summary, ['session' => null]);
 

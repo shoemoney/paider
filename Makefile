@@ -1,4 +1,4 @@
-.PHONY: phar check-exts profile test preflight
+.PHONY: phar check-exts profile test preflight token-budget
 
 # Build PHAR via humbug/box — requires humbug/box installed separately
 # Install: composer require --dev humbug/box  OR  curl -LS https://github.com/humbug/box/releases/latest/download/box.phar -o /tmp/box && chmod +x /tmp/box
@@ -30,3 +30,6 @@ test:
 
 preflight:
 	bash m1/preflight.sh
+
+token-budget:
+	php bin/token-budget.php

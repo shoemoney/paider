@@ -42,7 +42,8 @@ test('retracting removes a fact without deleting a row — forgetting is an even
 
     expect((new MemoryStore($log))->get('gone'))->toBeNull();
     // The append-only guarantee: the history of what was known is still on disk.
-    expect($log->all())->toHaveCount(2);
+    // +1 for lazy session_start
+    expect($log->all())->toHaveCount(3);
 });
 
 test('a retracted key can be set again', function () {

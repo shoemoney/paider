@@ -33,7 +33,7 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🧪 test suite | ✅ **456 passing**, 2544 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
 | 📦 published on Packagist | ✅ **published** | `paider/paider` at https://packagist.org/packages/paider/paider |
-| 📦 `curl \| sh` installer | ✅ **live** | `curl -fsSL paider.dev/install \| sh` — served from GitHub Pages, installs via Composer; the standalone binary channel is still deferred |
+| 📦 `curl \| sh` installer | ✅ **live** | `curl -fsSL paider.dev/install \| sh` — served from GitHub Pages, installs via Composer; PHAR built 32MB (`build/paider.phar` via `box`, 222ms), FrankenPHP trimmed still deferred |
 | 🏷️ tagged release | ✅ **v0.1.0** | `composer require paider/paider` resolves without a stability flag |
 
 **Do not install this expecting a working agent.** The wiring is real and tested; the last

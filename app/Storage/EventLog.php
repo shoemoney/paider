@@ -12,8 +12,14 @@ use Ramsey\Uuid\Uuid;
  */
 class EventLog
 {
-    public function __construct(private readonly PDO $pdo)
-    {
+    private readonly string $sessionId;
+
+    private bool $sessionStarted = false;
+
+    public function __construct(
+        private readonly PDO $pdo,
+        private readonly ?string $origin = null,
+    ) {
         $this->pdo->exec(
             'CREATE TABLE IF NOT EXISTS events ('
             .'id TEXT PRIMARY KEY, '
@@ -22,9 +28,47 @@ class EventLog
             .'created_at TEXT NOT NULL'
             .')'
         );
+
+        $this->sessionId = Uuid::uuid7()->toString();
+    }
+
+    public function sessionId(): string
+    {
+        return $this->sessionId;
     }
 
     public function append(string $type, array $payload): string
+    {
+        // Session id stamped by EventLog itself at write time (PLAN.md v0.3).
+        // No column, no new table, no ALTER TABLE — just payload blob.
+        $payload['session_id'] = $this->sessionId;
+
+        // Validate BEFORE lazy session_start write — invalid UTF-8 payload must leave log empty
+        // (see EventLogTest 'refuses to append ... rather than writing it empty').
+        $encoded = json_encode($payload, JSON_THROW_ON_ERROR);
+
+        if (! $this->sessionStarted) {
+            $this->sessionStarted = true;
+            $this->insert('session_start', ['session_id' => $this->sessionId, 'origin' => $this->origin]);
+        }
+
+        $id = Uuid::uuid7()->toString();
+
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO events (id, type, payload, created_at) VALUES (:id, :type, :payload, :created_at)'
+        );
+
+        $stmt->execute([
+            'id' => $id,
+            'type' => $type,
+            'payload' => $encoded,
+            'created_at' => gmdate('c'),
+        ]);
+
+        return $id;
+    }
+
+    private function insert(string $type, array $payload): string
     {
         $id = Uuid::uuid7()->toString();
 
@@ -35,10 +79,6 @@ class EventLog
         $stmt->execute([
             'id' => $id,
             'type' => $type,
-            // Without JSON_THROW_ON_ERROR an unencodable payload (invalid UTF-8 from file
-            // contents or shell output) returns false, binds as '', and writes an event with
-            // no payload. An audit log that silently loses what it was auditing is worse than
-            // one that fails loudly.
             'payload' => json_encode($payload, JSON_THROW_ON_ERROR),
             'created_at' => gmdate('c'),
         ]);

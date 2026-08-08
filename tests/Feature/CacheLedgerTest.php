@@ -21,7 +21,7 @@ test('a hit records a real saving, not null — the trap this whole design exist
     $log = cacheLog();
     CacheLedger::recordHit($log, 'orchestrator', ModelPricing::REFERENCE_MODEL, 10_000, 2_000);
 
-    $payload = $log->all()[0]['payload'];
+    $payload = array_values(array_filter($log->all(), fn ($e) => $e['type'] === CacheLedger::HIT))[0]['payload'];
 
     expect($payload['cache_saved_usd'])->not->toBeNull();
     expect($payload['cache_saved_usd'])->toBeGreaterThan(0.0);
@@ -31,7 +31,7 @@ test('the saving equals what the call would have cost', function () {
     $log = cacheLog();
     CacheLedger::recordHit($log, 'coder', ModelPricing::REFERENCE_MODEL, 10_000, 2_000, 500, 1_000);
 
-    expect($log->all()[0]['payload']['cache_saved_usd'])
+    expect(array_values(array_filter($log->all(), fn ($e) => $e['type'] === CacheLedger::HIT))[0]['payload']['cache_saved_usd'])
         ->toBe(ModelPricing::costFor(ModelPricing::REFERENCE_MODEL, 10_000, 2_000, 500, 1_000));
 });
 
@@ -95,7 +95,7 @@ test('an unpriced model records an unknown saving, never a confident zero', func
     $log = cacheLog();
     CacheLedger::recordHit($log, 'orchestrator', 'vendor/not-in-prices-file', 10_000, 2_000);
 
-    expect($log->all()[0]['payload']['cache_saved_usd'])->toBeNull();
+    expect(array_values(array_filter($log->all(), fn ($e) => $e['type'] === CacheLedger::HIT))[0]['payload']['cache_saved_usd'])->toBeNull();
 
     $tier = (new CostLedger($log))->summary()['orchestrator'];
 
@@ -108,7 +108,7 @@ test('an unpriced model records an unknown saving, never a confident zero', func
 test('the saving is frozen at write time, so a later price change cannot restate it', function () {
     $log = cacheLog();
     CacheLedger::recordHit($log, 'orchestrator', ModelPricing::REFERENCE_MODEL, 10_000, 2_000);
-    $recorded = $log->all()[0]['payload']['cache_saved_usd'];
+    $recorded = array_values(array_filter($log->all(), fn ($e) => $e['type'] === CacheLedger::HIT))[0]['payload']['cache_saved_usd'];
 
     // Same discipline as cost_usd (LOCKED #2): editing config/prices.php must not silently
     // rewrite savings already claimed in an earlier session.

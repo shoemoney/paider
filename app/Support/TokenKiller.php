@@ -28,6 +28,17 @@ class TokenKiller
             if (!is_file($file)) {
                 continue;
             }
+            // Guard: don't prune outside project root (TokenKiller could be fed glob outside)
+            // Use PathGuard if available — relative path handling for duplicate basenames
+            if (class_exists(\App\Support\PathGuard::class)) {
+                $root = getcwd();
+                if (!\App\Support\PathGuard::containedIn($root, $file) && !str_starts_with($file, $root)) {
+                    // Allow absolute fixture paths in tests, but still guard ~/.paider
+                    if (str_contains($file, '.paider/paider.db')) {
+                        continue;
+                    }
+                }
+            }
             $content = file_get_contents($file);
             $sigs = self::extractSignatures($content, $file);
             $score = self::score($sigs, $queryTokens);
@@ -41,7 +52,8 @@ class TokenKiller
         $included = 0;
 
         foreach ($ranked as $item) {
-            $chunk = basename($item['file']).": ".$item['sigs']."\n";
+            $rel = str_starts_with($item['file'], getcwd().DIRECTORY_SEPARATOR) ? substr($item['file'], strlen(getcwd()) + 1) : basename($item['file']);
+            $chunk = $rel.": ".$item['sigs']."\n";
             $chunkTokens = self::approxTokens($chunk);
             if ($tokens + $chunkTokens > self::BUDGET_TOKENS && $included > 0) {
                 break;
@@ -58,8 +70,9 @@ class TokenKiller
         // Append top file excerpt (first 100 lines) for best match only
         if (!empty($ranked)) {
             $top = $ranked[0];
+            $relTop = str_starts_with($top['file'], getcwd().DIRECTORY_SEPARATOR) ? substr($top['file'], strlen(getcwd()) + 1) : basename($top['file']);
             $excerpt = implode("\n", array_slice(explode("\n", $top['content']), 0, 100));
-            $out .= "\n<excerpt file=\"".basename($top['file'])."\">\n".substr($excerpt, 0, 2000)."\n</excerpt>\n";
+            $out .= "\n<excerpt file=\"".$relTop."\">\n".substr($excerpt, 0, 2000)."\n</excerpt>\n";
         }
 
         return $out;

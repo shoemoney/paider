@@ -194,10 +194,10 @@ return [
     ],
 
     'meta' => [
-        'orchestrator' => 'meta/muse-spark-1.2-contributor', // via https://api.meta.ai/v1, key from aigate provider=meta or META_API_KEY — default
-        'coder' => 'meta/muse-spark-1.2-contributor',
-        'research' => 'meta/muse-spark-1.2-contributor',
-        'fast' => 'meta/muse-spark-1.2-contributor',
+        'orchestrator' => 'meta/muse-spark-1.2-contributor', //  $0.50 /  $1.50 via https://api.meta.ai/v1, key from aigate provider=meta or META_API_KEY — default
+        'coder' => 'meta/muse-spark-1.2-contributor', //  $0.50 /  $1.50
+        'research' => 'meta/muse-spark-1.1', //  $0.30 /  $0.90 — keep cheap tier
+        'fast' => 'meta/muse-spark-1.1', //  $0.30 /  $0.90
     ],
 
     /*

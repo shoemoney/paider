@@ -30,11 +30,16 @@ class CostLedger
         ];
     }
 
-    public function summary(): array
+    public function summary(?string $sessionId = null): array
     {
         $tiers = [];
 
         foreach ($this->events->stream() as $event) {
+            // Session filter: if sessionId given, skip events not in that session
+            // Backward compat: rows without session_id (pre-v0.3) have null and are skipped when filtering
+            if ($sessionId !== null && ($event['payload']['session_id'] ?? null) !== $sessionId) {
+                continue;
+            }
             if ($event['type'] === CacheLedger::HIT) {
                 $this->applyCacheHit($tiers, $event['payload']);
 

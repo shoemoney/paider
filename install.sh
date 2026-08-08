@@ -99,16 +99,16 @@ echo "    $php_version_line"
 
 echo "==> Checking PHP extensions"
 missing=""
-for ext in dom mbstring tokenizer pdo_sqlite; do
+for ext in mbstring tokenizer ctype fileinfo iconv curl openssl zlib phar filter pdo_sqlite dom; do
     if ! php -r "exit(extension_loaded('$ext') ? 0 : 1);" 2>/dev/null; then
         missing="$missing $ext"
     fi
 done
 if [ -n "$missing" ]; then
-    echo "error: missing required PHP extension(s):$missing" >&2
+    echo "error: missing required PHP extension(s):$missing (need 12: mbstring tokenizer ctype fileinfo iconv curl openssl zlib phar filter pdo_sqlite dom)" >&2
     exit 1
 fi
-echo "    ok: dom mbstring tokenizer pdo_sqlite"
+echo "    ok: mbstring tokenizer ctype fileinfo iconv curl openssl zlib phar filter pdo_sqlite dom (12)"
 
 if [ "$DRY_RUN" -eq 1 ]; then
     echo "==> Dry run: no network or install actions will be taken"

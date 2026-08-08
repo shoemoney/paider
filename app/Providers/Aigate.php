@@ -11,6 +11,8 @@ use GuzzleHttp\Client;
  */
 class Aigate
 {
+    private static array $cache = [];
+
     public static function fetchKey(string $provider): ?string
     {
         $url = trim((string) getenv('AIGATE_URL'));
@@ -18,6 +20,10 @@ class Aigate
 
         if ($url === '' || $token === '') {
             return null;
+        }
+
+        if (isset(self::$cache[$provider])) {
+            return self::$cache[$provider];
         }
 
         $endpoint = rtrim($url, '/').'/api/keys/'.rawurlencode($provider);
@@ -34,8 +40,12 @@ class Aigate
 
             $data = json_decode((string) $res->getBody(), true);
             $key = $data['key'] ?? null;
+            $key = is_string($key) && $key !== '' ? $key : null;
+            if ($key !== null) {
+                self::$cache[$provider] = $key;
+            }
 
-            return is_string($key) && $key !== '' ? $key : null;
+            return $key;
         } catch (\Throwable) {
             return null;
         }
