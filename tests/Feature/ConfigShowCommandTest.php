@@ -48,5 +48,5 @@ it('shows all four tiers with the resolved model for the active preset', functio
         ->toContain('research')
         ->toContain('fast')
         ->toContain('anthropic/claude-opus-5')
-        ->toContain('qwen/qwen3.7-flash');
+        ->toContain('meta/muse-spark-1.2-contributor');
 });

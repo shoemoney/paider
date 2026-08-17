@@ -81,17 +81,17 @@ it('matches every number in the README\'s $ paider cost mockup', function () {
     $output = $bufferedOutput->fetch();
 
     // tier rows: calls, tokens in/out, spend, share
-    expect($output)->toContain('14')->toContain('61.2k')->toContain('19.8k')->toContain('$0.801')->toContain('69.1%')
-        ->and($output)->toContain('203')->toContain('1.4M')->toContain('287.1k')->toContain('$0.079')->toContain('6.8%')
-        ->and($output)->toContain('118')->toContain('1.8M')->toContain('34.6k')->toContain('$0.262')->toContain('22.6%')
-        ->and($output)->toContain('77')->toContain('98.4k')->toContain('12.2k')->toContain('$0.017')->toContain('1.5%')
+    expect($output)->toContain('14')->toContain('61.2k')->toContain('19.8k')->toContain('$0.801')->toContain('36.2%')
+        ->and($output)->toContain('203')->toContain('1.4M')->toContain('287.1k')->toContain('$1.131')->toContain('51.1%')
+        ->and($output)->toContain('118')->toContain('1.8M')->toContain('34.6k')->toContain('$0.262')->toContain('11.8%')
+        ->and($output)->toContain('77')->toContain('98.4k')->toContain('12.2k')->toContain('$0.017')->toContain('0.8%')
         // session row: tokens out, spend (session tokens-in is abbreviated to 2dp in the
         // README's own mockup — "3.36M" — a cosmetic choice the formatter doesn't chase,
         // per the pre-existing note on formatCount(); the financial figures below are the
         // numbers this test exists to keep honest)
-        ->and($output)->toContain('353.7k')->toContain('$1.159')
+        ->and($output)->toContain('353.7k')->toContain('$2.211')
         // summary lines
-        ->and($output)->toContain('97.8% of your tokens went through tiers costing 30.9% of your spend.')
+        ->and($output)->toContain('97.8% of your tokens went through tiers costing 63.8% of your spend.')
         ->and($output)->toContain('Same work on all-Opus 5: $25.64')
-        ->and($output)->toContain('you saved $24.48');
+        ->and($output)->toContain('you saved $23.43');
 });

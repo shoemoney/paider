@@ -116,15 +116,15 @@ $ paider cost
 
   tier            calls      in        out       spend    share
   ───────────────────────────────────────────────────────────────
-  orchestrator       14    61.2k      19.8k     $0.801    69.1%
-  coder             203     1.4M     287.1k     $0.079     6.8%
-  research          118     1.8M      34.6k     $0.262    22.6%
-  fast               77    98.4k      12.2k     $0.017     1.5%
+  orchestrator       14    61.2k      19.8k     $0.801    36.2%
+  coder             203     1.4M     287.1k     $1.131    51.1%
+  research          118     1.8M      34.6k     $0.262    11.8%
+  fast               77    98.4k      12.2k     $0.017     0.8%
   ───────────────────────────────────────────────────────────────
-  session                  3.36M     353.7k     $1.159
+  session                  3.36M     353.7k     $2.211
 
-  97.8% of your tokens went through tiers costing 30.9% of your spend.
-  Same work on all-Opus 5: $25.64  ·  you saved $24.48
+  97.8% of your tokens went through tiers costing 63.8% of your spend.
+  Same work on all-Opus 5: $25.64  ·  you saved $23.43
 ```
 
 > **Modelled session, real command.** ✅ `paider cost` prints all of the above — every column, the
@@ -152,7 +152,7 @@ That last line is the product in one sentence. Most agent tools show you a total
 anything. Paider shows you the **ratio** — and the ratio is the whole argument for
 routing, once it's wired up.
 
-It also keeps us honest. The 95.5% figure below is a modelled session; the ledger is what
+It also keeps us honest. The 91.4% figure below is a modelled session; the ledger is what
 confirms or refutes it on real work. A cost claim you cannot check is marketing, and this one is
 checkable by the person paying.
 
@@ -164,7 +164,7 @@ Twelve model presets + one `accounts` rotation strategy ship in [`config/presets
 |---|---|
 | all Opus 5 | $18.25 |
 | all Sonnet 5 | $7.30 |
-| **default** — Opus 5 to think, deepseek for research/fast | **$1.159** |
+| **default** — Opus 5 to think, Muse to code, deepseek for research/fast | **$2.211** |
 
 There is also an **open-weight stack** for people who will not send their code to a US frontier
 lab, or who want to be able to audit and self-host what they run: `kimi-k3` planning, `kimi-k2.6`
@@ -176,7 +176,7 @@ which is also open-weight with published weights on Hugging Face.
 
 ```bash
 paider config:provider open      # kimi-k3/k2.6 + deepseek (coder specialised, research budget-aware)
-paider config:provider balanced  # opus-5 to think, deepseek for research/fast, qwen for coder
+paider config:provider balanced  # opus-5 to think, deepseek for research/fast, muse for coder
 paider config:provider kimi      # single-provider stacks for all the majors
 paider config:show               # what am I actually running?
 ```
@@ -282,7 +282,7 @@ sequenceDiagram
     R-->>L: anthropic/claude-opus-5
     L->>M: prompt + tool contracts
     M-->>L: fenced tool call
-    Note over L,M: text-fenced blocks, not native tool-calling —<br/>providers disagree on the format, qwen3.7-flash<br/>reports structured_outputs=false
+    Note over L,M: text-fenced blocks, not native tool-calling —<br/>providers disagree on the format, and some<br/>coder-tier models report structured_outputs=false
     L->>G: patch_file(app/Foo.php)
     G->>U: show diff · allow once / session / deny
     U-->>G: allow once

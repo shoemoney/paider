@@ -88,15 +88,14 @@ return [
         // around. It also adds vision, which 3.7-max does not have — that model rejects
         // an image content array outright. Both are on the sk-sp- plan allowlist.
         'orchestrator' => 'qwen/qwen3.8-max',             //  $2.00  /   $6.00      1M ctx
-        // NOT qwen3-coder-plus ($0.65/$3.25). Jeremy's call from using it:
-        // it is not smart enough to orchestrate and not fast enough to be the
-        // coder -- a dead zone that buys neither intelligence nor speed. The
-        // coder tier runs in a loop, so latency compounds; flash wins on both
-        // axes. It reports structured_outputs=false, so if malformed diffs
-        // ever show up, that is the first thing to suspect.
-        'coder' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
-        'research' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13     1M ctx
-        'fast' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13
+        // Was qwen/qwen3.7-flash on all three ($0.03/$0.13) — a model the sk-sp-
+        // Coding Plan allowlist does not serve, so plan-key users hit the
+        // QwenPlanKeyGuard rejection on every tier. Swapped to Muse 2026-08-17,
+        // Jeremy's call: routes via the meta provider (api.meta.ai key from
+        // aigate), so the qwen plan key stops mattering for these tiers entirely.
+        'coder' => 'meta/muse-spark-1.2-contributor',    //  $0.50 /   $1.50  1M ctx
+        'research' => 'meta/muse-spark-1.2-contributor', //  $0.50 /   $1.50  1M ctx
+        'fast' => 'meta/muse-spark-1.2-contributor',     //  $0.50 /   $1.50
     ],
 
     'glm' => [
@@ -164,7 +163,7 @@ return [
 
     /*
     | THE DEFAULT. Mixing providers per tier is the entire point, and this is
-    | the split Jeremy actually runs: Opus 5 to think, qwen3.7-flash to do.
+    | the split Jeremy actually runs: Opus 5 to think, Muse to do.
     |
     | The orchestrator sees a plan and a review -- low volume, high value, worth
     | $25/Mtok. Coding and research are the opposite: they run in a loop and
@@ -176,7 +175,10 @@ return [
     */
     'balanced' => [
         'orchestrator' => 'anthropic/claude-opus-5',      //  $5.00 /  $25.00   1M ctx
-        'coder' => 'qwen/qwen3.7-flash',           //  $0.03 /   $0.13   1M ctx
+        // Was qwen/qwen3.7-flash ($0.03/$0.13) — swapped to Muse 2026-08-17,
+        // Jeremy's call (same change as the qwen preset above; the break-even
+        // notes below predate the swap and compare against the old coder price).
+        'coder' => 'meta/muse-spark-1.2-contributor', //  $0.50 /   $1.50   1M ctx
         // research and fast moved to deepseek-v4-flash 2026-08-03, Jeremy's call from using
         // it. The modelled session below prices every input token as a CACHE MISS at $0.14,
         // which is the honest worst case and raises it $0.943 -> $1.159. Real cost is very
