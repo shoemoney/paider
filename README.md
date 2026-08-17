@@ -571,7 +571,7 @@ flowchart LR
 
 | milestone | scope | state |
 |---|---|---|
-| **v0.1** | 5 commands, 9 tools, approval gate, event log, cost ledger, tier router, CI pipeline, ~94.8ms cold start | 🔨 **in progress** |
+| **v0.1** | 6 commands, 9 tools, approval gate, event log, cost ledger, tier router, CI pipeline, ~94.8ms cold start | 🔨 **in progress** |
 | **v0.2** | MCP client · `run` command (both built — untested), repo-map on research tier, test-feedback loop | ⬜ planned |
 | **v1.0** | MCP **server** mode — external clients drive Paider's tools; published semver policy | ⬜ planned |
 

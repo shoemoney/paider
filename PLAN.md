@@ -375,7 +375,7 @@ promised later.
 > the milestone, and the milestone closing will not require a new tag name. They were called
 > the same thing, which made "is v0.1 done?" unanswerable.
 
-*Shipped: six commands (chat, commit, cost, run, config:provider, config:show), nine tools (read/write/patch/shell/git/memory/artisan/load_skill/mcp), the approval gate, PathGuard and SecretsGuard, the
+*Shipped: six commands (chat, commit, cost, run, config:provider, config:show), nine tools (read/write/patch/shell/fetch_url/memory/git + artisan + load_skill), the approval gate, PathGuard and SecretsGuard, the
 append-only event log, and a cost ledger that reports real money and reconciles against
 provider-reported usage. MCP client support wired in (untested). CI runs the hermetic suite on PHP 8.4 and 8.5. Rehearsal infrastructure:
 `m1/` directory with `preflight.sh`, `TASK.md`, `RUNBOOK.md` speedup script and fixture *(local-only,
