@@ -14,6 +14,8 @@
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
 
+<img src="design/captures/paider-tui.png" alt="Paider TUI — ./paider -y in YOLO mode, resuming a 39-message session" width="900">
+
 </div>
 
 ---
