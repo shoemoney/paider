@@ -8,7 +8,7 @@ it('resolves edit to the coder tier under the default balanced preset', function
     expect($result)->toBe([
         'provider' => 'balanced',
         'tier' => 'coder',
-        'model' => 'meta/muse-spark-1.2-contributor',
+        'model' => 'meta/muse-spark-1.2',
     ]);
 });
 
@@ -30,5 +30,5 @@ it('lets a session override win without mutating config', function () {
     $result = (new TierRouter)->resolve('edit', ['coder' => 'override/model-x']);
 
     expect($result['model'])->toBe('override/model-x')
-        ->and(config('presets.balanced.coder'))->toBe('meta/muse-spark-1.2-contributor');
+        ->and(config('presets.balanced.coder'))->toBe('meta/muse-spark-1.2');
 });

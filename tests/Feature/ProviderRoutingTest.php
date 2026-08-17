@@ -96,7 +96,7 @@ it('every preset resolves to the identical endpoint and key whether reached via 
 
         expect($chat)->toBe($commit);
     });
-})->with(['anthropic', 'kimi', 'deepseek', 'qwen', 'xai', 'glm', 'openai', 'google', 'open', 'open-frugal', 'balanced']);
+})->with(['anthropic', 'kimi', 'deepseek', 'muse', 'xai', 'glm', 'openai', 'google', 'open', 'open-frugal', 'balanced']);
 
 it('a direct-endpoint preset with only its own key set uses the direct endpoint, in both commands', function () {
     withProviderRoutingEnv(['DEEPSEEK_API_KEY' => 'only-key'], function () {
@@ -118,7 +118,7 @@ it('a preset with a direct endpoint falls back to OpenRouter when only OPENROUTE
 
         expect(fingerprint(resolveViaCommit($preset)))->toBe([$baseUrl, $envVar]);
     });
-})->with(['kimi', 'deepseek', 'xai', 'glm']);
+})->with(['kimi', 'deepseek', 'xai', 'glm', 'muse']);
 
 it('a preset with no documented direct endpoint always resolves to OpenRouter', function (string $preset) {
     withProviderRoutingEnv(['OPENROUTER_API_KEY' => 'only-key'], function () use ($preset) {
@@ -134,25 +134,7 @@ it('the anthropic preset always resolves to AnthropicClient regardless of which 
     });
 });
 
-it('qwen plan-key routing survives the shared resolver identically to before', function () {
-    $plan = 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1';
-
-    withProviderRoutingEnv(['DASHSCOPE_API_KEY' => 'sk-sp-abc', 'DASHSCOPE_PLAN_BASE_URL' => $plan], function () use ($plan) {
-        expect(fingerprint(resolveViaChat('qwen')))->toBe([$plan, 'DASHSCOPE_API_KEY']);
-        expect(fingerprint(resolveViaCommit('qwen')))->toBe([$plan, 'DASHSCOPE_API_KEY']);
-    });
-});
-
-it('a qwen plan key with no plan URL falls back to OpenRouter when OPENROUTER_API_KEY is set, no throw', function () {
-    withProviderRoutingEnv(['DASHSCOPE_API_KEY' => 'sk-sp-abc', 'OPENROUTER_API_KEY' => 'x'], function () {
-        expect(fingerprint(resolveViaChat('qwen')))->toBe(['https://openrouter.ai/api/v1', 'OPENROUTER_API_KEY']);
-        expect(fingerprint(resolveViaCommit('qwen')))->toBe(['https://openrouter.ai/api/v1', 'OPENROUTER_API_KEY']);
-    });
-});
-
-it('a qwen plan key with no plan URL and no OPENROUTER_API_KEY still throws the plan-key RuntimeException', function () {
-    withProviderRoutingEnv(['DASHSCOPE_API_KEY' => 'sk-sp-abc'], function () {
-        expect(fn () => resolveViaChat('qwen'))->toThrow(RuntimeException::class, 'DASHSCOPE_PLAN_BASE_URL');
-        expect(fn () => resolveViaCommit('qwen'))->toThrow(RuntimeException::class, 'DASHSCOPE_PLAN_BASE_URL');
-    });
-});
+// The 'qwen' preset (and ProviderResolver::forQwen) was retired 2026-08-17 when the
+// preset slot became 'muse'. Plan-key URL guidance (the DASHSCOPE_PLAN_BASE_URL throw)
+// still lives in ProviderResolver::qwenBaseUrl(), covered by CommitCommandTest's
+// qwenBaseUrl reflection cases.

@@ -81,22 +81,11 @@ return [
         'fast' => 'x-ai/grok-build-0.1',          //  $1.00 /   $2.00
     ],
 
-    'qwen' => [
-        // 3.8-max over 3.7-max on Jeremy's bench read 2026-08-03 ("benching very well").
-        // Costs more ($2.00/$6.00 vs $1.475/$4.425) and that is fine here: the
-        // orchestrator is the low-volume, high-value tier this whole file is arranged
-        // around. It also adds vision, which 3.7-max does not have — that model rejects
-        // an image content array outright. Both are on the sk-sp- plan allowlist.
-        'orchestrator' => 'qwen/qwen3.8-max',             //  $2.00  /   $6.00      1M ctx
-        // Was qwen/qwen3.7-flash on all three ($0.03/$0.13) — a model the sk-sp-
-        // Coding Plan allowlist does not serve, so plan-key users hit the
-        // QwenPlanKeyGuard rejection on every tier. Swapped to Muse 2026-08-17,
-        // Jeremy's call: routes via the meta provider (api.meta.ai key from
-        // aigate), so the qwen plan key stops mattering for these tiers entirely.
-        'coder' => 'meta/muse-spark-1.2-contributor',    //  $0.50 /   $1.50  1M ctx
-        'research' => 'meta/muse-spark-1.2-contributor', //  $0.50 /   $1.50  1M ctx
-        'fast' => 'meta/muse-spark-1.2-contributor',     //  $0.50 /   $1.50
-    ],
+    // The 'qwen' preset was replaced by 'muse' (below) 2026-08-17, Jeremy's call.
+    // History: its coder/research/fast pointed at qwen/qwen3.7-flash, which the
+    // sk-sp- Coding Plan allowlist does not serve (QwenPlanKeyGuard rejection on
+    // three tiers). The resolver's qwen plan-key routing stays for qwen models
+    // used elsewhere (e.g. open-frugal via OpenRouter) and session overrides.
 
     'glm' => [
         'orchestrator' => 'z-ai/glm-5.1',                 //  $0.966 /   $3.036
@@ -176,9 +165,11 @@ return [
     'balanced' => [
         'orchestrator' => 'anthropic/claude-opus-5',      //  $5.00 /  $25.00   1M ctx
         // Was qwen/qwen3.7-flash ($0.03/$0.13) — swapped to Muse 2026-08-17,
-        // Jeremy's call (same change as the qwen preset above; the break-even
-        // notes below predate the swap and compare against the old coder price).
-        'coder' => 'meta/muse-spark-1.2-contributor', //  $0.50 /   $1.50   1M ctx
+        // Jeremy's call. NOT the -contributor id: balanced routes through
+        // OpenRouter (mixed-provider presets always do), and OpenRouter serves
+        // only meta/muse-spark-1.2, at its own $1.25/$4.25 rate. The break-even
+        // notes below predate the swap and compare against the old coder price.
+        'coder' => 'meta/muse-spark-1.2', //  $1.25 /   $4.25   1M ctx via OpenRouter
         // research and fast moved to deepseek-v4-flash 2026-08-03, Jeremy's call from using
         // it. The modelled session below prices every input token as a CACHE MISS at $0.14,
         // which is the honest worst case and raises it $0.943 -> $1.159. Real cost is very
@@ -195,11 +186,16 @@ return [
         'fast' => 'deepseek/deepseek-v4-flash',   //  $0.14 /   $0.28
     ],
 
-    'meta' => [
+    // Renamed from 'meta' 2026-08-17 (replaces the retired 'qwen' preset slot);
+    // all four tiers on Spark 1.2 Contributor per Jeremy. The -contributor id is
+    // served ONLY by the direct endpoint (api.meta.ai) — it is NOT in the
+    // OpenRouter catalogue, so it must never be used in an OpenRouter-routed
+    // preset like 'balanced' (that one uses meta/muse-spark-1.2 instead).
+    'muse' => [
         'orchestrator' => 'meta/muse-spark-1.2-contributor', //  $0.50 /  $1.50 via https://api.meta.ai/v1, key from aigate provider=meta or META_API_KEY — default
-        'coder' => 'meta/muse-spark-1.2-contributor', //  $0.50 /  $1.50
-        'research' => 'meta/muse-spark-1.1', //  $0.30 /  $0.90 — keep cheap tier
-        'fast' => 'meta/muse-spark-1.1', //  $0.30 /  $0.90
+        'coder' => 'meta/muse-spark-1.2-contributor',        //  $0.50 /  $1.50
+        'research' => 'meta/muse-spark-1.2-contributor',     //  $0.50 /  $1.50
+        'fast' => 'meta/muse-spark-1.2-contributor',         //  $0.50 /  $1.50
     ],
 
     /*

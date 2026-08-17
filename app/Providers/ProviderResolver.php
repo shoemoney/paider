@@ -22,17 +22,16 @@ class ProviderResolver
         'deepseek' => ['https://api.deepseek.com', 'DEEPSEEK_API_KEY'],
         'xai' => ['https://api.x.ai/v1', 'XAI_API_KEY'],
         'glm' => ['https://open.bigmodel.cn/api/paas/v4', 'GLM_API_KEY'],
-        'meta' => ['https://api.meta.ai/v1', 'META_API_KEY'],
+        'muse' => ['https://api.meta.ai/v1', 'META_API_KEY'],
     ];
 
     /** aigate provider id per preset (for Aigate::fetchKey) */
     private const AIGATE_PROVIDER = [
-        'meta' => 'meta',
+        'muse' => 'meta',
         'kimi' => 'kimi',
         'deepseek' => 'deepseek',
         'xai' => 'xai',
         'glm' => 'glm',
-        'qwen' => 'qwencloud',
     ];
 
     private const OPENROUTER_URL = 'https://openrouter.ai/api/v1';
@@ -41,10 +40,6 @@ class ProviderResolver
     {
         if ($preset === 'anthropic') {
             return new AnthropicClient;
-        }
-
-        if ($preset === 'qwen') {
-            return self::forQwen();
         }
 
         // Only take the direct endpoint when its own key is actually set -- a
@@ -73,34 +68,10 @@ class ProviderResolver
     }
 
     /**
-     * qwen gets its own path because a Coding Plan key with no plan URL configured
-     * throws (see qwenBaseUrl()) rather than silently billing pay-as-you-go -- and
-     * that throw needs to become an OpenRouter fallback here when one is available,
-     * with the plan-key guidance surfaced on STDERR rather than swallowed, since
-     * which endpoint bills is exactly the thing an operator should get to see.
-     */
-    private static function forQwen(): ProviderClient
-    {
-        if ((string) getenv('DASHSCOPE_API_KEY') === '') {
-            return new OpenAiCompatibleClient(self::OPENROUTER_URL, 'OPENROUTER_API_KEY');
-        }
-
-        try {
-            $baseUrl = self::qwenBaseUrl();
-        } catch (\RuntimeException $e) {
-            if ((string) getenv('OPENROUTER_API_KEY') === '') {
-                throw $e;
-            }
-
-            fwrite(STDERR, "warning: {$e->getMessage()}\nfalling back to OpenRouter for this request.\n");
-
-            return new OpenAiCompatibleClient(self::OPENROUTER_URL, 'OPENROUTER_API_KEY');
-        }
-
-        return new OpenAiCompatibleClient($baseUrl, 'DASHSCOPE_API_KEY');
-    }
-
-    /**
+     * Kept after the 'qwen' preset was retired (2026-08-17, replaced by 'muse'):
+     * CommitCommand still delegates here for qwen session overrides, and the
+     * plan-key throw below is the guidance an sk-sp- holder needs to see.
+     *
      * A Coding Plan key (sk-sp-) only bills against the plan on the account's own
      * "Plan Exclusive Base URL", which is region-scoped
      * (token-plan.<region>.maas.aliyuncs.com) and therefore cannot be hardcoded

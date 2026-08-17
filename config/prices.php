@@ -132,7 +132,10 @@ return [
 
     'minimax/minimax-m3' => ['in' => 0.30, 'out' => 1.20, 'cache_write' => null, 'cache_read' => null],
 
-    'meta/muse-spark-1.2' => ['in' => 0.50, 'out' => 1.50, 'cache_write' => null, 'cache_read' => null],
+    // OpenRouter rate — the plain 1.2 id is only ever routed through OpenRouter
+    // (balanced preset); the direct api.meta.ai rate ($0.50/$1.50) applies to the
+    // -contributor id below, which OpenRouter does not carry.
+    'meta/muse-spark-1.2' => ['in' => 1.25, 'out' => 4.25, 'cache_write' => null, 'cache_read' => null],
     'meta/muse-spark-1.2-contributor' => ['in' => 0.50, 'out' => 1.50, 'cache_write' => null, 'cache_read' => null],
     'meta/muse-spark-1.1' => ['in' => 0.30, 'out' => 0.90, 'cache_write' => null, 'cache_read' => null],
 ];
