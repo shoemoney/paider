@@ -93,18 +93,13 @@ class RunCommand extends Command
         }
 
         // Check if last tool_call failed — exit non-zero for CI
+        // EventLog::all()/stream() already json_decode()s the payload column, so $event['payload']
+        // is an array here already — re-decoding it threw a TypeError on every real run that
+        // reached a tool_call/test_run event (caught by RunCommandTest.php).
         $events = $eventLog->all();
         foreach (array_reverse($events) as $event) {
-            if ($event['type'] === 'tool_call') {
-                $payload = json_decode($event['payload'], true);
-                if (isset($payload['ok']) && $payload['ok'] === false) {
-                    return self::FAILURE;
-                }
-                break;
-            }
-            // Also check test_run failures
-            if ($event['type'] === 'test_run') {
-                $payload = json_decode($event['payload'], true);
+            if ($event['type'] === 'tool_call' || $event['type'] === 'test_run') {
+                $payload = $event['payload'];
                 if (isset($payload['ok']) && $payload['ok'] === false) {
                     return self::FAILURE;
                 }
@@ -143,7 +138,12 @@ class RunCommand extends Command
         return $tools;
     }
 
-    private function resolveProvider(): ProviderClient
+    /**
+     * protected, not private: FakeRunCommand (tests/Feature/RunCommandTest.php) overrides this
+     * to inject a QueuedProviderClient — same seam CommitCommand::providerClient() uses — since
+     * the real ProviderResolver would otherwise require a live API key.
+     */
+    protected function resolveProvider(): ProviderClient
     {
         return ProviderResolver::forPreset(SettingsStore::activePreset());
     }
