@@ -34,8 +34,24 @@ $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 
 $status = $kernel->handle(
     $input = new Symfony\Component\Console\Input\ArgvInput,
-    new Symfony\Component\Console\Output\ConsoleOutput
+    $output = new Symfony\Component\Console\Output\ConsoleOutput
 );
+
+/*
+|--------------------------------------------------------------------------
+| Point Unknown Commands To `paider list`
+|--------------------------------------------------------------------------
+|
+| Laravel Zero silently proxies any unrecognized command name into the
+| default command's own arguments, so a typo surfaces as a bare Symfony
+| parsing error with no pointer back to the command list. Nudge toward one.
+|
+*/
+
+if ($status !== 0 && ($commandName = $input->getFirstArgument()) !== null && ! array_key_exists($commandName, $kernel->all())) {
+    $output->getErrorOutput()->writeln('');
+    $output->getErrorOutput()->writeln('Run <info>paider list</info> to see all commands, or <info>paider --help</info> for options.');
+}
 
 /*
 |--------------------------------------------------------------------------
