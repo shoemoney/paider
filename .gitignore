@@ -9,3 +9,16 @@
 # prompts, file contents and tool output as soon as the agent is used.
 .paider/
 /build
+
+# Local dev artifacts — planning scratch, score rounds, bench harness, TUI captures
+PLAN-PHASES-1-10.md
+PRISM-TAKEAWAYS.md
+RELEASE-V1-*.md
+ROADMAP-*.md
+overnight-v1-report.html
+blog/
+m1/
+design/*
+!design/captures/
+design/captures/*
+!design/captures/paider-tui.png
