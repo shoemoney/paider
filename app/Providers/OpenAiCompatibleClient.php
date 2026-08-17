@@ -24,7 +24,7 @@ class OpenAiCompatibleClient implements ProviderClient
 
     public function send(array $messages, string $model, array $options = []): ProviderResponse
     {
-        QwenPlanKeyGuard::assertSafe($this->apiKey, $this->baseUrl);
+        QwenPlanKeyGuard::assertSafe($this->apiKey, $this->baseUrl, $model);
 
         if ($this->apiKey === '') {
             throw new \RuntimeException("{$this->apiKeyEnvVar} is not set.");

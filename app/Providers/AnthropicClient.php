@@ -23,7 +23,7 @@ class AnthropicClient implements ProviderClient
 
     public function send(array $messages, string $model, array $options = []): ProviderResponse
     {
-        QwenPlanKeyGuard::assertSafe($this->apiKey, $this->baseUrl);
+        QwenPlanKeyGuard::assertSafe($this->apiKey, $this->baseUrl, $model);
 
         if ($this->apiKey === '') {
             throw new \RuntimeException('ANTHROPIC_API_KEY is not set.');
