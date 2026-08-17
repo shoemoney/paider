@@ -29,7 +29,7 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 
 | | state | evidence |
 |---|---|---|
-| 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `cost`, `config:provider`, `config:show` all register and run |
+| 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `cost`, `run`, `config:provider`, `config:show` all register and run |
 | 🔧 nine tools (7 + 2 conditional) | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `fetch_url`, `memory`, `git` + `artisan` (when `artisan` file exists) + `load_skill` (when skills indexed) |
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection; stored in `.paider/` (gitignored locally) |
 | 🧪 test suite | ✅ **461 passing**, 2761 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
@@ -572,7 +572,7 @@ flowchart LR
 | milestone | scope | state |
 |---|---|---|
 | **v0.1** | 5 commands, 9 tools, approval gate, event log, cost ledger, tier router, CI pipeline, ~94.8ms cold start | 🔨 **in progress** |
-| **v0.2** | `mcp/sdk` client, `paider run --yes`, repo-map on the research tier, test-feedback loop | ⬜ planned |
+| **v0.2** | MCP client · `run` command (both built — untested), repo-map on research tier, test-feedback loop | ⬜ planned |
 | **v1.0** | MCP **server** mode — external clients drive Paider's tools; published semver policy | ⬜ planned |
 
 <details>
