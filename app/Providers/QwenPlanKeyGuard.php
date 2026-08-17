@@ -23,10 +23,27 @@ class QwenPlanKeyGuard
         'maas.aliyuncs.com',
     ];
 
-    public static function assertSafe(string $apiKey, string $baseUrl): void
+    /**
+     * Models confirmed (ops memory qwen-plan-model-allowlist, 2026-08) NOT on the
+     * sk-sp- plan's server-side model allowlist. The plan serves an exact-string
+     * list we do not have in full, so this only lists known-bad models rather than
+     * guessing the allowed set. Only checked for sk-sp- keys -- an OpenRouter or
+     * other non-plan key using the same model id is unaffected.
+     */
+    private const PLAN_ALLOWLIST_BLOCKED_MODELS = [
+        'qwen/qwen3.7-flash',
+    ];
+
+    public static function assertSafe(string $apiKey, string $baseUrl, ?string $model = null): void
     {
         if (! str_starts_with($apiKey, 'sk-sp-')) {
             return;
+        }
+
+        if ($model !== null && in_array($model, self::PLAN_ALLOWLIST_BLOCKED_MODELS, true)) {
+            throw new \RuntimeException(
+                "Qwen Coding Plan key (sk-sp-...) used with model '{$model}' -- this model is not on the plan's server-side allowlist, so the call fails at runtime (or silently falls back to pay-as-you-go). Refusing."
+            );
         }
 
         $host = strtolower((string) parse_url($baseUrl, PHP_URL_HOST));
