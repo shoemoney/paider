@@ -375,9 +375,9 @@ promised later.
 > the milestone, and the milestone closing will not require a new tag name. They were called
 > the same thing, which made "is v0.1 done?" unanswerable.
 
-*Shipped: five commands, six native tools, the approval gate, PathGuard and SecretsGuard, the
+*Shipped: six commands (chat, commit, cost, run, config:provider, config:show), nine tools (read/write/patch/shell/fetch_url/memory/git + artisan + load_skill), the approval gate, PathGuard and SecretsGuard, the
 append-only event log, and a cost ledger that reports real money and reconciles against
-provider-reported usage. CI runs the hermetic suite on PHP 8.4 and 8.5. Rehearsal infrastructure:
+provider-reported usage. MCP client support wired in (untested). CI runs the hermetic suite on PHP 8.4 and 8.5. Rehearsal infrastructure:
 `m1/` directory with `preflight.sh`, `TASK.md`, `RUNBOOK.md` speedup script and fixture *(local-only,
 gitignored since 2026-08-17 — not in the published repo)*. `install.sh`
 ✅ **live** at paider.dev (composer-only, served from GitHub Pages). `design/` directory with 18 terminal captures
@@ -385,9 +385,7 @@ and TUI-REVIEW.md findings (proposals, not applied) *(also local-only, gitignore
 someone else's repo, and the FrankenPHP binary embed step.*
 
 **⬜ v0.2 — "it doesn't need me watching it"** — *planned.*
-- MCP client support via `modelcontextprotocol/php-sdk` (consume external tool servers)
-- `paider run "<prompt>" --yes` — bounded non-interactive mode for scripting/CI, with an
-  explicit allow-list of tools it may auto-approve (never unrestricted)
+- MCP client support hardening (foundation built in v0.1, untested; v0.2 adds fixtures and integration tests)
 - Repo-map/search tool on the research tier (cheap, high-volume, exactly the tier DECISIONS.md
   named for this)
 - Automatic test-runner feedback loop: after an applied edit, run a configured test command,
