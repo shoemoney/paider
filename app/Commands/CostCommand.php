@@ -102,6 +102,14 @@ class CostCommand extends Command
         }
         $rows .= $this->row('session', $session, isSession: true);
 
+        // Finding 5: the total was buried below the table, after every per-tier row and
+        // any unpriced/mismatch notes — a reader has to scan past all of it to find the
+        // one number they came for. Print it first.
+        $totalSpend = $session['unpriced_calls'] > 0
+            ? sprintf('$%.3f*', $sessionSpend)
+            : sprintf('$%.3f', $sessionSpend);
+        Palette::render('<div class="px-1 mt-1">Total spend: '.e($totalSpend).'</div>');
+
         Palette::render(<<<HTML
             <div class="my-1">
                 <table>
@@ -195,9 +203,10 @@ class CostCommand extends Command
             : sprintf('$%.3f', $row['spend_usd']);
 
         // The session row's own call count and share are redundant (it's the whole),
-        // so they render blank — mirroring the README mockup's layout.
-        $calls = $isSession ? '' : (string) $row['calls'];
-        $share = $isSession ? '' : ($row['share_pct'] === null ? '—' : number_format($row['share_pct'], 1).'%');
+        // so they render as a dash rather than blank cells a reader can mistake for
+        // missing data (Finding 6).
+        $calls = $isSession ? '—' : (string) $row['calls'];
+        $share = $isSession ? '—' : ($row['share_pct'] === null ? '—' : number_format($row['share_pct'], 1).'%');
 
         return sprintf(
             '<tr><td class="px-1">%s</td><td class="px-1">%s</td><td class="px-1">%s</td><td class="px-1">%s</td><td class="px-1">%s</td><td class="px-1">%s</td></tr>',

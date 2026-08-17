@@ -159,6 +159,83 @@ it('renders share as a dash and skips both summary lines when session spend is 0
         ->not->toContain('Same work on all-Opus 5');
 });
 
+it('marks the session aggregate row\'s calls and share cells with a dash instead of leaving them blank', function () {
+    $log = new EventLog(Database::connect());
+
+    $log->append('tier_call', ['tier' => 'orchestrator', 'tokens_in' => 1000, 'tokens_out' => 200, 'cost_usd' => 0.45]);
+    $log->append('tier_call', ['tier' => 'coder', 'tokens_in' => 20000, 'tokens_out' => 5000, 'cost_usd' => 0.03]);
+
+    $bufferedOutput = new BufferedOutput;
+    $outputStyle = new OutputStyle(new ArrayInput([]), $bufferedOutput);
+
+    $exitCode = $this->app->make(Kernel::class)->call('cost', [], $outputStyle);
+    expect($exitCode)->toBe(0);
+
+    $output = $bufferedOutput->fetch();
+
+    // Blank cells are indistinguishable from missing data at a glance; the session row's
+    // own calls/share are meaningless (it's the whole, not a fraction of itself) and must
+    // say so rather than render as empty table cells. Termwind renders the table as plain
+    // text, not raw HTML, so match the rendered line containing "session" (the last row).
+    $lines = array_values(array_filter(explode("\n", $output)));
+    $sessionLine = '';
+    foreach ($lines as $line) {
+        if (str_contains($line, 'session')) {
+            $sessionLine = $line;
+        }
+    }
+
+    expect($sessionLine)->toContain('—');
+    // A genuinely broken fix (still rendering '' for calls/share) would leave the session
+    // line with only one dash cell (the pre-existing share fallback) or none at all --
+    // require both non-applicable cells to carry the marker.
+    expect(substr_count($sessionLine, '—'))->toBeGreaterThanOrEqual(2);
+});
+
+it('prints the total spend above the table, ahead of the session aggregate row', function () {
+    $log = new EventLog(Database::connect());
+
+    $log->append('tier_call', ['tier' => 'orchestrator', 'tokens_in' => 1000, 'tokens_out' => 200, 'cost_usd' => 0.45]);
+    $log->append('tier_call', ['tier' => 'coder', 'tokens_in' => 20000, 'tokens_out' => 5000, 'cost_usd' => 0.03]);
+
+    $bufferedOutput = new BufferedOutput;
+    $outputStyle = new OutputStyle(new ArrayInput([]), $bufferedOutput);
+
+    $exitCode = $this->app->make(Kernel::class)->call('cost', [], $outputStyle);
+    expect($exitCode)->toBe(0);
+
+    $output = $bufferedOutput->fetch();
+
+    expect($output)->toContain('Total spend: $0.480');
+
+    // Must appear before the table's own content (the tier name is the earliest table
+    // marker available in rendered output), not buried after it or after the summary
+    // lines like the pre-fix layout did.
+    $totalPos = strpos($output, 'Total spend');
+    $tablePos = strpos($output, 'orchestrator');
+
+    expect($totalPos)->not->toBeFalse()
+        ->and($tablePos)->not->toBeFalse()
+        ->and($totalPos)->toBeLessThan($tablePos);
+});
+
+it('marks the total spend line and the session aggregate row with the same unpriced marker', function () {
+    $log = new EventLog(Database::connect());
+
+    $log->append('tier_call', ['tier' => 'orchestrator', 'tokens_in' => 1000, 'tokens_out' => 200, 'cost_usd' => 0.801]);
+    $log->append('tier_call', ['tier' => 'coder', 'model' => 'nobody/knows-this-model', 'tokens_in' => 1_400_000, 'tokens_out' => 287_100, 'cost_usd' => null]);
+
+    $bufferedOutput = new BufferedOutput;
+    $outputStyle = new OutputStyle(new ArrayInput([]), $bufferedOutput);
+
+    $exitCode = $this->app->make(Kernel::class)->call('cost', [], $outputStyle);
+    expect($exitCode)->toBe(0);
+
+    $output = $bufferedOutput->fetch();
+
+    expect($output)->toContain('Total spend: $0.801*');
+});
+
 it('emits the same computed arrays as JSON with --json', function () {
     $log = new EventLog(Database::connect());
 
