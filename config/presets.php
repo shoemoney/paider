@@ -17,13 +17,15 @@
 |   research     - reads docs, greps, summarises, fetches. HIGH token volume,
 |                  LOW difficulty: you ingest 50k to extract 500. This is where
 |                  agents quietly waste most of their money, and the fix is a
-|                  huge-context model that costs nothing. qwen3.7-flash is 1M
-|                  ctx at $0.03/$0.13 -- 77x cheaper than sonnet-5 on output.
+|                  huge-context model that costs nothing. The default coder is
+|                  meta/muse-spark-1.2 via OpenRouter at $1.25/$4.25; the
+|                  research tier uses qwen3.7-flash in open-frugal at $0.03/$0.13 (1M ctx).
 |   fast         - commit messages, retries, one-liners.
 |
-| Model IDs and prices verified against the live OpenRouter catalogue
-| 2026-08-02. Prices are $/Mtok in/out and are informational only: on a
-| subscription the binding constraint is the rate limit, not the bill.
+| Model IDs and prices verified against the live catalogue of the endpoint that
+| serves them: OpenRouter for mixed-provider presets, direct API for
+| single-provider stacks. Prices are $/Mtok in/out and are informational only:
+| on a subscription the binding constraint is the rate limit, not the bill.
 |
 */
 
