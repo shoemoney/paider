@@ -27,14 +27,14 @@ jobs:
 
       - name: Install box
         run: |
-          curl -LS https://github.com/humbug/box/releases/latest/download/box.phar -o /tmp/box
-          chmod +x /tmp/box
-          /tmp/box --version
+          curl -LS https://github.com/humbug/box/releases/latest/download/box.phar -o /tmp/box.phar
+          chmod +x /tmp/box.phar
+          /tmp/box.phar --version
 
       - name: Compile PHAR
         run: |
           mkdir -p build
-          /tmp/box compile
+          /tmp/box.phar compile
           ls -lh build/paider.phar
           php build/paider.phar --version
           php build/paider.phar list

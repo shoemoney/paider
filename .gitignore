@@ -17,7 +17,11 @@ RELEASE-V1-*.md
 ROADMAP-*.md
 overnight-v1-report.html
 blog/
-m1/
+# m1/ dev harness stays local — EXCEPT the fixture, which E2ETraceTest and
+# TokenKillerTest read as their corpus; CI needs it (broke 2026-08-17 when all
+# of m1/ was untracked)
+m1/*
+!m1/fixture/
 design/*
 !design/captures/
 design/captures/*
