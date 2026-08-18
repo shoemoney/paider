@@ -28,3 +28,4 @@ design/*
 design/captures/*
 !design/captures/paider-tui.png
 council_meetings/
+m1/bench/paider-100.md
