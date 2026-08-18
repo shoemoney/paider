@@ -22,8 +22,10 @@ Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://l
 
 ## 🚦 Status, honestly
 
-> **Alpha. The commands work, the ledger reports real money, and it has talked to real models.**
-> **What it has never done is drive an end-to-end edit in someone else's repo.**
+> **Alpha. The commands work, the ledger reports real money, and on 2026-08-18 it drove its
+> first end-to-end edits in someone else's repo — 3/3 rubric-graded live runs.** The graded
+> task was deliberately small (two pre-registered one-line edits); treat anything bigger as
+> unproven.
 
 Built in public from commit one, wrong turns left in. Here is precisely what that means today:
 
@@ -34,12 +36,15 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection; stored in `.paider/` (gitignored locally) |
 | 🧪 test suite | ✅ **514 passing**, 2970 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
+| 🌍 end-to-end edit in a foreign repo | ✅ **3/3 live runs** (2026-08-18) | `vlucas/valitron@fadce39f`, pre-registered rubric ([`m1/bench/RUBRIC.md`](m1/bench/RUBRIC.md)), evidence committed in `m1/runs/` — $1.57 across the three passes; run 0 failed the rubric and is committed too |
 | 📦 published on Packagist | ✅ **published** | `paider/paider` at https://packagist.org/packages/paider/paider |
 | 📦 `curl \| sh` installer | ✅ **live** | `curl -fsSL paider.dev/install \| sh` — served from GitHub Pages, installs via Composer; PHAR built 32MB (`build/paider.phar` via `box`, 222ms), FrankenPHP trimmed still deferred |
 | 🏷️ tagged release | ⚠️ **v1.0.1** | `composer require paider/paider` resolves **v1.0.1** — a tag that shipped early; see the [erratum](#️-erratum-the-v10x-tags-shipped-early) below |
 
-**Do not install this expecting a working agent.** The wiring is real and tested; the last
-mile — an actual API key, an actual model, an actual edit landing in your repo — is unproven.
+**Do not install this expecting a polished agent.** The wiring is real and tested, and the
+last mile has now been crossed — an actual key, an actual model, actual edits landing in a
+third-party repo — but only for a small pre-registered task. Bigger claims wait for bigger
+evidence.
 
 ### ⚠️ Erratum: the v1.0.x tags shipped early
 
@@ -587,16 +592,16 @@ flowchart LR
 
 | milestone | scope | state |
 |---|---|---|
-| **v0.1** | 6 commands, 9 tools, approval gate, event log, cost ledger, tier router, CI pipeline, ~94.8ms cold start | 🔨 **in progress** |
-| **v0.2** | MCP client (built — untested) · `run` command (built with hermetic tests), repo-map on research tier, test-feedback loop | ⬜ planned |
+| **v0.1** | 6 commands, 9 tools, approval gate, event log, cost ledger, tier router, CI pipeline, ~94.8ms cold start · **M1 closed 2026-08-18: 3/3 rubric-graded live edits in a foreign repo** | ✅ **done** |
+| **v0.2** | MCP client (hermetically tested; live-server interop open) · test-feedback loop (landed, reshaped) · XDG config read-precedence (landed) · repo-map on research tier (open) | 🔨 **in progress** |
 | **v1.0** | tagged 2026-08-08 by an overnight run **before its DoD was met** — see the [erratum](#️-erratum-the-v10x-tags-shipped-early); tags kept, no further v1.0.z claims compliance | ⚠️ **premature** |
 | **v1.1.0** | the release that earns the number: M1 closed on a third-party repo, CI feedback-loop gate green, measured diff-apply rate published, semver + non-goals docs · MCP **server** mode ships behind an experimental flag when ready, never as the blocker | ⬜ planned |
 
 <details>
-<summary><b>❓ Why is v0.1 still 🔨 when the code is written and 514 tests pass?</b></summary>
+<summary><b>❓ Is v0.1 actually done now?</b></summary>
 
-Because [`PLAN.md`](PLAN.md) wrote v0.1's definition of done *before* the code existed, and
-grading against it honestly leaves one box unticked:
+Yes — as of 2026-08-18. [`PLAN.md`](PLAN.md) wrote v0.1's definition of done *before* the code
+existed, and the last box held out for sixteen days:
 
 | v0.1 definition-of-done | state |
 |---|---|
@@ -608,11 +613,14 @@ grading against it honestly leaves one box unticked:
 | live provider round-trips | ✅ **3 tests, ledger reconciles** |
 | published on Packagist | ✅ **published** — [`paider/paider`](https://packagist.org/packages/paider/paider), tagged v0.1.0 |
 | CI pipeline with hermetic + live suites | ✅ **shipped** — `.github/workflows/tests.yml` runs on PR, `--prefer-lowest` catches version leaks |
-| end-to-end on a real repo with a real API key | ⬜ never attempted |
+| end-to-end on a real repo with a real API key | ✅ **3/3 live runs, 2026-08-18** — rubric-graded, evidence in `m1/runs/` |
 
-The one remaining box — running a full session against a real repo with a real API key and watching an edit land — is the last blocker to shipping v0.1. Everything else is done. The rule
-in this repo is that a green checkbox is a promise a `grep` or a test run can keep — eight
-checked above are testable / grepable; the unchecked one requires end-to-end human verification.
+The rule in this repo is that a green checkbox is a promise a `grep` or a test run can keep.
+The final box was graded against a rubric committed *before* the first run
+([`m1/bench/RUBRIC.md`](m1/bench/RUBRIC.md)) — and the first attempt FAILED it (the
+pre-registered prompt referenced code that didn't exist in the foreign target; the model
+correctly asked a question into a non-interactive run). The task was re-registered, the count
+reset, and runs 1–3 passed 3/3. Both the failure and the passes are committed.
 
 </details>
 

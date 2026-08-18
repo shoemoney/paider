@@ -366,12 +366,19 @@ promised later.
 
 ## Milestones
 
-**🔨 M1 — "it works on my repo"** — *in progress.*
+**✅ M1 — "it works on my repo"** — *CLOSED 2026-08-18.* Three consecutive rubric-graded live
+runs drove a pre-registered two-file edit into `vlucas/valitron@fadce39f` (genuinely
+third-party, SHA-pinned): exit 0, valid non-empty diff, `// live-e2e-proof` markers landed,
+$1.573 total spend reconciled to the ledger. Graded against `m1/bench/RUBRIC.md` (committed
+before the first run); evidence, including the instructive run-0 rubric FAILURE, committed
+under `m1/runs/`. Scope honesty: the graded task was deliberately small — M1 proves the
+pipeline end to end, not general coding capability.
 
 > **Naming, so two different things stop sharing a label.** The **v0.1.0 tag** is a release
 > number: it exists, it is on Packagist, and it means "the package installs and the commands
-> work." **M1** is a capability milestone and is NOT met — nobody has yet watched Paider drive
-> an end-to-end multi-file edit in a repo that is not this one. Cutting the tag did not close
+> work." **M1** is a capability milestone and ~~is NOT met — nobody has yet watched Paider drive
+> an end-to-end multi-file edit in a repo that is not this one~~ *(closed 2026-08-18, above)*.
+> Cutting the tag did not close
 > the milestone, and the milestone closing will not require a new tag name. They were called
 > the same thing, which made "is v0.1 done?" unanswerable.
 
@@ -382,8 +389,8 @@ provider-reported usage. MCP client support wired in (hermetically tested). CI r
 the rest of `m1/` (`preflight.sh`, `TASK.md`, `RUNBOOK.md`, live-smoke) *(local-only, gitignored)*.
 `install.sh`
 ✅ **live** at paider.dev (composer-only, served from GitHub Pages). `design/` directory with 18 terminal captures
-and TUI-REVIEW.md findings (proposals, not applied) *(also local-only, gitignored)*. Still open for M1: the end-to-end edit in
-someone else's repo, and the FrankenPHP binary embed step.*
+and TUI-REVIEW.md findings (proposals, not applied) *(also local-only, gitignored)*. ~~Still open for M1: the end-to-end edit in
+someone else's repo~~ *(closed 2026-08-18 — see the M1 block above)*; the FrankenPHP binary embed step remains open (and is cut from the v1.1 critical path).*
 
 **⬜ v0.2 — "it doesn't need me watching it"** — *planned.*
 - MCP client support hardening (foundation built in v0.1, hermetically tested; v0.2 adds integration against live servers)
