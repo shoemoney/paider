@@ -27,7 +27,13 @@ if [ "$LIVE" = 1 ] && [ "$DRY_LIVE" = 1 ]; then
     exit 1
 fi
 
-PROMPT='add // live-e2e-proof discount 10% before tax'
+# Re-registered 2026-08-18 after live run 1 failed rubric criteria 2+3: the original
+# prompt ("add discount 10% before tax") was written for the m1 fixture's Receipt class
+# and has no referent in the pinned foreign target (valitron is a validation library —
+# the model correctly explored, found no pricing code, and asked a clarifying question
+# into a non-interactive run). Task must exist IN the pinned target. See RUBRIC.md
+# amendment + m1/runs/20260818T150450Z for the failed run's evidence.
+PROMPT='Two edits, nothing else: (1) in src/Valitron/Validator.php add the single-line comment "// live-e2e-proof" directly above the "class Validator" declaration; (2) append a final line "<!-- live-e2e-proof -->" to README.md. Do not ask questions, do not refactor, make exactly these two edits.'
 
 # A real, small, third-party PHP repo unrelated to paider's team, pinned to an exact SHA
 # so "foreign" never silently drifts to whatever happens to be at HEAD today.
@@ -95,6 +101,6 @@ if [ ! -f "$tmp/repo/src/Receipt.php" ]; then echo "FAIL: Receipt.php missing"; 
 grep -q "Receipt" "$tmp/repo/src/Receipt.php" || { echo "FAIL: Receipt.php content"; exit 1; }
 echo "tmp copy invariants OK -- E2ETrace passed with // paider-proof and ledger tier_call"
 
-echo "foreign-repo bench done -- prompt: add discount 10% to Receipt::build before tax"
+echo "foreign-repo bench done -- live prompt: two live-e2e-proof edits (Validator.php comment + README line)"
 echo "asserts: // live-e2e-proof in src/Receipt.php + tier_call ledger + cost --session"
 echo "live capability: bash $0 --dry-live (prints real command) / --live (executes it, spends money)"

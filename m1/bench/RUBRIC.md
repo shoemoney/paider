@@ -50,3 +50,22 @@ the criteria above:
 
 `m1/runs/` is gitignored (run artifacts are real API spend evidence, not template code) —
 commit a run's directory deliberately when it's part of the record for a rubric decision.
+
+## Amendment — 2026-08-18, after live run 1 (20260818T150450Z)
+
+**Run 1 FAILED criteria 2 and 3** (no marker, zero-byte diff) while "passing" 1 and 4
+(exit 0, $0.093 spend, 5 orchestrator calls). Artifacts committed at
+`m1/runs/20260818T150450Z/`. Root cause was the **experiment, not the agent**: the
+pre-registered prompt referenced pricing code that does not exist in the pinned foreign
+target (valitron is a validation library); the model explored correctly and asked a
+clarifying question into a non-interactive run. Two consequences:
+
+1. **Prompt re-registered** (foreign-repo.sh PROMPT): two unambiguous edits that exist in
+   the pinned target — `// live-e2e-proof` comment above `class Validator` in
+   `src/Valitron/Validator.php`, plus a `<!-- live-e2e-proof -->` line appended to
+   README.md. Pass criteria 1-4 are UNCHANGED. Criterion 3's "expected file" now reads on
+   either of the two named files. **Run count restarted at zero** per this rubric's own rule.
+2. **Product defect recorded, not fixed here:** `paider run` exits 0 when a run completes
+   without a single applied edit — silent success in CI mode. Criterion 1 alone is
+   therefore proven insufficient as a success signal; the rubric's criteria 2+3 are what
+   caught this. Filed for the next survey cycle.
