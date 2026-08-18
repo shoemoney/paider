@@ -85,7 +85,7 @@ fi
 # --- default: hermetic, keyless, flagless, no network — exits 0 or fails loudly ---
 cp -a "$repo_root/m1/fixture" "$tmp/repo"
 echo "==> hermetic E2E in $tmp/repo (m1/fixture copy — pass --live/--dry-live for a real foreign target)"
-bash "$repo_root/m1/preflight.sh" "$tmp/repo" 2>&1 | tail -n 5
+PREFLIGHT_HERMETIC=1 bash "$repo_root/m1/preflight.sh" "$tmp/repo" 2>&1 | tail -n 5
 
 echo "==> hermetic Loop proof (vendor/bin/pest E2ETrace)"
 "$repo_root/vendor/bin/pest" --filter=E2ETrace 2>&1 | tail -n 10
