@@ -6,6 +6,7 @@ use App\Approval\Gate;
 use App\Providers\ProviderResponse;
 use App\Storage\Database;
 use App\Storage\EventLog;
+use App\Storage\SessionStore;
 use App\Support\SettingsStore;
 use App\Tools\ReadFileTool;
 use App\Tools\WriteFileTool;
@@ -41,7 +42,7 @@ function providerThatWritesThenStops(string $root): QueuedProviderClient
 /** @return array<int, array{role: string, content: string}> messages logged via remember() */
 function loggedMessages(EventLog $log): array
 {
-    return array_values(array_filter($log->all(), fn ($e) => $e['type'] === \App\Storage\SessionStore::MESSAGE));
+    return array_values(array_filter($log->all(), fn ($e) => $e['type'] === SessionStore::MESSAGE));
 }
 
 /** The 'user'-role observation Loop hands the model back after a tool call (see observationText()). */

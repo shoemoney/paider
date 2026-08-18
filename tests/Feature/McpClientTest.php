@@ -68,7 +68,7 @@ it('is disabled when PAIDER_MCP is unset', function () {
 
 it('is disabled for falsy PAIDER_MCP values', function () {
     foreach (['0', 'false', 'off', 'no', ''] as $val) {
-        withMcpEnabled(function () use ($val) {
+        withMcpEnabled(function () {
             expect(McpClient::enabled())->toBeFalse();
         }, $val);
     }
@@ -76,7 +76,7 @@ it('is disabled for falsy PAIDER_MCP values', function () {
 
 it('is enabled for truthy PAIDER_MCP values, case-insensitively', function () {
     foreach (['1', 'true', 'TRUE', 'on', 'ON', 'yes', 'Yes'] as $val) {
-        withMcpEnabled(function () use ($val) {
+        withMcpEnabled(function () {
             expect(McpClient::enabled())->toBeTrue();
         }, $val);
     }
