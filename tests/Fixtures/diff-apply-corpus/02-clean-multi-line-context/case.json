@@ -1,0 +1,7 @@
+{
+    "description": "Clean apply on a multi-function file, hunk positioned mid-file with real surrounding context.",
+    "strata": "clean",
+    "path": "input.txt",
+    "stamp_mode": "match",
+    "expect_ok": true
+}

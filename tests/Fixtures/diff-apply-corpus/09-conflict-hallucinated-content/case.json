@@ -1,0 +1,10 @@
+{
+    "description": "Deletion line text was hallucinated and never existed in the file at all (not a drift, just wrong).",
+    "strata": "conflict",
+    "path": "input.txt",
+    "stamp_mode": "match",
+    "expect_ok": false,
+    "expect_meta": {
+        "conflict": true
+    }
+}

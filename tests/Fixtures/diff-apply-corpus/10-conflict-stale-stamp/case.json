@@ -1,0 +1,10 @@
+{
+    "description": "The file changed after the model read it into context (stamp no longer matches), even though the diff body itself would apply cleanly against the stale content.",
+    "strata": "conflict",
+    "path": "input.txt",
+    "stamp_mode": "stale",
+    "expect_ok": false,
+    "expect_meta": {
+        "conflict": "stale_stamp"
+    }
+}

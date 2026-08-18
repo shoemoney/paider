@@ -1,0 +1,10 @@
+{
+    "description": "The hunk header line does not match the '@@ -a,b +c,d @@' shape at all.",
+    "strata": "conflict",
+    "path": "input.txt",
+    "stamp_mode": "match",
+    "expect_ok": false,
+    "expect_meta": {
+        "parse_error": true
+    }
+}

@@ -1,0 +1,7 @@
+{
+    "description": "New-file creation via the __new_file__ stamp sentinel, single added line.",
+    "strata": "new_file",
+    "path": "greeting.txt",
+    "stamp_mode": "new_file",
+    "expect_ok": true
+}
