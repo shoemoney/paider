@@ -139,3 +139,95 @@ test('with --yes, the same run_shell call IS auto-approved and actually runs', f
     expect($exitCode)->toBe(0);
     expect(file_exists($proof))->toBeTrue();
 });
+
+test('--require-edit: a turn that only runs shell and replies with prose, no edit tool call, exits FAILURE', function () {
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(
+            content: "```tool\n".json_encode(['name' => 'run_shell', 'input' => ['command' => 'echo scoping']])."\n```",
+            tokensIn: 100,
+            tokensOut: 20,
+            raw: [],
+        ),
+        new ProviderResponse(content: 'Looked around, nothing to change here.', tokensIn: 50, tokensOut: 10, raw: []),
+    ]);
+
+    $exitCode = runRun(new FakeRunCommand($provider), $this->app, [
+        'prompt' => 'investigate the repo',
+        '--yes' => true,
+        '--require-edit' => true,
+    ]);
+
+    expect($exitCode)->toBe(1);
+});
+
+test('--require-edit: a turn whose write_file call succeeds exits SUCCESS', function () {
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(
+            content: "```tool\n".json_encode(['name' => 'write_file', 'input' => ['path' => 'notes.txt', 'content' => 'edited']])."\n```",
+            tokensIn: 100,
+            tokensOut: 20,
+            raw: [],
+        ),
+        new ProviderResponse(content: 'Done — wrote notes.txt.', tokensIn: 50, tokensOut: 10, raw: []),
+    ]);
+
+    $exitCode = runRun(new FakeRunCommand($provider), $this->app, [
+        'prompt' => 'write a note',
+        '--yes' => true,
+        '--require-edit' => true,
+    ]);
+
+    expect($exitCode)->toBe(0);
+    expect(file_get_contents($this->root.'/notes.txt'))->toBe('edited');
+});
+
+test('without --require-edit, a no-edit turn still exits SUCCESS (default behavior unchanged)', function () {
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(
+            content: "```tool\n".json_encode(['name' => 'run_shell', 'input' => ['command' => 'echo scoping']])."\n```",
+            tokensIn: 100,
+            tokensOut: 20,
+            raw: [],
+        ),
+        new ProviderResponse(content: 'Summarized — nothing to change.', tokensIn: 50, tokensOut: 10, raw: []),
+    ]);
+
+    $exitCode = runRun(new FakeRunCommand($provider), $this->app, [
+        'prompt' => 'summarize the repo',
+        '--yes' => true,
+    ]);
+
+    expect($exitCode)->toBe(0);
+});
+
+test('--require-edit: a successful write_file event from a PREVIOUS session does not satisfy this run', function () {
+    // Simulate a prior `paider run` that landed an edit and exited clean, in the same
+    // project's .paider/paider.db -- EventLog persists across sessions, so this event
+    // is sitting in the log before the run under test ever starts.
+    $priorLog = new EventLog(Database::connect());
+    $priorLog->append('tool_call', [
+        'tool' => 'write_file',
+        'input' => ['path' => 'notes.txt', 'content' => 'from an earlier session'],
+        'ok' => true,
+    ]);
+
+    $provider = new QueuedProviderClient([
+        new ProviderResponse(
+            content: "```tool\n".json_encode(['name' => 'run_shell', 'input' => ['command' => 'echo scoping']])."\n```",
+            tokensIn: 100,
+            tokensOut: 20,
+            raw: [],
+        ),
+        new ProviderResponse(content: 'Looked around, nothing to change here.', tokensIn: 50, tokensOut: 10, raw: []),
+    ]);
+
+    $exitCode = runRun(new FakeRunCommand($provider), $this->app, [
+        'prompt' => 'investigate the repo',
+        '--yes' => true,
+        '--require-edit' => true,
+    ]);
+
+    // Must still FAIL: this run's own events have no successful edit tool call, and the
+    // earlier session's write_file must not leak across the session_id boundary.
+    expect($exitCode)->toBe(1);
+});
