@@ -41,8 +41,8 @@ echo "==> capture-live-run: foreign-repo.sh $mode exited $bench_status, artifact
 # second hand-maintained path that could drift. --live prints "LIVE run against <dir>";
 # --dry-live prints "cd <dir> && ...". --live also deliberately never cleans up that
 # directory (exec replaces the process before its EXIT trap can fire), so it's still on
-# disk here to inspect. --dry-live's directory IS cleaned up on its own normal exit, so
-# there is nothing left to diff -- that's expected, not a bug in this script.
+# disk here to inspect. --dry-live's own directory IS cleaned up on its own normal exit
+# (see the synthesis fallback below).
 target_dir=""
 if [ "$mode" = "--live" ]; then
     target_dir="$(sed -nE 's/^==> LIVE run against (.*) -- executing.*/\1/p' "$transcript" | head -n1)"
@@ -53,9 +53,24 @@ fi
 diff_file="$run_dir/target.diff"
 cost_file="$run_dir/cost-session.txt"
 
+# --dry-live's tmp target never survives past its own process exit, but the entire
+# point of --dry is to prove the collection block below (diff, cost, changed-files
+# copy) actually RUNS, not merely that it's unreachable. So when no real target
+# survived and we're in --dry mode, synthesize a stand-in using the exact same
+# git-initialized fixture copy a human rehearsal uses (m1/fixture/init.sh), apply
+# the same marker edit a live run would have produced, and fall through into the
+# SAME branch below that a real run hits -- one collection code path, not two.
+if { [ -z "$target_dir" ] || [ ! -d "$target_dir" ]; } && [ "$mode" = "--dry-live" ]; then
+    target_dir="$run_dir/.dry-target"
+    "$repo_root/m1/fixture/init.sh" "$target_dir" >/dev/null
+    echo '// live-e2e-proof' >> "$target_dir/src/Receipt.php"
+fi
+
 if [ -n "$target_dir" ] && [ -d "$target_dir" ]; then
-    git -C "$target_dir" diff > "$diff_file" || true
-    (cd "$target_dir" && "$repo_root/paider" cost --session) > "$cost_file" 2>&1 || true
+    # No `|| true` here: a capture that fails during a real spending run must abort
+    # loudly (set -euo pipefail) rather than silently write a placeholder and exit 0.
+    git -C "$target_dir" diff > "$diff_file"
+    (cd "$target_dir" && "$repo_root/paider" cost --session) > "$cost_file" 2>&1
     while IFS= read -r f; do
         [ -n "$f" ] || continue
         mkdir -p "$changed_dir/$(dirname "$f")"
@@ -63,7 +78,7 @@ if [ -n "$target_dir" ] && [ -d "$target_dir" ]; then
     done < <(git -C "$target_dir" diff --name-only 2>/dev/null || true)
     echo "==> captured target.diff, cost-session.txt, changed-files/ from $target_dir"
 else
-    reason="no target directory to inspect (mode=$mode; --dry-live's tmp target is removed on its own exit -- this is expected, see RUBRIC.md)"
+    reason="no target directory to inspect (mode=$mode)"
     echo "$reason" > "$diff_file"
     echo "$reason" > "$cost_file"
     echo "==> $reason"

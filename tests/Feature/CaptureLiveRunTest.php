@@ -43,6 +43,19 @@ test('capture-live-run --dry runs the full capture path keylessly and never reac
     expect(trim(file_get_contents("{$runDir}/exit-code.txt")))->toBe('0');
     expect(is_dir("{$runDir}/changed-files"))->toBeTrue();
 
+    // The whole point of --dry is that artifact COLLECTION runs for real, not just
+    // that the files exist -- a diff and cost report unconditionally written by the
+    // script (regardless of whether collection logic ever executed) would pass the
+    // five-file check above while proving nothing. Assert real content instead.
+    $diff = file_get_contents("{$runDir}/target.diff");
+    expect($diff)->not->toBeEmpty();
+    expect($diff)->toContain('live-e2e-proof');
+    expect($diff)->toContain('src/Receipt.php');
+
+    $changedFile = "{$runDir}/changed-files/src/Receipt.php";
+    expect($changedFile)->toBeFile();
+    expect(file_get_contents($changedFile))->toContain('live-e2e-proof');
+
     // Cleanup: this is a real run artifact, not fixture -- don't leave test noise behind.
     exec('rm -rf '.escapeshellarg($runDir));
 });
