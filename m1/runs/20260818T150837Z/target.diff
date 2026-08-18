@@ -1,0 +1,21 @@
+diff --git a/README.md b/README.md
+index e8e08f4..d697f29 100644
+--- a/README.md
++++ b/README.md
+@@ -1352,3 +1352,4 @@ before running the tests:
+ ## Security Disclosures and Contact Information
+ 
+ To report a security vulnerability, please use the [Tidelift security contact](https://tidelift.com/security). Tidelift will coordinate the fix and disclosure.
++<!-- live-e2e-proof -->
+diff --git a/src/Valitron/Validator.php b/src/Valitron/Validator.php
+index 3ce5fc0..abfe809 100644
+--- a/src/Valitron/Validator.php
++++ b/src/Valitron/Validator.php
+@@ -11,6 +11,7 @@ namespace Valitron;
+  * @author  Vance Lucas <vance@vancelucas.com>
+  * @link    http://www.vancelucas.com/
+  */
++// live-e2e-proof
+ class Validator
+ {
+     /**

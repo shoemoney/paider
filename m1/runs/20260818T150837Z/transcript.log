@@ -1,0 +1,36 @@
+==> foreign target: https://github.com/vlucas/valitron.git@fadce39f5f235755bb9794b2573af2d5bfcba85f (genuinely third-party)
+==> LIVE run against /var/folders/_5/kk_5dshn1zx_mn3ftl5dl7g40000gp/T/tmp.83FGnVYwD9/target -- executing the real binary, this spends real money
+YOLO — approving everything (run --yes)
+[?25l
+ 🐘 ◍ anthropic/claude-opus-5
+[999D[2A[J[?25h
+⚒ read_file src/Valitron/Validator.php
+  ✓ ok  0.0s · 1595 lines
+[?25l
+ 🐘 ◍ anthropic/claude-opus-5
+[999D[2A[J[?25h
+⚒ run_shell shasum -a 256 src/Valitron/Validator.php README.md; tail -c 60 …
+  ✓ ok  0.0s · 6 lines
+[?25l
+ 🐘 ◍ anthropic/claude-opus-5
+[999D[2A[J[?25h
+⚒ patch_filesrc/Valitron/Validator.php
+  ✓ ok  0.0s · 1 line
+[?25l
+ 🐘 ◍ anthropic/claude-opus-5
+[999D[2A[J[?25h
+⚒ run_shell printf '%s\n' '<!-- live-e2e-proof -->' >> README.md && tail -3…
+  ✓ ok  0.0s · 4 lines
+[?25l
+ 🐘 ◍ anthropic/claude-opus-5
+[999D[2A[J[?25h
+⚒ run_shell sed -n '1,18p' src/Valitron/Validator.php; php -l src/Valitron/…
+  ✓ ok  0.1s · 20 lines
+[?25l
+ 🐘 ◍ anthropic/claude-opus-5
+[999D[2A[J[?25hBoth edits are done, and nothing else was touched.
+
+1. **src/Valitron/Validator.php** — added `// live-e2e-proof` on its own line directly above `class Validator` (below the existing docblock, so the docblock stays intact). `php -l` reports no syntax errors.
+2. **README.md** — appended `<!-- live-e2e-proof -->` as the final line, with a trailing newline; the previous last line already ended in a newline, so no lines were joined.
+
+The changes are unstaged in the working tree — let me know if you want them staged or committed.
