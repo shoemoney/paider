@@ -1,0 +1,7 @@
+{
+    "description": "Clean apply on a file with no trailing newline, hunk does not touch the last line so no newline must be gained.",
+    "strata": "clean",
+    "path": "input.txt",
+    "stamp_mode": "match",
+    "expect_ok": true
+}

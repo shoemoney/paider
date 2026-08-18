@@ -1,0 +1,10 @@
+{
+    "description": "The diff applies cleanly at the text level but produces invalid PHP; PatchFileTool's post-apply syntax gate must reject it as a failed apply, not a successful one.",
+    "strata": "conflict",
+    "path": "input.php",
+    "stamp_mode": "match",
+    "expect_ok": false,
+    "expect_meta": {
+        "syntax_error": true
+    }
+}

@@ -1,0 +1,10 @@
+{
+    "description": "Diff generated against a stale version of the file; a line was inserted upstream shifting everything down by one, so the hunk's context no longer matches at its declared position. PatchFileTool does no fuzzy/offset search, so this must fail as a conflict, not silently apply at the wrong spot.",
+    "strata": "offset_drift",
+    "path": "input.txt",
+    "stamp_mode": "match",
+    "expect_ok": false,
+    "expect_meta": {
+        "conflict": true
+    }
+}

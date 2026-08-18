@@ -1,0 +1,10 @@
+{
+    "description": "The model emitted an empty diff payload (e.g. a no-op turn that still called patch_file).",
+    "strata": "conflict",
+    "path": "input.txt",
+    "stamp_mode": "match",
+    "expect_ok": false,
+    "expect_meta": {
+        "parse_error": true
+    }
+}

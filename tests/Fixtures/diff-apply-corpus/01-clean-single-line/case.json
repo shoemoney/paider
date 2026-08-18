@@ -1,0 +1,7 @@
+{
+    "description": "Single-hunk clean apply changing one line, context on both sides.",
+    "strata": "clean",
+    "path": "input.txt",
+    "stamp_mode": "match",
+    "expect_ok": true
+}

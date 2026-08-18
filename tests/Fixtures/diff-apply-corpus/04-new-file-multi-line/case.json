@@ -1,0 +1,7 @@
+{
+    "description": "New-file creation with a multi-line all-additions hunk.",
+    "strata": "new_file",
+    "path": "notes.txt",
+    "stamp_mode": "new_file",
+    "expect_ok": true
+}

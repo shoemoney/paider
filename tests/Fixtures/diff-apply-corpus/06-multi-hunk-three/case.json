@@ -1,0 +1,7 @@
+{
+    "description": "Three separate hunks in one diff spread across a longer file, all applying cleanly.",
+    "strata": "multi_hunk",
+    "path": "input.txt",
+    "stamp_mode": "match",
+    "expect_ok": true
+}

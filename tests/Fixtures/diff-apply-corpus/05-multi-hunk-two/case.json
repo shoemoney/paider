@@ -1,0 +1,7 @@
+{
+    "description": "Two separate hunks in one diff, both applying cleanly against the same file.",
+    "strata": "multi_hunk",
+    "path": "input.txt",
+    "stamp_mode": "match",
+    "expect_ok": true
+}

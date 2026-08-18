@@ -1,0 +1,10 @@
+{
+    "description": "Diff was generated against a longer, older version of the file; upstream lines were removed since then so the hunk's declared start now falls past the current end of file.",
+    "strata": "offset_drift",
+    "path": "input.txt",
+    "stamp_mode": "match",
+    "expect_ok": false,
+    "expect_meta": {
+        "conflict": true
+    }
+}

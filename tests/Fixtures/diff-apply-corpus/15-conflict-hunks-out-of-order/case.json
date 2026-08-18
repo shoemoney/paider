@@ -1,0 +1,10 @@
+{
+    "description": "Two hunks in one diff where the second hunk's start line falls before the cursor left by the first (out of order / overlapping), which PatchFileTool rejects rather than reordering.",
+    "strata": "conflict",
+    "path": "input.txt",
+    "stamp_mode": "match",
+    "expect_ok": false,
+    "expect_meta": {
+        "conflict": true
+    }
+}

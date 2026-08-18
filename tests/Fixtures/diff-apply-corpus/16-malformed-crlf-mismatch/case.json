@@ -1,0 +1,10 @@
+{
+    "description": "File is dominantly CRLF but the diff was emitted with bare LF line endings; must be rejected rather than mixed.",
+    "strata": "conflict",
+    "path": "input.txt",
+    "stamp_mode": "match",
+    "expect_ok": false,
+    "expect_meta": {
+        "parse_error": true
+    }
+}
