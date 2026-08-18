@@ -31,8 +31,6 @@ class Loop
 {
     private const MAX_TOOL_CALLS_PER_TURN = 10;
 
-    private const MAX_TEST_RETRIES = 3;
-
     private const RETRY_ON_APPROVAL_TOOLS = ['read_file', 'write_file', 'patch_file', 'git'];
 
     /** @var array<string, Tool> */
@@ -305,8 +303,8 @@ class Loop
             $session->recordApply($path, $previous);
         }
 
-        // Test-feedback loop scaffold: if a test_command is configured and the write succeeded,
-        // run it via ShellTool with bounded retry N=3 and fold the result into the observation.
+        // If a test_command is configured and the write succeeded, run it once via ShellTool
+        // and fold the result into the observation. No inner retry: see runPostPatchTests().
         if ($result->ok) {
             $testResult = $this->runPostPatchTests();
             if ($testResult !== null) {
@@ -323,6 +321,15 @@ class Loop
         return $result;
     }
 
+    /**
+     * Runs the user-configured test_command exactly ONCE per successful write. Retrying the
+     * same command here would only help a flaky test — nothing about the code changes between
+     * attempts, so a real failure just gets re-run for up to 3x the suite's cost. The bounded
+     * retry that actually helps (the model changing the code) already lives one level up: this
+     * result folds into the tool observation the outer conversation loop hands back to the
+     * model (see dispatchWrite's [test_feedback] append), and the model can try again with a
+     * different patch on its own next turn.
+     */
     private function runPostPatchTests(): ?ToolResult
     {
         $command = SettingsStore::testCommand();
@@ -334,23 +341,8 @@ class Loop
         $root = $this->effectiveProjectRoot();
         $shell = $this->tools['run_shell'] ?? new ShellTool($root);
 
-        $lastResult = null;
-
-        for ($attempt = 0; $attempt < self::MAX_TEST_RETRIES; $attempt++) {
-            // Bypass gate for scaffold: test_command is an explicit user config, not model-controlled.
-            $lastResult = $shell->execute(['command' => $command, 'approval' => 'allow-once']);
-
-            if ($lastResult->ok) {
-                return $lastResult;
-            }
-
-            // If the tool itself failed to execute (not test failure), break
-            if (($lastResult->meta['timed_out'] ?? false) || str_contains($lastResult->output, 'approval required')) {
-                break;
-            }
-        }
-
-        return $lastResult;
+        // Bypass gate: test_command is explicit user config, not model-controlled input.
+        return $shell->execute(['command' => $command, 'approval' => 'allow-once']);
     }
 
     private function needsRetry(ToolResult $result, array $input): bool

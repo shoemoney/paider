@@ -83,3 +83,54 @@ it('falls back to the default preset instead of throwing when preset itself is a
     file_put_contents(getcwd().'/.paider/settings.json', '{"preset": {"a": 1}}');
     expect(SettingsStore::activePreset())->toBe('balanced');
 });
+
+it('defaults TestCommand to null when no settings file exists', function () {
+    expect(SettingsStore::testCommand())->toBeNull();
+});
+
+it('persists and reads back a TestCommand round trip', function () {
+    SettingsStore::setTestCommand('vendor/bin/pest');
+
+    expect(SettingsStore::testCommand())->toBe('vendor/bin/pest');
+});
+
+it('unsets a TestCommand by passing null, round-tripping back to no test_command configured', function () {
+    SettingsStore::setTestCommand('vendor/bin/pest');
+    expect(SettingsStore::testCommand())->toBe('vendor/bin/pest');
+
+    SettingsStore::setTestCommand(null);
+
+    expect(SettingsStore::testCommand())->toBeNull();
+});
+
+it('treats a whitespace-only TestCommand the same as unsetting it', function () {
+    SettingsStore::setTestCommand('vendor/bin/pest');
+
+    SettingsStore::setTestCommand('   ');
+
+    expect(SettingsStore::testCommand())->toBeNull();
+});
+
+it('trims surrounding whitespace from a TestCommand before persisting it', function () {
+    SettingsStore::setTestCommand('  vendor/bin/pest  ');
+
+    expect(SettingsStore::testCommand())->toBe('vendor/bin/pest');
+});
+
+it('preserves the active preset when a TestCommand is set alongside it', function () {
+    SettingsStore::setActivePreset('kimi');
+
+    SettingsStore::setTestCommand('vendor/bin/pest');
+
+    expect(SettingsStore::activePreset())->toBe('kimi');
+    expect(SettingsStore::testCommand())->toBe('vendor/bin/pest');
+});
+
+it('preserves a TestCommand when the active preset is changed afterward', function () {
+    SettingsStore::setTestCommand('vendor/bin/pest');
+
+    SettingsStore::setActivePreset('kimi');
+
+    expect(SettingsStore::testCommand())->toBe('vendor/bin/pest');
+    expect(SettingsStore::activePreset())->toBe('kimi');
+});
