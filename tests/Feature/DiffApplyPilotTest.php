@@ -57,6 +57,14 @@ test('every corpus case replays through PatchFileTool and matches its expected o
 
         if ($hadInput) {
             $inputContent = file_get_contents($inputPath);
+
+            // The repo's `* text=auto eol=lf` normalizes every committed fixture to LF,
+            // so byte-level line-ending cases cannot be stored as bytes — they declare
+            // an input_eol transform the harness applies after checkout instead.
+            if (($manifest['input_eol'] ?? null) === 'crlf') {
+                $inputContent = str_replace("\n", "\r\n", str_replace("\r\n", "\n", $inputContent));
+            }
+
             $targetDir = dirname($absoluteTarget);
             is_dir($targetDir) || mkdir($targetDir, recursive: true);
             file_put_contents($absoluteTarget, $inputContent);

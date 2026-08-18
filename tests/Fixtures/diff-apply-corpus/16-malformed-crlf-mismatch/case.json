@@ -6,5 +6,6 @@
     "expect_ok": false,
     "expect_meta": {
         "parse_error": true
-    }
+    },
+    "input_eol": "crlf"
 }
