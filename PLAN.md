@@ -378,8 +378,9 @@ promised later.
 *Shipped: six commands (chat, commit, cost, run, config:provider, config:show), nine tools (read/write/patch/shell/fetch_url/memory/git + artisan + load_skill), the approval gate, PathGuard and SecretsGuard, the
 append-only event log, and a cost ledger that reports real money and reconciles against
 provider-reported usage. MCP client support wired in (untested). CI runs the hermetic suite on PHP 8.4 and 8.5. Rehearsal infrastructure:
-`m1/` directory with `preflight.sh`, `TASK.md`, `RUNBOOK.md` speedup script and fixture *(local-only,
-gitignored since 2026-08-17 — not in the published repo)*. `install.sh`
+`m1/bench/foreign-repo.sh` (rewritten, tracked in git) and `m1/fixture/` (tracked);
+the rest of `m1/` (`preflight.sh`, `TASK.md`, `RUNBOOK.md`, live-smoke) *(local-only, gitignored)*.
+`install.sh`
 ✅ **live** at paider.dev (composer-only, served from GitHub Pages). `design/` directory with 18 terminal captures
 and TUI-REVIEW.md findings (proposals, not applied) *(also local-only, gitignored)*. Still open for M1: the end-to-end edit in
 someone else's repo, and the FrankenPHP binary embed step.*
@@ -1719,8 +1720,8 @@ Ranked by (likelihood × how bad it is if it happens), not by how interesting it
    Paider less, not more.
 
 3. **`structured_outputs=false` on the default coder produces malformed diffs that corrupt
-   files.** `qwen/qwen3.7-flash` reports this explicitly; it's the cheapest tier by ~77x on
-   output tokens and the one running in the tightest loop, so it's also the one most exposed.
+   files.** `qwen/qwen3.7-flash` reports this explicitly; it's frugal ($0.03/$0.13) and the one
+   running in the tightest loop, so it's also the one most exposed.
    *Mitigation:* strict diff parser + bounded retry + escalation path, a content-hash stamp check
    against the file the diff was actually written against, and a `php -l` gate after apply and
    before approval (see Architecture — all three ship in v0.1, not after); a fixture-based test
