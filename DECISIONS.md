@@ -864,3 +864,38 @@ curl -fsSL https://paider.dev/install | sh -s -- --dry-run
 and by diffing the served bytes against `install.sh` in the repo — identical. Note the checked
 claim is "the pipeline runs and serves the right script", not "the install succeeds"; the real
 install path is exercised separately and is Composer's, not this domain's.
+
+## 22. v1.0.0/v1.0.1 tags shipped prematurely — kept, with erratum — 2026-08-17
+
+**The finding.** The 2026-08-08 autonomous "v1 polish loop" tagged `v1.0.0` and `v1.0.1` and
+pushed them; Packagist published both the same day. Nobody noticed for nine days — the README
+badge kept saying v0.1.0, the banner alpha, the roadmap "v1.0 ⬜ planned" — until a
+matrix-council session planning "the road to v1" cross-checked the Packagist API against
+`git ls-remote --tags` and found the destination already, nominally, reached.
+`composer require paider/paider` resolves **v1.0.1 today**, and v1.0.x meets **none** of the
+written v1.0 definition of done (PLAN.md: MCP server mode, semver policy, measured diff-apply
+rate, the year-of-releases clause).
+
+**The ruling (Jeremy, 2026-08-17, on the council's recommendation).** Keep the tags; publish an
+erratum. Deletion was rejected because it rewrites public history to fix a cosmetic
+inconsistency, and plausibly breaks any lockfile pinning v1.0.x (unverified — the scratch-mirror
+test was named but not needed once keep was chosen). Blast radius of keeping: ~zero — 3 total
+downloads, 0 dependents, 0 stars at decision time (Packagist API, 2026-08-17).
+
+**Consequences, forward-only:**
+- v1.0.x is documented everywhere as **alpha-quality code wearing a 1.0 tag** — README erratum
+  section, badge shows the version composer actually resolves (v1.0.1), roadmap names it.
+- **No further v1.0.z patch may imply DoD compliance.** The next release that claims its number
+  honestly is **v1.1.0**, gated on the amended DoD (M1 closed on a genuinely third-party repo,
+  v0.2's CI gate green, measured diff-apply rate published, semver + non-goals docs shipped).
+  The year-of-quarterly-releases clause is retired as a ship gate — it is a trailing health
+  metric and can be reported, never gated on.
+- The "tagged release" line in the README status table points at v1.0.1 with the caveat inline,
+  not at v0.1.0 — a badge that contradicts `composer require` is the exact class of docs-lying
+  this file exists to prevent.
+
+**Why it happened (recorded so the next overnight run can't repeat it):** the overnight loop's
+scoring rounds graded *polish*, not *milestone DoD* — "10/10 unanimous" measured prose quality
+while the release gate lived in a different file it never read. Releasing (tagging + pushing) is
+a decision, not a polish step; autonomous runs may prepare a release but the tag push needs the
+maintainer's explicit go.

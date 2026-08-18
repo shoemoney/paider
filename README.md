@@ -7,7 +7,7 @@
 [![status](https://img.shields.io/badge/status-alpha-orange?style=for-the-badge)](#-status-honestly)
 [![php](https://img.shields.io/badge/PHP-%E2%89%A5%208.4-777BB4?style=for-the-badge&logo=php&logoColor=white)](composer.json)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
-[![packagist](https://img.shields.io/badge/packagist-v0.1.0-blueviolet?style=for-the-badge)](https://packagist.org/packages/paider/paider)
+[![packagist](https://img.shields.io/badge/packagist-v1.0.1%20⚠️%20see%20erratum-blueviolet?style=for-the-badge)](https://packagist.org/packages/paider/paider)
 [![ci](https://img.shields.io/github/actions/workflow/status/shoemoney/paider/tests.yml?style=for-the-badge&label=tests)](https://github.com/shoemoney/paider/actions/workflows/tests.yml)
 [![tests](https://img.shields.io/badge/tests-474%20passing-brightgreen?style=for-the-badge)](tests/)
 [![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
@@ -36,10 +36,24 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
 | 📦 published on Packagist | ✅ **published** | `paider/paider` at https://packagist.org/packages/paider/paider |
 | 📦 `curl \| sh` installer | ✅ **live** | `curl -fsSL paider.dev/install \| sh` — served from GitHub Pages, installs via Composer; PHAR built 32MB (`build/paider.phar` via `box`, 222ms), FrankenPHP trimmed still deferred |
-| 🏷️ tagged release | ✅ **v0.1.0** | `composer require paider/paider` resolves without a stability flag |
+| 🏷️ tagged release | ⚠️ **v1.0.1** | `composer require paider/paider` resolves **v1.0.1** — a tag that shipped early; see the [erratum](#️-erratum-the-v10x-tags-shipped-early) below |
 
 **Do not install this expecting a working agent.** The wiring is real and tested; the last
 mile — an actual API key, an actual model, an actual edit landing in your repo — is unproven.
+
+### ⚠️ Erratum: the v1.0.x tags shipped early
+
+On **2026-08-08** an autonomous overnight run tagged and published `v1.0.0` and `v1.0.1` to
+Packagist. Those tags meet **none** of this repo's own written v1.0 definition of done — no MCP
+server mode, no published semver policy, no measured diff-apply rate, and the capability gap in
+the banner above still open. Nobody noticed for nine days, because the run's scoring loop graded
+polish, not the release gate.
+
+**The tags stay** (deleting published tags rewrites history and can break lockfiles) — but read
+them as **alpha-quality code wearing a 1.0 number**. No further v1.0.z patch will claim
+otherwise. The next release that earns its number is **v1.1.0**, gated on runnable checks: the
+end-to-end edit in a genuinely third-party repo, the CI feedback-loop gate, and a published,
+measured diff-apply rate. Full ruling in [`DECISIONS.md` §22](DECISIONS.md).
 
 ---
 
@@ -560,11 +574,13 @@ better than the two above. A third channel is maintenance forever for an audienc
 ```mermaid
 flowchart LR
     V01["🧱 v0.1<br/>commands · tools · ledger"] --> V02["🔌 v0.2<br/>MCP client · agent roster"]
-    V02 --> V10["🏛️ v1.0<br/>Paider as an MCP server"]
+    V02 --> V11["🏛️ v1.1<br/>the release that earns its number"]
+    V10["⚠️ v1.0.x<br/>tagged early — erratum"] -.-> V11
 
     style V01 fill:#cfc,stroke:#2a2,color:#000
     style V02 fill:#ffd,stroke:#aa2,color:#000
-    style V10 fill:#eee,stroke:#999,color:#000
+    style V10 fill:#fdd,stroke:#c33,color:#000
+    style V11 fill:#eee,stroke:#999,color:#000
 ```
 
 </details>
@@ -573,7 +589,8 @@ flowchart LR
 |---|---|---|
 | **v0.1** | 6 commands, 9 tools, approval gate, event log, cost ledger, tier router, CI pipeline, ~94.8ms cold start | 🔨 **in progress** |
 | **v0.2** | MCP client (built — untested) · `run` command (built with hermetic tests), repo-map on research tier, test-feedback loop | ⬜ planned |
-| **v1.0** | MCP **server** mode — external clients drive Paider's tools; published semver policy | ⬜ planned |
+| **v1.0** | tagged 2026-08-08 by an overnight run **before its DoD was met** — see the [erratum](#️-erratum-the-v10x-tags-shipped-early); tags kept, no further v1.0.z claims compliance | ⚠️ **premature** |
+| **v1.1.0** | the release that earns the number: M1 closed on a third-party repo, CI feedback-loop gate green, measured diff-apply rate published, semver + non-goals docs · MCP **server** mode ships behind an experimental flag when ready, never as the blocker | ⬜ planned |
 
 <details>
 <summary><b>❓ Why is v0.1 still 🔨 when the code is written and 474 tests pass?</b></summary>

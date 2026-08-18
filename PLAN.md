@@ -396,7 +396,10 @@ someone else's repo, and the FrankenPHP binary embed step.*
 - Definition of done: a CI job can run `paider run` against a failing test and get a passing
   commit without a human in the loop, bounded by a retry cap and a tool allow-list.
 
-**⬜ v1.0 — "safe to depend on"** — *planned.*
+**⚠️ v1.0 — "safe to depend on"** — *tags `v1.0.0`/`v1.0.1` shipped 2026-08-08 by an autonomous
+overnight run WITHOUT this DoD being met (found 2026-08-17; ruling: tags kept + public erratum,
+see DECISIONS.md §22 and the README erratum). The content below re-anchors to **v1.1.0** — the
+next release that may claim its number.*
 - MCP **server** mode: generalizes v0.1's single hardcoded `ArtisanTool` into the real thing —
   Paider exposes its own read/write/patch/shell/git/Artisan tools, and arbitrary host-app jobs and
   models, to external MCP clients (Claude Code, others) over the actual protocol — dogfoods
@@ -411,9 +414,17 @@ someone else's repo, and the FrankenPHP binary embed step.*
   one of the two decided channels — see "Distribution and concurrency" — this bullet originally
   said "alongside the PHAR," which no longer exists; left corrected rather than silently rewritten
   elsewhere)
-- Definition of done: Paider has shipped at least one release per quarter for a year with no
+- ~~Definition of done: Paider has shipped at least one release per quarter for a year with no
   unaddressed critical (data-loss-class) bug open longer than two weeks — the "didn't die"
-  criterion, since that's the actual differentiator being bet on.
+  criterion, since that's the actual differentiator being bet on.~~ **Retired as a ship gate
+  2026-08-17 (council ruling, unanimous): a year of history cannot be evaluated on release day —
+  it is a trailing health metric, reported forever, gated on never. The v1.1.0 DoD is runnable
+  checks instead: M1 green on a genuinely third-party pinned repo (3 consecutive live runs),
+  v0.2's CI feedback-loop gate green, a measured diff-apply rate published with its denominator
+  (thresholds set from the pilot corpus, not invented), semver + non-goals docs shipped, and an
+  RC soak of maintainer-chosen length. MCP server mode ships behind an experimental flag when
+  ready — never as the release blocker (the SDK has served since its v0.1.0; the risk is 0.7→1.0
+  churn, not capability).**
 
 **⬜ POST-1.0 — Paider's own benchmark suites** — *idea, recorded 2026-08-03. Not scoped, not
 scheduled, and deliberately not in v1.0.*
