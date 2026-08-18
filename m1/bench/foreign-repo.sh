@@ -63,7 +63,7 @@ resolve_foreign_target() {
 # verbatim; --dry-live prints it with printf %q. One source of truth — no second, hand
 # -maintained echo describing the exec that can drift from what actually runs.
 build_live_argv() {
-    LIVE_ARGV=("$repo_root/paider" run "$PROMPT" --yes)
+    LIVE_ARGV=("$repo_root/paider" run "$PROMPT" --yes --require-edit)
 }
 
 if [ "$LIVE" = 1 ]; then

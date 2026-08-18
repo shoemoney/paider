@@ -26,7 +26,7 @@ use Illuminate\Console\Command;
 
 class RunCommand extends Command
 {
-    protected $signature = 'run {prompt? : Prompt to send non-interactively} {--y|yes : Auto-approve without prompting} {--yolo : Alias for --yes}';
+    protected $signature = 'run {prompt? : Prompt to send non-interactively} {--y|yes : Auto-approve without prompting} {--yolo : Alias for --yes} {--require-edit : Fail if no write_file/patch_file tool call succeeded this run}';
 
     protected $description = 'Run a single non-interactive turn (CI mode). Auto-approves when --yes/--yolo is set.';
 
@@ -107,7 +107,36 @@ class RunCommand extends Command
             }
         }
 
+        if ($this->option('require-edit') && ! $this->sessionLandedAnEdit($eventLog, $events)) {
+            $this->error('--require-edit: no write_file/patch_file tool call succeeded this run — nothing was edited.');
+
+            return self::FAILURE;
+        }
+
         return self::SUCCESS;
+    }
+
+    /**
+     * Scoped to THIS run's session_id, not just "the last matching event" — EventLog persists
+     * across sessions in .paider/paider.db, so a prior session's successful write must not
+     * satisfy --require-edit for a run that landed no edit of its own.
+     */
+    private function sessionLandedAnEdit(EventLog $eventLog, array $events): bool
+    {
+        $sessionId = $eventLog->sessionId();
+
+        foreach ($events as $event) {
+            $payload = $event['payload'];
+            if ($event['type'] === 'tool_call'
+                && ($payload['session_id'] ?? null) === $sessionId
+                && ($payload['ok'] ?? false) === true
+                && in_array($payload['tool'] ?? null, ['write_file', 'patch_file'], true)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @param array<int, array{name: string, description: string}> $skillIndex */
