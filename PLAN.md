@@ -401,6 +401,10 @@ someone else's repo~~ *(closed 2026-08-18 — see the M1 block above)*; the Fran
 - `.paider/` directory consolidation, XDG-respecting config location — directly answers aider's
   own oldest unresolved high-reaction issue (#216, 79 reactions: "config file location should
   follow modern specifications") and #2860 (26 reactions, scattered dotfiles). ✅ read-precedence landed: SettingsStore reads project `.paider/settings.json` first, falls back to `$XDG_CONFIG_HOME/paider/`; writes remain project-scoped.
+- per-operation tier routing in the loop (currently Loop.php:75 hardcodes `'plan'` as the only
+  operation, routing every chat/run call to the orchestrator tier; v0.2 wires the research
+  tier's repo-map branch from Loop.php:411-470 and extends routing to cover coder and research
+  tiers as per TierRouter's configured mappings)
 - Definition of done: a CI job can run `paider run` against a failing test and get a passing
   commit without a human in the loop, bounded by a retry cap and a tool allow-list.
 

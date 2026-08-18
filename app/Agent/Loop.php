@@ -72,6 +72,8 @@ class Loop
         $this->remember($session, 'user', $userInput);
 
         for ($i = 0; $i < self::MAX_TOOL_CALLS_PER_TURN; $i++) {
+            // v0.1 hardcodes 'plan' here, routing every loop call to orchestrator. v0.2 adds
+            // per-operation tier routing (see PLAN.md § v0.2, per-operation tier routing bullet).
             $resolved = $this->tierRouter->resolve('plan', $session->tierOverrides());
 
             $messages = $this->buildMessages($session, $userInput, $resolved['tier']);

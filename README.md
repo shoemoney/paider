@@ -124,6 +124,12 @@ Four tiers, named for what they are *for*:
 | `research` | reads docs, greps, summarises | **high volume, low difficulty** — where the money quietly goes |
 | `fast` | commit messages, retries | trivial work at trivial cost |
 
+> **Status (v0.1): Today, every chat/run loop call executes on the orchestrator tier.** The `coder`,
+> `research`, and `fast` tiers are configured and priced but not yet routed to by the loop — v0.2
+> work on per-operation tier routing will change that. The `commit` command uses the `fast` tier
+> today (via `CommitCommand`). The tier table and the cost ledger are real and fully functional; the
+> routing that connects the two is open scope for v0.2, tracked in PLAN.md.
+
 Nobody else names a research tier. It is the one that ingests 50k tokens to extract 500, and
 paying orchestrator rates for it is how agent bills get absurd.
 
