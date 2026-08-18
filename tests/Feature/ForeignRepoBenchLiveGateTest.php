@@ -1,20 +1,20 @@
 <?php
 
 /**
- * m1/bench/foreign-repo.sh is local dev scratch (gitignored — see .gitignore's "m1/* dev
- * harness stays local" note), so it isn't guaranteed to exist in every checkout. This test
- * only runs where it's present, but where it IS present it pins the one property that
- * matters most: provider keys being set must never be enough, on their own, to reach the
- * live/spend branch. Only the explicit --live flag may do that (see foreign-repo.sh's own
+ * m1/bench/foreign-repo.sh is tracked (see .gitignore's `!m1/bench/foreign-repo.sh`
+ * exemption), so it's always present. This test pins the one property that matters most:
+ * provider keys being set must never be enough, on their own, to reach the live/spend
+ * branch. Only the explicit --live flag may do that (see foreign-repo.sh's own
  * argument-parsing loop — the key check lives nested inside the `[ "$LIVE" = 1 ]` guard,
  * never the other way around).
  */
 test('foreign-repo bench: provider keys alone never reach the live/spend branch without --live', function () {
     $script = base_path('m1/bench/foreign-repo.sh');
 
-    if (! is_file($script)) {
-        $this->markTestSkipped('m1/bench/foreign-repo.sh is local-only dev scratch, not present in this checkout.');
-    }
+    expect($script)->toBeFile();
+
+    // Never a hand-waved "would run" standing in for a real exec of the binary.
+    expect(file_get_contents($script))->not->toContain('would run');
 
     // Fake, non-functional keys — if the gate is broken and this reaches the live branch,
     // it would attempt a real `paider run`/network call rather than fail on a bad key, which
