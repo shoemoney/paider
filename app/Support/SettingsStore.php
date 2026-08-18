@@ -6,6 +6,12 @@ namespace App\Support;
  * Project-scoped settings: `.paider/settings.json` relative to getcwd().
  * Currently holds only the active preset name. Session-level tier overrides
  * (from `/tier`) are never persisted here — that store is a later work item.
+ *
+ * Read precedence: the project file (path()) always wins when present. When
+ * it is absent, reads fall back to the user-level XDG file (xdgPath()) —
+ * `$XDG_CONFIG_HOME/paider/settings.json`, or `~/.config/paider/settings.json`
+ * when XDG_CONFIG_HOME is unset. If neither exists, built-in defaults apply.
+ * All writes stay project-scoped: the XDG file is read-only from here.
  */
 class SettingsStore
 {
@@ -14,9 +20,40 @@ class SettingsStore
         return getcwd().'/.paider/settings.json';
     }
 
+    public static function xdgPath(): string
+    {
+        $base = getenv('XDG_CONFIG_HOME');
+
+        if ($base === false || trim($base) === '') {
+            $home = getenv('HOME');
+            $base = ($home === false || $home === '') ? '' : $home.'/.config';
+        }
+
+        return $base.'/paider/settings.json';
+    }
+
+    /**
+     * The settings file that reads should actually consult: the project file
+     * when it exists, else the XDG user file when that exists, else the
+     * (nonexistent) project path so callers' is_file() checks fall through
+     * to their built-in defaults.
+     */
+    private static function readPath(): string
+    {
+        if (is_file(self::path())) {
+            return self::path();
+        }
+
+        if (self::xdgPath() !== '' && is_file(self::xdgPath())) {
+            return self::xdgPath();
+        }
+
+        return self::path();
+    }
+
     public static function activePreset(): string
     {
-        $path = self::path();
+        $path = self::readPath();
 
         if (! is_file($path)) {
             return 'balanced';
@@ -45,7 +82,7 @@ class SettingsStore
 
     public static function testCommand(): ?string
     {
-        $path = self::path();
+        $path = self::readPath();
 
         if (! is_file($path)) {
             return null;
