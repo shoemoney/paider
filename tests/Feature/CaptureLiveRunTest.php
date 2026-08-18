@@ -13,7 +13,9 @@ test('capture-live-run --dry runs the full capture path keylessly and never reac
 
     expect($script)->toBeFile();
 
-    $before = is_dir($runsDir) ? scandir($runsDir) : [];
+    // Normalize dot entries: on a fresh checkout m1/runs does not exist yet, and a
+    // bare scandir() diff would count '.' and '..' as "new" once it does.
+    $before = is_dir($runsDir) ? array_diff(scandir($runsDir), ['.', '..']) : [];
 
     $cmd = 'cd '.escapeshellarg(base_path()).' && '
         .'env -u OPENROUTER_API_KEY -u AIGATE_URL -u AIGATE_TOKEN '
@@ -26,7 +28,7 @@ test('capture-live-run --dry runs the full capture path keylessly and never reac
     expect($output)->not->toContain('LIVE run against');
     expect($output)->not->toContain('spends real money');
 
-    $after = scandir($runsDir);
+    $after = array_diff(scandir($runsDir), ['.', '..']);
     $newRunDirs = array_values(array_diff($after, $before));
 
     expect($newRunDirs)->toHaveCount(1);
