@@ -377,7 +377,7 @@ promised later.
 
 *Shipped: six commands (chat, commit, cost, run, config:provider, config:show), nine tools (read/write/patch/shell/fetch_url/memory/git + artisan + load_skill), the approval gate, PathGuard and SecretsGuard, the
 append-only event log, and a cost ledger that reports real money and reconciles against
-provider-reported usage. MCP client support wired in (untested). CI runs the hermetic suite on PHP 8.4 and 8.5. Rehearsal infrastructure:
+provider-reported usage. MCP client support wired in (hermetically tested). CI runs the hermetic suite on PHP 8.4 and 8.5. Rehearsal infrastructure:
 `m1/bench/foreign-repo.sh` (rewritten, tracked in git) and `m1/fixture/` (tracked);
 the rest of `m1/` (`preflight.sh`, `TASK.md`, `RUNBOOK.md`, live-smoke) *(local-only, gitignored)*.
 `install.sh`
@@ -386,14 +386,14 @@ and TUI-REVIEW.md findings (proposals, not applied) *(also local-only, gitignore
 someone else's repo, and the FrankenPHP binary embed step.*
 
 **⬜ v0.2 — "it doesn't need me watching it"** — *planned.*
-- MCP client support hardening (foundation built in v0.1, untested; v0.2 adds fixtures and integration tests)
+- MCP client support hardening (foundation built in v0.1, hermetically tested; v0.2 adds integration against live servers)
 - Repo-map/search tool on the research tier (cheap, high-volume, exactly the tier DECISIONS.md
   named for this)
 - Automatic test-runner feedback loop: after an applied edit, run a configured test command,
   feed failures back to the coder tier for N bounded retries
 - `.paider/` directory consolidation, XDG-respecting config location — directly answers aider's
   own oldest unresolved high-reaction issue (#216, 79 reactions: "config file location should
-  follow modern specifications") and #2860 (26 reactions, scattered dotfiles)
+  follow modern specifications") and #2860 (26 reactions, scattered dotfiles). ✅ read-precedence landed: SettingsStore reads project `.paider/settings.json` first, falls back to `$XDG_CONFIG_HOME/paider/`; writes remain project-scoped.
 - Definition of done: a CI job can run `paider run` against a failing test and get a passing
   commit without a human in the loop, bounded by a retry cap and a tool allow-list.
 
