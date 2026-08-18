@@ -26,6 +26,9 @@ m1/*
 # preflight is a dependency of the tracked bench (and of the suite via
 # ForeignRepoBenchLiveGateTest) — tracked code must not depend on untracked files
 !m1/preflight.sh
+# capture-live-run.sh output — real run evidence, committed deliberately per
+# RUBRIC.md, never swept in automatically
+m1/runs/
 design/*
 !design/captures/
 design/captures/*
