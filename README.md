@@ -9,7 +9,7 @@
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
 [![packagist](https://img.shields.io/badge/packagist-v1.0.1%20⚠️%20see%20erratum-blueviolet?style=for-the-badge)](https://packagist.org/packages/paider/paider)
 [![ci](https://img.shields.io/github/actions/workflow/status/shoemoney/paider/tests.yml?style=for-the-badge&label=tests)](https://github.com/shoemoney/paider/actions/workflows/tests.yml)
-[![tests](https://img.shields.io/badge/tests-514%20passing-brightgreen?style=for-the-badge)](tests/)
+[![tests](https://img.shields.io/badge/tests-518%20passing-brightgreen?style=for-the-badge)](tests/)
 [![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
@@ -34,7 +34,7 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `cost`, `run`, `config:provider`, `config:show` all register and run |
 | 🔧 nine tools (7 + 2 conditional) | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `fetch_url`, `memory`, `git` + `artisan` (when `artisan` file exists) + `load_skill` (when skills indexed) |
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection; stored in `.paider/` (gitignored locally) |
-| 🧪 test suite | ✅ **514 passing**, 2970 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
+| 🧪 test suite | ✅ **518 passing**, 2975 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
 | 🌍 end-to-end edit in a foreign repo | ✅ **3/3 live runs** (2026-08-18) | `vlucas/valitron@fadce39f`, pre-registered rubric ([`m1/bench/RUBRIC.md`](m1/bench/RUBRIC.md)), evidence committed in `m1/runs/` — $1.57 across the three passes; run 0 failed the rubric and is committed too |
 | 📦 published on Packagist | ✅ **published** | `paider/paider` at https://packagist.org/packages/paider/paider |
@@ -348,7 +348,7 @@ vendor/bin/pest --group=live
   Measure both. Never derive one from the other.
 -->
 
-**Hermetic suite** (`vendor/bin/pest`, 514 tests, 2970 assertions) — all provider interactions mocked via Guzzle;
+**Hermetic suite** (`vendor/bin/pest`, 518 tests, 2975 assertions) — all provider interactions mocked via Guzzle;
 proves self-consistency, zero cost. Excluded group: `live`. This is the number in the badge above;
 the live suite is 3 more on top, **not** part of it.
 
