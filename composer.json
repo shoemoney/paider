@@ -38,7 +38,7 @@
         "ext-tokenizer": "*",
         "ext-zlib": "*",
         "guzzlehttp/guzzle": "^7.10",
-        "laravel-zero/framework": "^12.0.2",
+        "laravel-zero/framework": "^13.0.0",
         "laravel/prompts": "^0.3.19",
         "mcp/sdk": "^0.7",
         "tempest/highlight": "^2.27",
