@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🐘 Paider
+# Paider
+
+<img src="docs/brand/paider-logo.png" alt="Paider — PHP-native AI coding agent" width="900">
 
 **A PHP-native AI coding agent — that lives *inside* your Laravel app.** 🤖
 
