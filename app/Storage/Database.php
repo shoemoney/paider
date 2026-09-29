@@ -42,13 +42,30 @@ class Database
             return self::connectSqlite($path);
         }
 
-        $url = ProjectEnv::get('PAIDER_DATABASE_URL');
+        $url = self::databaseUrl();
 
         if (is_string($url) && $url !== '') {
             return self::connectPostgres($url);
         }
 
         return self::connectSqlite($path);
+    }
+
+    /**
+     * The Postgres DSN, from the OPERATOR'S environment only.
+     *
+     * fromEnvironment(), not get(). A cloned repository ships its own `.paider/.env`, and
+     * get() reads that. This DSN redirects the ENTIRE event log — every conversation, every cost
+     * record, every file path — to whatever host it names, with the operator's own credentials
+     * supplied by the DSN. So a repository could ship one line and receive a copy of everything
+     * Paider has ever been asked to do in this project.
+     *
+     * Same rule as the embedding endpoint, same reason: a project may state preferences, it may
+     * not grant itself permissions, and a database location is a permission.
+     */
+    private static function databaseUrl(): ?string
+    {
+        return ProjectEnv::fromEnvironment('PAIDER_DATABASE_URL');
     }
 
     /** The driver that connect() would choose, for reporting and for portable DDL. */
@@ -58,7 +75,7 @@ class Database
             return self::DRIVER_SQLITE;
         }
 
-        $url = ProjectEnv::get('PAIDER_DATABASE_URL');
+        $url = self::databaseUrl();
 
         return is_string($url) && $url !== '' ? self::DRIVER_PGSQL : self::DRIVER_SQLITE;
     }

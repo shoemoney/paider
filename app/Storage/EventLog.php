@@ -86,9 +86,20 @@ class EventLog
     private function hasSeqColumn(): bool
     {
         if ($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql') {
+            // Scoped to the CURRENT schema. information_schema is not search_path-resolved, so an
+            // unscoped `WHERE table_name = 'events'` counts `events` in EVERY schema in the
+            // database — including tables belonging to another test's throwaway schema. That
+            // returned a false "yes, the column exists", the ALTER was skipped, and the first
+            // insert then failed with `column "seq" does not exist`.
+            //
+            // Caught by running the suite against a live Postgres, not by reading this code: the
+            // legacy-migration test creates its own pre-seq table, and only a shared database
+            // makes the cross-schema leak observable.
             $count = $this->pdo->query(
                 "SELECT COUNT(*) FROM information_schema.columns
-                 WHERE table_name = 'events' AND column_name = 'seq'"
+                 WHERE table_schema = ANY (current_schemas(false))
+                   AND table_name = 'events'
+                   AND column_name = 'seq'"
             )->fetchColumn();
 
             return (int) $count > 0;

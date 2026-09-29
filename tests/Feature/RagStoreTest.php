@@ -272,3 +272,65 @@ it('a real search still books its embedding call even when it matches nothing', 
 
     expect(countEvents($log, 'embedding_call'))->toBe($before + 1);
 });
+
+it('books the SUM of every embed batch, not just the last one', function () {
+    $pg = requireRagPdo();
+    $log = new EventLog($pg);
+
+    // Several indexable events, so index() makes SEVERAL embed() calls.
+    foreach (['alpha value', 'beta value', 'gamma value', 'delta value'] as $key) {
+        $log->append('memory_set', ['key' => $key, 'value' => $key.' content here']);
+    }
+
+    // A distinct token count per call, so "only the last one" is observable rather than
+    // coincidentally correct. The real client resets lastTokenCount on every call, so a
+    // per-batch counter is the only way to see the difference. Declared here rather than
+    // extending FakeEmbedder, which is final.
+    $embedder = new class implements EmbeddingClient
+    {
+        public int $calls = 0;
+
+        public function embed(array $inputs): array
+        {
+            $this->calls++;
+            $this->tokenCount = 100 * $this->calls;   // 100, 200, 300, 400, ...
+
+            return array_map(static function (string $text): array {
+                $vector = array_fill(0, 32, 0.0);
+                foreach (preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower($text), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $w) {
+                    $vector[crc32($w) % 32] += 1.0;
+                }
+                $n = sqrt(array_sum(array_map(static fn ($v) => $v * $v, $vector)));
+
+                return $n > 0 ? array_map(static fn ($v) => $v / $n, $vector) : $vector;
+            }, $inputs);
+        }
+
+        public int $tokenCount = 0;
+
+        public function model(): string
+        {
+            return 'fake/per-batch';
+        }
+
+        public function lastTokenCount(): int
+        {
+            return $this->tokenCount;
+        }
+    };
+
+    (new RagStore($log, $pg))->index($embedder);
+
+    $booked = 0;
+    foreach ($log->all() as $event) {
+        if ($event['type'] === 'embedding_call') {
+            $booked = (int) $event['payload']['tokens_in'];
+        }
+    }
+
+    // 4 memory_set events plus the lazily-written session_start = 5 embed() calls.
+    expect($embedder->calls)->toBe(5)
+        // The bug booked 500 (the last call). The correct answer is the sum, 100..500.
+        ->and($booked)->toBe(1500)
+        ->and($booked)->not->toBe(500);
+});

@@ -36,9 +36,11 @@ touch "$POOL"
 
 # ── status ────────────────────────────────────────────────────────────────────
 if [ "${1:-}" = "status" ]; then
-    echo "asked:    $(wc -l < "$STATE" | tr -d ' ')"
+    asked_real=$(grep -cv '^unreasoning:' "$STATE" 2>/dev/null || echo 0)
+    demoted=$(grep -c '^unreasoning:' "$STATE" 2>/dev/null || echo 0)
+    echo "asked:    ${asked_real} (plus ${demoted} demoted as reasoning-only)"
     echo "pool:     $(wc -l < "$POOL" | tr -d ' ')"
-    echo "untried:  $(( $(wc -l < "$POOL") - $(wc -l < "$STATE") ))"
+    echo "untried:  $(( $(wc -l < "$POOL") - ${asked_real} ))"
     echo "reviews:  $(ls -1 "$REVIEWS"/*.md 2>/dev/null | wc -l | tr -d ' ')"
     echo "--- asked ---"; cat "$STATE"
     exit 0
@@ -121,6 +123,16 @@ while [ "$done" -lt "$rounds" ]; do
         3) echo "    EMPTY (reasoning ate the budget) — raw saved" ;;
         *) echo "    FAILED (status $status) — raw saved" ;;
     esac
+
+    # A model that spent its whole budget on reasoning produced nothing. Raising the ceiling for
+    # it is the wrong response: ~z-ai/glm-flash-latest burned 15983 of 16000 tokens reasoning and
+    # emitted no content, which is a property of the model, not of the limit. Re-asking it at 32k
+    # would just wait longer for the same empty result. It stays in the pool but is recorded, so
+    # a future run can skip it without re-paying for the discovery.
+    if [ "$status" = "3" ]; then
+        echo "unreasoning:$model" >> "$STATE"
+        echo "    demoted: reasoning-only, will not be re-asked automatically"
+    fi
 
     # Each round gets the tree as it stands NOW, so round N reviews round N-1's fixes. The
     # reviewer harness reads live files; nothing is cached between rounds.

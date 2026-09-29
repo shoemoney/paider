@@ -117,6 +117,7 @@ final class RagStore
         $indexed = 0;
         $chunks = 0;
         $skipped = 0;
+        $tokens = 0;
 
         $seen = $this->indexedEventIds();
 
@@ -142,6 +143,16 @@ final class RagStore
                 throw new RuntimeException('Embedding count did not match chunk count');
             }
 
+            // Accumulated HERE, per call, not read once after the loop.
+            //
+            // lastTokenCount() is reset at the entry of every embed() and holds only the MOST
+            // RECENT call's usage. Indexing a 200-event log therefore books one event carrying
+            // roughly 1/200th of the tokens actually spent — while the same event reported
+            // `chunks` as the full total, so the row was internally inconsistent as well as
+            // understated. The cost ledger then priced that one small number as if it were the
+            // whole job.
+            $tokens += $embedder->lastTokenCount();
+
             $this->storeChunks($event, $pieces, $vectors, $embedder->model());
             $indexed++;
             $chunks += count($pieces);
@@ -164,7 +175,8 @@ final class RagStore
         if ($chunks > 0) {
             $this->events->append('embedding_call', [
                 'model' => $embedder->model(),
-                'tokens_in' => $embedder->lastTokenCount(),
+                // The SUM across every embed() in this run, not the last one.
+                'tokens_in' => $tokens,
                 'tokens_out' => 0,
                 'chunks' => $chunks,
             ]);

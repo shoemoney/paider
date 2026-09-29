@@ -1,2 +1,7 @@
 google/gemma-4-31b-it
 qwen/qwen3.7-flash
+~z-ai/glm-flash-latest
+~z-ai/glm-flash-latest
+unreasoning:~z-ai/glm-flash-latest
+~deepseek/deepseek-flash-latest
+inclusionai/ling-3.0-flash-vl
