@@ -1,96 +1,96 @@
 # Review — qwen/qwen3.7-flash (iteration 2)
 
-**Usage:** {"prompt_tokens":61753,"completion_tokens":7022,"total_tokens":68775,"cost":0.0089841,"is_byok":false,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":0,"audio_tokens":0,"video_tokens":0},"cost_details":{"upstream_inference_cost":0.0089841,"upstream_inference_prompt_cost":0.0061753,"upstream_inference_completions_cost":0.0028088},"completion_tokens_details":{"reasoning_tokens":5616,"image_tokens":0,"audio_tokens":0}}
+**Usage:** {"prompt_tokens":61726,"completion_tokens":9988,"total_tokens":71714,"cost":0.0101678,"is_byok":false,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":0,"audio_tokens":0,"video_tokens":0},"cost_details":{"upstream_inference_cost":0.0101678,"upstream_inference_prompt_cost":0.0061726,"upstream_inference_completions_cost":0.0039952},"completion_tokens_details":{"reasoning_tokens":7617,"image_tokens":0,"audio_tokens":0}}
 
 ## Verdict
 
-Paider has a solid architectural foundation with a well-designed append-only event log and correct trust boundaries for skills, but the TUI is currently unusable due to banner overlap, and the cost/storage projections are recomputed from scratch on every operation, causing performance and accuracy issues. The single biggest improvement would be fixing the TUI rendering overlap and implementing incremental ledger projection to make `paider cost` and RAG indexing performant at scale.
+The project is in surprisingly good shape for alpha: the append-only event log with projection-based cost ledger is structurally sound, the clone-to-RCE trust boundary for skills is well-enforced and tested, and the hermetic test suite (518 tests, 3 live) is well-structured. The single biggest thing that would make it better is reconciling the README's claims with actual code state — the docs say tier routing is unwired while Loop.php has it wired, and the screenshot captures a banner still displaying a competitor's name despite a fix commit existing — plus adding SSL enforcement to the Postgres connection seam.
 
 ## Strengths
 
-- The append-only event log with a portable `seq` column for ordering across SQLite and Postgres is well-thought-out and correctly implemented in `EventLog.php`.
-- The trust boundary for skills (refusing project-local directories to prevent clone-to-RCE) is correctly enforced in `LibraryIndex::refusesPath()` and `SkillLibrary`.
-- The cost ledger correctly handles unpriced models by marking them as `null` rather than silently undercounting with `$0.00`, as documented in `CostLedger.php`.
+- Append-only EventLog with no update/delete methods — the guarantee is structural, not conventional, and CostLedger is a pure projection replayed over it
+- Clone-to-RCE trust boundary for skills is capability-shaped (refusesPath) rather than location-shaped, with the refusal check in the importer not the index, preventing bypass
+- Hermetic test suite with 518 passing tests and 3 live tests gated behind --group=live, with live tests skipping gracefully when credentials are absent
 
 ## Findings
 
-### 1. Banner and static text overlap the interactive input prompt
+### 1. Banner displays competitor's name and has legibility overlap
 
-- **severity:** critical  
+- **severity:** medium  
 - **area:** ui  
 - **effort:** S
 
-**Reason.** ChatCommand::handle() renders the full banner (including 'What this is not' and 'Honest comparison' sections) and resume messages via echo and Palette::render() before entering the while loop that calls ChatPrompt::ask(). laravel/prompts does not clear the screen or use an alternate buffer by default. The long static text overflows and overlaps the input area, making the UI unusable.
+**Reason.** The screenshot shows 'The PHP Aider' in the banner — a competitor's name (neuron-core/maestro is the actual first PHP agent, but 'The PHP Aider' is not Paider's name). Commit 736dcbc claims 'fix: the banner called itself The PHP Aider' but the screenshot captures the unfixed state. Additionally, the banner ASCII art overlaps with the Packagist badge and status text below it, reducing legibility. The Banner.php file exists in app/Support/ but its content was not provided, so I cannot verify the fix was applied correctly.
 
-**Suggestion.** Clear the screen (clear() or echo "\e[2J\e[H") before the loop, or truncate the banner to a short summary and move the long-form content to a separate command (e.g., paider about). Alternatively, use laravel/prompts's task() or a dedicated TUI layout that reserves space for the banner.
+**Suggestion.** Verify that app/Support/Banner.php was actually updated in commit 736dcbc to render 'Paider' instead of 'The PHP Aider'. Add a unit test in tests/Unit/BannerTest.php that asserts the rendered banner string does not contain 'PHP Aider' or any competitor name from the README comparison table. Fix the banner rendering to avoid text overlap with the status badges below it — either reduce the ASCII art height or add a separator line.
 
 **Evidence.**
 
 ```
-app/Commands/ChatCommand.php lines 82-115. Screenshot shows 'What this is not' text overlapping the paider> input box.
+Screenshot shows 'The PHP Aider' text in banner. Commit 736dcbc: 'fix: the banner called itself The PHP Aider — a competitor's name 🐘'. README comparison table lists 'neuron-core/maestro' as the first PHP agent. app/Support/Banner.php exists in file inventory but content not provided.
 ```
 
-### 2. RagStore::index() appends embedding_call events on every run, inflating cost ledger
+### 2. README claims tier routing is unwired but code has it wired
 
 - **severity:** high  
-- **area:** cost  
+- **area:** docs  
 - **effort:** S
 
-**Reason.** RagStore::index() appends an embedding_call event after the loop, regardless of whether new chunks were actually embedded. If index() is called multiple times (e.g., on every chat start), it will append duplicate embedding_call events for the same chunks, inflating the cost ledger with redundant embedding costs.
+**Reason.** The README states under 'Status (v0.1)': 'Today, every chat/run loop call executes on the orchestrator tier. The coder, research, and fast tiers are configured and priced but not yet routed to by the loop — v0.2 work on per-operation tier routing will change that.' However, Loop.php has fully wired tier routing: `operationFor()` maps tool names to 'edit' or 'search' operations, and `turn()` calls `$this->tierRouter->resolve($operation, $session->tierOverrides())` on every iteration. Commit 2b5813d added 'per-operation tier routing'. The README is stale and contradicts the actual code state, which misleads users about what the cost table actually measures.
 
-**Suggestion.** Only append the embedding_call event if $indexed > 0 (i.e., new chunks were actually embedded), or track the last indexed seq number and only process events after that seq.
+**Suggestion.** Update the README's v0.1 status table to reflect that per-operation tier routing is now wired (commit 2b5813d). Remove the statement 'not yet routed to by the loop' and replace it with the current state: orchestrator handles plan calls, coder handles edit operations (write_file/patch_file/run_shell/artisan/git), research handles search operations. Add a note that the coder/research/fast tiers are now actively used in the cost ledger. Cross-check the cost table example in the README against a real ledger to ensure the numbers match the current routing logic.
 
 **Evidence.**
 
 ```
-app/Storage/RagStore.php lines 93-98. The embedding_call event is appended unconditionally after the foreach loop.
+README: 'Status (v0.1): Today, every chat/run loop call executes on the orchestrator tier. The coder, research, and fast tiers are configured and priced but not yet routed to by the loop'. Loop.php line ~73: `$resolved = $this->tierRouter->resolve($operation, $session->tierOverrides());`. Loop.php `operationFor()`: `if (in_array($name, ['write_file', 'patch_file', 'run_shell', 'artisan', 'git'], true)) { return 'edit'; } return 'search';`.
 ```
 
-### 3. Projection stores replay entire event log on every call, causing O(N) memory and CPU cost
+### 3. Postgres connection does not enforce SSL mode
 
-- **severity:** medium  
+- **severity:** critical  
+- **area:** security  
+- **effort:** S
+
+**Reason.** Database::connectPostgres() in app/Storage/Database.php constructs a PDO DSN as `sprintf('pgsql:host=%s;port=%d;dbname=%s', $host, $port, $database)` without setting `sslmode=require`. This allows the connection to fall back to plaintext, which is a security risk especially when connecting to cloud-hosted Postgres instances (AWS RDS, Supabase, Neon). An attacker on the network path between the user's machine and the database can intercept credentials and query data. The project already has strong security practices (ShellEnv scrubbing, PathGuard, UrlGuard) but this gap undermines them for Postgres users.
+
+**Suggestion.** Add `sslmode=require` to the PDO DSN in Database::connectPostgres(): `sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=require', $host, $port, $database)`. If backward compatibility with non-SSL Postgres instances is needed, add a `PAIDER_PG_SSL_MODE` environment variable with default `require`, and document that local Postgres without SSL will fail unless `PAIDER_PG_SSL_MODE=disable` is set. Add a test in tests/Feature/DatabaseTest.php that asserts the DSN contains `sslmode=require` when no override is set.
+
+**Evidence.**
+
+```
+app/Storage/Database.php `connectPostgres()` method: `$pdo = new \PDO(sprintf('pgsql:host=%s;port=%d;dbname=%s', $host, $port, $database), $user, $password, [...]);`. No sslmode parameter in the DSN string.
+```
+
+### 4. SkillLibrary::index() only searches one level deep, missing nested skills
+
+- **severity:** high  
 - **area:** storage  
 - **effort:** M
 
-**Reason.** MemoryStore::all() and SessionStore::messages() iterate through all events in the log to build their projected state. For a log with 100k events, this decodes 100k JSON payloads into PHP arrays on every single turn or resume. This is unnecessary for a bounded window (e.g., last 50 messages) and causes high memory usage and slow startup for long-lived projects.
+**Reason.** SkillLibrary::homeSkillFiles() in app/Skills/SkillLibrary.php uses `glob($home.'/'.self::HOME_RELATIVE.'/*/SKILL.md')` which only matches SKILL.md files one level deep under ~/.paider/skills/. However, the real corpus has nested skills (the docblock in countSkillFiles() acknowledges: 'this machine's own ~/.claude/skills/anthropics-skills/skills/claude-api/SKILL.md is two levels down'). Meanwhile, countSkillFiles() uses RecursiveDirectoryIterator and counts at any depth. This means the index is incomplete — skills nested deeper than one level are never loaded, but the trust-boundary notice from refusedProjectSkillsNotice() counts them. The index and the notice are inconsistent.
 
-**Suggestion.** Add a bounded cursor or index to EventLog to only read the last N events, or maintain an in-memory index that is updated on append, rather than replaying the entire log on every read. Alternatively, cache the projected state and invalidate on append.
+**Suggestion.** Replace the glob-based homeSkillFiles() with a RecursiveDirectoryIterator walk, matching the approach used by countSkillFiles() and LibraryImporter::collect(). Change the return type to array<int, string> of resolved paths, filtering for files named 'SKILL.md' at any depth. Update the docblock to document that skills can be nested arbitrarily deep. Add a test in tests/Feature/SkillLibraryTest.php that creates a nested skill directory (e.g., ~/.paider/skills/a/b/SKILL.md) and asserts it appears in the index.
 
 **Evidence.**
 
 ```
-app/Storage/MemoryStore.php lines 43-65, app/Storage/SessionStore.php lines 43-75. EventLog::stream() decodes JSON for every row.
+app/Skills/SkillLibrary.php `homeSkillFiles()`: `$matches = glob($home.'/'.self::HOME_RELATIVE.'/*/SKILL.md') ?: [];` — only one level deep. Same class `countSkillFiles()`: uses `RecursiveDirectoryIterator` with `FilesystemIterator::SKIP_DOTS` — recursive. Docblock in countSkillFiles(): 'this machine's own ~/.claude/skills/anthropics-skills/skills/claude-api/SKILL.md is two levels down'.
 ```
 
-### 4. Cost ledger projection is recomputed from scratch on every paider cost run
+### 5. Git read operations routed to expensive edit tier
 
 - **severity:** medium  
 - **area:** cost  
 - **effort:** M
 
-**Reason.** CostLedger::summary() calls $this->events->stream() and folds every event to compute spend. For a large log, this is slow (O(N)). The ledger is a projection, but it is recomputed from scratch every time instead of being persisted or incrementally updated.
+**Reason.** Loop.php's `operationFor()` method maps 'git' unconditionally to the 'edit' tier: `if (in_array($name, ['write_file', 'patch_file', 'run_shell', 'artisan', 'git'], true)) { return 'edit'; }`. However, GitTool performs both read operations (diff, log, status, show) and write operations (commit, push). Read-only git operations should route to the 'search' tier (research/fast) since they don't modify the project. Every `git diff` or `git log` call is currently billed at coder-tier rates, which is a measurable cost waste on every turn that inspects the repo state.
 
-**Suggestion.** Persist the ledger state (e.g., in a separate table or as a cached JSON file) and update it incrementally on append, or use a materialized view in Postgres. For SQLite, a simple cache file or a dedicated cost_ledger table updated on append would make paider cost O(1).
-
-**Evidence.**
-
-```
-app/Storage/CostLedger.php lines 68-155.
-```
-
-### 5. Loop::$responseCache is in-memory and lost on process exit, providing no cross-session caching
-
-- **severity:** low  
-- **area:** agents  
-- **effort:** S
-
-**Reason.** Loop::$responseCache is an in-memory array that caches provider responses by hash. This cache is lost on every process exit, meaning every new paider chat or paider run re-bills for the same prompts if they were seen in a previous session. The cache only works within a single turn, which is rarely useful because each turn has a different context. The README mentions 'cache semantics' as a v0.2 open item, indicating this is not yet implemented.
-
-**Suggestion.** Clarify the cache scope in documentation, or implement a persistent cache if cross-turn caching is intended. Alternatively, remove the in-memory cache if it provides no value within a single turn.
+**Suggestion.** Inspect the git operation from the tool input before routing: parse `$input['op'] ?? 'status'` and route read-only operations ('diff', 'log', 'status', 'show', 'blame', 'grep') to 'search', and write operations ('commit', 'push', 'pull', 'fetch' with --force) to 'edit'. Add a helper method `isGitWriteOperation(array $input): bool` that checks the operation type. Update the test suite to assert that read-only git calls are routed to the research/fast tier and write operations to the coder tier. Measure the cost impact on a real session to quantify the savings.
 
 **Evidence.**
 
 ```
-app/Agent/Loop.php lines 23-24.
+app/Agent/Loop.php `operationFor()`: `if (in_array($name, ['write_file', 'patch_file', 'run_shell', 'artisan', 'git'], true)) { return 'edit'; } return 'search';`. GitTool supports both read (diff, log, status) and write (commit, push) operations based on the 'op' input field.
 ```
 

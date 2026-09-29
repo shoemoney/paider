@@ -95,6 +95,15 @@ function requireRagPdo(): PDO
     return $pdo;
 }
 
+/** How many events of a given type the log holds. */
+function countEvents(EventLog $log, string $type): int
+{
+    return count(array_filter(
+        array_map(fn ($e) => $e['type'], $log->all()),
+        fn (string $t) => $t === $type
+    ));
+}
+
 beforeEach(function () {
     $this->ragSchema = null;
     $GLOBALS['__rag_pg'] = $pdo = ragPdo($this->ragSchema);
@@ -227,4 +236,39 @@ it('formats a pgvector literal without scientific notation', function () {
     $literal = RagStore::toVectorLiteral([1.0, 0.00000001, -0.5, 0.25]);
     expect($literal)->toBe('[1,0.00000001,-0.5,0.25]')
         ->and($literal)->not->toContain('E');
+});
+
+it('a NO-OP re-index books no embedding call, because none was made', function () {
+    $pg = requireRagPdo();
+    $log = new EventLog($pg);
+    $log->append('memory_set', ['key' => 'k', 'value' => 'v']);
+
+    $store = new RagStore($log, $pg);
+    $store->index(new FakeEmbedder);
+    $before = countEvents($log, 'embedding_call');
+
+    // Second run: everything is already indexed, so nothing is embedded and the embedder
+    // reports 0 tokens. ModelPricing treats an all-zero call as UNKNOWN rather than free, so
+    // booking it anyway would add a phantom "unpriced embedding call" to the ledger every
+    // time anyone re-indexed a project that had not changed.
+    $result = $store->index(new FakeEmbedder);
+
+    expect($result['chunks'])->toBe(0)
+        ->and(countEvents($log, 'embedding_call'))->toBe($before);
+});
+
+it('a real search still books its embedding call even when it matches nothing', function () {
+    $pg = requireRagPdo();
+    $log = new EventLog($pg);
+    $log->append('memory_set', ['key' => 'k', 'value' => 'v']);
+
+    $store = new RagStore($log, $pg);
+    $store->index(new FakeEmbedder);
+    $before = countEvents($log, 'embedding_call');
+
+    // A query IS a paid call, whether or not it finds anything. Suppressing this would
+    // under-report real spend, which is the mirror-image error to the phantom-call one.
+    $store->search('something not present', new FakeEmbedder);
+
+    expect(countEvents($log, 'embedding_call'))->toBe($before + 1);
 });

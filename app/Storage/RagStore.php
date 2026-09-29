@@ -149,12 +149,26 @@ final class RagStore
 
         // Book the embedding call through the SAME event log every other call uses, so the cost
         // ledger has one reconciliation path rather than a second one that can drift from it.
-        $this->events->append('embedding_call', [
-            'model' => $embedder->model(),
-            'tokens_in' => $embedder->lastTokenCount(),
-            'tokens_out' => 0,
-            'chunks' => $chunks,
-        ]);
+        //
+        // ONLY when something was actually embedded. This was unconditional, and that was a real
+        // accounting bug found by an adversarial review: a re-index that finds everything already
+        // indexed embeds nothing, so the embedder reports 0 tokens — and ModelPricing's LOCKED
+        // rule treats an all-zero call as UNKNOWN, not free. The result was a phantom
+        // "unpriced embedding call" in the ledger on every no-op index, inflating the count the
+        // ledger reports as unknown-spend. In a tool whose flagship claim is that its ledger
+        // reconciles against provider usage, inventing a call that never happened is the worst
+        // class of bug available.
+        //
+        // A real search that embeds a query always books, even when it matches nothing: that
+        // call was made and paid for.
+        if ($chunks > 0) {
+            $this->events->append('embedding_call', [
+                'model' => $embedder->model(),
+                'tokens_in' => $embedder->lastTokenCount(),
+                'tokens_out' => 0,
+                'chunks' => $chunks,
+            ]);
+        }
 
         return ['events' => $indexed, 'chunks' => $chunks, 'skipped' => $skipped];
     }

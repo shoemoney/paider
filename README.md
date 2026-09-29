@@ -14,7 +14,13 @@
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
 
-<img src="design/captures/paider-tui.png" alt="Paider TUI — ./paider -y in YOLO mode, resuming a 39-message session" width="900">
+<img src="design/captures/paider-tui.png" alt="Paider TUI — the startup banner, the resumed-session line, and the interactive input box, captured from a real run" width="900">
+
+*Captured by [`bin/capture-tui.sh`](bin/capture-tui.sh) from an actual `./paider chat` session in a
+pty. The previous hero image was a double exposure — the TUI superimposed on a screenshot of this
+README, with a smeared spinner across the top — and it was not merely ugly: an adversarial review
+read the composite and reported a critical TUI defect that does not exist. A corrupt artifact does
+not just look wrong, it makes people draw false conclusions about the code.*
 
 </div>
 
