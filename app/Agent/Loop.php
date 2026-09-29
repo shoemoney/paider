@@ -66,21 +66,53 @@ class Loop
         return $this->projectRoot !== '' ? $this->projectRoot : (string) getcwd();
     }
 
+    /**
+     * Map a proposed tool call to the operation whose tier should handle what FOLLOWS it.
+     *
+     * The mapping is deliberately conservative and total — every tool name maps to exactly one
+     * operation, and anything unrecognised becomes 'search' (the cheap, read-only tier) rather
+     * than throwing. That default is the safe direction: a new tool added later gets the cheap
+     * tier and the worst case is under-spend, not an unbounded escalation to a premium model on
+     * every call.
+     *
+     * @param  array{name: string, input: array<string, mixed>}  $call
+     */
+    private function operationFor(array $call): string
+    {
+        $name = $call['name'];
+
+        // A write changes the project: coder. This is the only tier that should be authorised to
+        // spend a premium model on generating content that lands in a file.
+        if (in_array($name, ['write_file', 'patch_file', 'run_shell', 'artisan', 'git'], true)) {
+            return 'edit';
+        }
+
+        return 'search';
+    }
+
     /** @param callable(string): string $approvalPrompt returns 'allow-once'|'allow-session'|'deny' */
     public function turn(Session $session, string $userInput, callable $approvalPrompt): void
     {
         $this->remember($session, 'user', $userInput);
 
+        // Starts as 'plan'; advanced by operationFor() once the model has proposed a tool call.
+        $operation = 'plan';
+
         for ($i = 0; $i < self::MAX_TOOL_CALLS_PER_TURN; $i++) {
-            // v0.1 hardcodes 'plan' here, routing every loop call to orchestrator. v0.2 adds
-            // per-operation tier routing (see PLAN.md § v0.2, per-operation tier routing bullet).
-            $resolved = $this->tierRouter->resolve('plan', $session->tierOverrides());
+            // Per-operation tier routing (v0.2). The first call of a turn is a PLAN — the model
+            // has not yet said what it wants to do, so orchestrator is the only honest choice.
+            // After that the operation is inferred from what the model LAST asked for: an edit
+            // routes to coder, a read/search to research. Before this, every call in the loop
+            // resolved 'plan' (see the git history), so the coder and research tiers were
+            // unreachable from the agent entirely and the cost ledger's per-tier table could
+            // only ever show one row — the table claimed a capability the code did not have.
+            $resolved = $this->tierRouter->resolve($operation, $session->tierOverrides());
 
             $messages = $this->buildMessages($session, $userInput, $resolved['tier']);
             $cacheKey = hash('sha256', json_encode([$messages, $resolved['model'], $session->tierOverrides()], JSON_THROW_ON_ERROR));
             if (isset($this->responseCache[$cacheKey])) {
                 $cached = $this->responseCache[$cacheKey];
-                CacheLedger::recordHit($this->eventLog, 'orchestrator', $resolved['model'], $cached->tokensIn, $cached->tokensOut, $cached->cacheWrite ?? 0, $cached->cacheRead ?? 0);
+                CacheLedger::recordHit($this->eventLog, $resolved['tier'], $resolved['model'], $cached->tokensIn, $cached->tokensOut, $cached->cacheWrite ?? 0, $cached->cacheRead ?? 0);
                 $response = $cached;
             } else {
                 // The provider call is a blocking synchronous HTTP request that can sit for
@@ -102,7 +134,12 @@ class Loop
             $servedModel = $response->servedModel ?? $requestedModel;
 
             $this->eventLog->append('tier_call', [
-                'tier' => 'orchestrator',
+                // The tier the ROUTER resolved, not a literal. This was hardcoded to
+                // 'orchestrator' while the routing above also hardcoded 'plan' — two copies of
+                // the same assumption. With real routing, a literal here would keep booking
+                // every call against orchestrator and quietly make the per-tier table a lie
+                // again, which is the exact defect routing was supposed to fix.
+                'tier' => $resolved['tier'],
                 'model' => $servedModel,
                 'requested_model' => $requestedModel,
                 'tokens_in' => $response->tokensIn,
@@ -126,6 +163,12 @@ class Loop
             }
 
             $this->renderToolCall($call['name'], $call['input']);
+
+            // The NEXT iteration of this turn routes on what this call implies. A turn that
+            // starts by reading files stays on the cheap research tier for the follow-up that
+            // interprets them; a turn that has just written a file gets the coder tier for
+            // whatever comes after.
+            $operation = $this->operationFor($call);
 
             $startedAt = microtime(true);
             $result = $this->dispatch($session, $call['name'], $call['input'], $approvalPrompt);

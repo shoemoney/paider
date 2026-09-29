@@ -174,12 +174,22 @@ final class McpStdioClient
             env: ShellEnv::build(),
         );
 
-        $client->connect($transport);
-
+        // connect() sits inside the try so the reap is unconditional — defence in depth, NOT a
+        // bug fix. An adversarial review claimed this leaked a child per failed connection; that
+        // was measured and it does not leak. The SDK reaps on every failure path already:
+        //   - proc_open fails        -> no process was ever created, nothing to reap
+        //   - initialize returns Error-> StdioTransport::connect() calls $this->close() itself
+        //   - init timeout           -> the timeout produces that same Error -> close()
+        // A test asserting "no orphans after a failed connect" PASSES with or without this try,
+        // which is exactly the kind of test that proves nothing and was deleted rather than kept.
+        //
+        // Kept anyway because it costs nothing and removes a real dependency on an SDK internal
+        // (that close() is called on our behalf) that the exact-pin does not protect us from.
         try {
+            $client->connect($transport);
+
             return $work($client);
         } finally {
-            // Reap the child even when the call throws — an orphaned server holds its pipe.
             $client->disconnect();
         }
     }

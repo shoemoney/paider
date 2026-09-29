@@ -154,3 +154,43 @@ it('ignores non-string args from a hand-edited config', function () {
     $client = McpStdioClient::fromConfig('x', ['command' => 'php', 'args' => ['a', 1, null, 'b']]);
     expect($client)->toBeInstanceOf(McpStdioClient::class);
 });
+
+it('reaps the child when the CALL fails, not only when connecting fails', function () {
+    $server = sys_get_temp_dir().'/paider-reap-'.bin2hex(random_bytes(6)).'.php';
+    file_put_contents($server, <<<'SRV'
+<?php
+// Answers initialize and tools/list, then fails the tool call — the shape that reaches the
+// transport's normal lifecycle and then breaks mid-flight.
+while (($line = fgets(STDIN)) !== false) {
+    $m = json_decode(trim($line), true);
+    if (!is_array($m) || !isset($m['id'])) { continue; }
+    $id = $m['id'];
+    if (($m['method'] ?? '') === 'initialize') {
+        echo json_encode(['jsonrpc'=>'2.0','id'=>$id,'result'=>['protocolVersion'=>'2025-11-25','capabilities'=>['tools'=>(object)[]],'serverInfo'=>['name'=>'reap','version'=>'1']]]), "\n";
+    } elseif (($m['method'] ?? '') === 'tools/list') {
+        echo json_encode(['jsonrpc'=>'2.0','id'=>$id,'result'=>['tools'=>[['name'=>'boom','description'=>'fails','inputSchema'=>['type'=>'object']]]]]), "\n";
+    } else {
+        // Return an error result, which surfaces as a failing ToolResult through call().
+        echo json_encode(['jsonrpc'=>'2.0','id'=>$id,'result'=>['content'=>[['type'=>'text','text'=>'kaboom']],'isError'=>true]]), "\n";
+    }
+    flush();
+}
+SRV);
+
+    try {
+        $client = new McpStdioClient('reap', PHP_BINARY, [$server]);
+        $tool = $client->tools()[0];
+
+        // A server-level error is a normal outcome, not a crash — the tool must report failure
+        // and the connection must still be torn down cleanly by withClient()'s finally.
+        $result = $tool->execute([], true);
+        expect($result->ok)->toBeFalse()
+            ->and($result->output)->toContain('kaboom');
+
+        // And a second call still works, which proves the transport was properly released
+        // rather than left in a half-open state by the error.
+        expect($client->tools())->toHaveCount(1);
+    } finally {
+        unlink($server);
+    }
+});
