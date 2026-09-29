@@ -31,11 +31,20 @@ open v0.2 work and is planned below.
 | Distribution | ✅ PHAR 32MB, `curl \| sh` live | Packagist v1.0.1 — see erratum, `DECISIONS.md` §22 |
 | **v0.2 Track A — MCP client** | ✅ **CLOSED this session** | committed `fe469bb`; all 5 done-commands pass |
 | v0.2 Track B — sessions/memory/cache | 🟡 **partial, unproven** | `SessionStore`/`MemoryStore` exist; resume + cache semantics unbuilt |
+| **Postgres driver seam** | ✅ **closed** | `258cae4` — one `rowid` was the entire port |
+| **pgvector RAG** | ✅ **closed** | `3e7c04b` — embeddings costed into the ledger |
+| **skills + prompts indexed** | ✅ **closed** | `1e8b520` — files still authoritative, boundary held |
 | v0.2 Track C — standalone binary | ⬜ **deferred by decision** | awaiting `binary-decision` measurement |
 | v0.3 session identity | ⬜ spec only | 5 decisions recorded, none implemented |
 
 **The headline: Track A is now genuinely closed.** It was not closed before this session — it
 was *built and green and uncommitted*, which is a state that reads as done and is not.
+
+**Storage grew up without breaking its promise.** Everything asked for — events, sessions, memory,
+history, skills, prompts — is reachable in Postgres with vector search, and `composer require
+paider/paider` still needs no database server. SQLite remains the default, `ext-pdo_pgsql` is a
+`suggest` rather than a `require`, and an unreachable Postgres raises instead of quietly forking
+your data onto a local file.
 
 ---
 
@@ -72,37 +81,45 @@ hole.
 ### 🟢 Phase 1 — CLOSE (done this session)
 Land Track A; kill the unsatisfiable graders. `fe469bb`, `5d121d5`.
 
-### 🟡 Phase 2 — MAKE MCP PLUG AND PLAY *(the brief's core ask)*
+### ✅ Phase 2 — MAKE MCP PLUG AND PLAY *(the brief's core ask)* — **CLOSED**
 
-| id | milestone | done-command (must fail when undone) |
-|---|---|---|
-| `mcp-stdio-client` | Wire `McpClient` to the SDK's real `Client`/`StdioTransport`; a `mcp.json` stdio server's tools are discovered by `tools/list` and callable | `vendor/bin/pest --filter=McpStdio` |
-| `mcp-stdio-fixture` | Hermetic fixture server under `tests/Fixtures/` — no network, no `npx`, no binary download | `test -f tests/Fixtures/stdio-server.php` |
-| `mcp-env-scrub` | Server child processes inherit an allowlist, never live provider keys (`DECISIONS.md` §17) | `vendor/bin/pest --filter=McpEnvScrub` |
-| `mcp-no-placeholder` | The string `"SDK execute not yet wired"` and the `mcp__*__list` stub are **gone from `app/`** | `! grep -rq 'execute not yet wired' app/` |
-| `mcp-composition` | mcpd HTTP tools and `mcp.json` stdio tools coexist in one tool list | `vendor/bin/pest --filter=McpComposition` |
+| id | milestone | done-command | state |
+|---|---|---|---|
+| `mcp-stdio-client` | `McpClient` wired to the SDK's real `Client`/`StdioTransport` | `vendor/bin/pest --filter=McpStdioClient` | ✅ **done** `0cb2635` |
+| `mcp-stdio-fixture` | Hermetic fixture server, no network/`npx`/download | `test -f tests/Fixtures/stdio-server.php` | ✅ **done** |
+| `mcp-env-scrub` | Child processes get `ShellEnv`, never live provider keys (`DECISIONS.md` §17) | `vendor/bin/pest --filter=McpStdioClient` | ✅ **done**, asserted from *inside* the child |
+| `mcp-no-placeholder` | `"SDK execute not yet wired"` and the `mcp__*__list` stub gone | `! grep -rq 'execute not yet wired' app/` | ✅ **done** |
+| `mcp-composition` | mcpd HTTP + `mcp.json` stdio coexist in one list | `vendor/bin/pest --filter=McpClientTest` | ✅ **done**, real loopback socket |
 
-`mcp-no-placeholder` is the milestone that cannot be faked by a doc edit. It is the honest
-"done" for "plug and play."
+**What closed it:** a real JSON-RPC stdio client (`McpStdioClient`) over the SDK's own transport,
+with the §17 environment scrub applied to every spawned server — because an MCP server in
+`mcp.json` is arbitrary third-party code, and without the scrub merely *configuring* one would
+hand it your `OPENROUTER_API_KEY`. The 7 tests that pinned the placeholder's behavior were
+**replaced, not deleted**; their own header note had named its expiry.
 
-### 🟡 Phase 3 — PLUG AND PLAY: SKILLS, PROMPTS, AGENTS
+### 🟡 Phase 3 — PLUG AND PLAY: SKILLS, PROMPTS, AGENTS — **skills+prompts done, agents not**
 
-Skills are further along than the roadmap implies — `SkillLibrary` is real, with the
-clone-to-RCE trust boundary (`~/.paider/skills` only, project dirs refused unconditionally).
-Prompts are `ChatPrompt`/`ChatPromptRenderer` + a theme. Neither is a *distribution*
-mechanism, which is the actual gap.
+| id | milestone | done-command | state |
+|---|---|---|---|
+| `pg-driver-seam` | Postgres + SQLite behind one seam, SQLite still the default | `vendor/bin/pest tests/Feature/PostgresStorageTest.php` | ✅ **done** `258cae4` |
+| `pg-port-real` | `rowid` → portable `seq`, additive migration, no reordering | `PAIDER_TEST_PG_URL=… pest --filter=PostgresStorage` | ✅ **done** |
+| `rag-pgvector` | Chunk/embed/retrieve over the event log, cosine | `PAIDER_TEST_PG_URL=… pest --filter=RagStore` | ✅ **done** `3e7c04b` |
+| `rag-costed` | Embedding calls priced into the ledger, unpriced ≠ `$0.00` | `PAIDER_TEST_PG_URL=… pest --filter=RagStore` | ✅ **done** |
+| `library-index` | Skills + prompts searchable in Postgres, bodies included | `PAIDER_TEST_PG_URL=… pest --filter=LibraryIndex` | ✅ **done** `1e8b520` |
+| `library-boundary` | Project paths refused — clone-to-RCE boundary held | same | ✅ **done**, both refusal tests |
+| `agent-roster` | The v0.2 three-role roster (orchestrator / coder / reviewer) | `vendor/bin/pest --filter=Roster` | ⬜ **not built** |
+| `roster-bounded` | Iteration cap and token threshold *provably* halt | `vendor/bin/pest --filter=RosterBounds` | ⬜ **not built** |
 
-| id | milestone | done-command |
-|---|---|---|
-| `skill-manifest` | `paider skill:list` / `skill:show`, index queryable without a model call | `vendor/bin/pest --filter=SkillCli` |
-| `skill-share` | `paider skill:install <ref>` installs from git/HTTP, **re-running the trust boundary on install** | `vendor/bin/pest --filter=SkillInstall` |
-| `prompt-library` | Named, versioned prompt templates addressable by id, no model round-trip to resolve | `vendor/bin/pest --filter=PromptLibrary` |
-| `agent-roster` | The v0.2 three-role roster (orchestrator / coder / reviewer) as a bounded state machine, 3-round shared cap | `vendor/bin/pest --filter=Roster` |
-| `roster-bounded` | Iteration cap and token threshold **provably** halt — a failing test proves the loop stops, not that it starts | `vendor/bin/pest --filter=RosterBounds` |
+**Skills and prompts in Postgres, with the boundary intact.** The table is *derived*: the files
+stay the source of truth, there is deliberately no "sync from project" method, and the refusal
+check lives in the importer rather than the index so a new caller cannot route around it. The
+first draft of that check refused only paths *inside* the project — which a repo cloned into
+`/tmp` walks straight through. The test caught that before it shipped, and the rule is now
+capability-shaped.
 
-`roster-bounded` is deliberately separate from `agent-roster`. This repo's own history
-(`DECISIONS.md` §20) is a test that could not fail; a bounds test that only proves the happy
-path is the same defect wearing a new hat.
+**Agents are still not built.** Zero multi-agent code exists; the roster is a design in `PLAN.md`.
+That is the honest state and the one remaining item of your original "skills, prompts, agents"
+ask.
 
 ### ⬜ Phase 4 — CLOSE TRACK B, EARN v1.1.0
 

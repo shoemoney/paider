@@ -1,18 +1,104 @@
 # Storage
 
-**One SQLite file. No services.** Paider persists through a single database reached via
-`pdo_sqlite`, one of the twelve compiled extensions.
+**One SQLite file by default. Postgres when you ask for it.** Paider persists through a driver
+seam, so the same append-only event log runs on either. The default is unchanged on purpose —
+`composer require paider/paider` still works with no database server anywhere on the machine.
 
 ```
-.paider/paider.db        # project-scoped: ✅ events (append-only), cost ledger (projection),
-                         #                 ✅ sessions (session_* events)
-                         # gitignored: the event log accumulates all calls and is local-only
-                         # planned v0.2+: memory, response cache
-                         # planned v0.3+: task board
+.paider/paider.db        # DEFAULT, project-scoped: ✅ events (append-only), cost ledger
+                         #   (projection), ✅ sessions (session_* events), ✅ memory
+                         #   (memory_* events), RAG index (rag_chunks) when Postgres is on
+                         #   gitignored: the event log accumulates all calls and is local-only
 .paider/.env             # ✅ project-scoped settings, read by ProjectEnv (gitignored with .paider/)
 <project>/.env           # ✅ also read, lower precedence than .paider/.env
 ~/.paider/paider.db      # planned v0.2: credentials (AES-256-GCM via openssl), global preferences
 ```
+
+## Postgres (optional)
+
+Set one variable and the same log moves to Postgres:
+
+```sh
+PAIDER_DATABASE_URL=postgres://user:pass@host:5432/paider paider chat
+```
+
+| | |
+|---|---|
+| **what moves** | events, cost ledger, sessions, memory, RAG index, skills/prompts index |
+| **what stays on disk** | **skills and prompts remain files**, and Postgres holds a derived index of them |
+| **extra extension** | `ext-pdo_pgsql` — a `suggest`, not a `require` (see [EXTENSIONS.md](EXTENSIONS.md)) |
+| **RAG** | needs `pgvector`; `RagStore::ensureSchema()` creates the extension and table |
+| **fallback** | **none.** An unreachable Postgres raises rather than silently degrading to a local file |
+
+**No silent fallback, deliberately.** If `PAIDER_DATABASE_URL` is set and the database is down,
+`Database::connect()` throws. Degrading to SQLite would turn "your history is unreachable" into
+"here are the last few events, from a file you forgot about" — a silent data fork, which is worse
+than a loud failure. Silence here would also be indistinguishable from the URL being unset.
+
+### What actually had to change to port it
+
+Measured, not guessed — the audit of the pre-port tree found:
+
+- **one** `CREATE TABLE`, in `EventLog.php`
+- **one** genuinely non-portable query: `ORDER BY rowid ASC`. Postgres has no `rowid`.
+- zero `AUTOINCREMENT`, zero `INSERT OR`, zero `strftime` outside the connection factory
+
+`seq` replaced `rowid` — an explicit monotonic column assigned by PHP, identical on both drivers,
+needing no `SERIAL` or sequence object. It is load-bearing rather than cosmetic: `CostLedger`
+folds the stream **in order** to reconcile spend, so an unordered read is a wrong number, not a
+glitch. Rows written before `seq` existed are backfilled in insertion order, because historical
+cost is derived from that order.
+
+Column existence is checked per driver: `information_schema` exists in Postgres and not in
+SQLite, `PRAGMA table_info` is the reverse. There is no single portable query for it.
+
+### Skills and prompts are indexed, never authoritative
+
+`LibraryIndex` holds a searchable copy of skills and prompts, including full bodies, so retrieval
+can find them. **The files remain the source of truth.**
+
+A skill is instructions injected into a prompt, which is why `SkillLibrary` refuses
+project-local skill directories unconditionally: a repository you clone must not be able to grant
+the agent standing instructions the moment you run Paider inside it. A database has no filesystem
+permission to check, so making skills *writable* there would dissolve that boundary — and the
+obvious "sync from project" affordance is remote code execution wearing a convenience label.
+
+So the table is derived: delete it, lose nothing, re-index to rebuild. There is deliberately **no**
+`sync from current project` method and **no** env var that enables one — that absence is the
+security property. The refusal check lives in the *importer* (the reader), never in the index
+(the writer), so a new caller cannot bypass it by going through the wrong class.
+
+The boundary is capability-shaped, not location-shaped: anything inside the project is refused,
+and so is any path shaped like a project-local agent config (`.paider/…`, `.claude/…`) **anywhere
+on disk** — including `/tmp`, which is where a cloned repository often lives. A path the user
+names explicitly, outside a project, in their own home, is allowed: naming it is the authorisation,
+and nothing runs without someone naming the directory.
+
+## RAG
+
+`RagStore` retrieves over the project's own event log on pgvector, with cosine distance.
+Postgres-only — pgvector has no SQLite equivalent — so a user who never sets `PAIDER_DATABASE_URL`
+simply has no RAG and loses nothing else.
+
+- **Chunks overlap by 25%.** A fact straddling a boundary is retrievable from *neither* half if
+  you split clean.
+- **Embeddings are costed.** Every `embed()` appends an `embedding_call` event, which
+  `CostLedger` folds into its own labelled `embedding` row through the same `ModelPricing::costFor()`
+  as a chat turn — including the rule that an all-zero call is *unknown*, never `$0.00`. It is
+  deliberately not a `tier_call` row: an embedding is not a tier and has no output tokens.
+- **Vectors are reassembled by provider `index`, not array position.** An out-of-order batch would
+  otherwise attach a vector to the wrong chunk — a wrong answer that looks entirely healthy.
+- **The default embedder is the OpenAI-*compatible* shape**, not OpenRouter. Measured: OpenRouter's
+  live catalog returns 460 models and every one is a `text->text` chat model, with no embedding
+  model among them. The compatible shape also means a local embedder (Ollama, LM Studio) works
+  with no key and no network, which suits a tool whose premise is a local file.
+
+| variable | default | effect |
+|---|---|---|
+| `PAIDER_DATABASE_URL` | unset | Postgres DSN. Unset ⇒ SQLite, unchanged |
+| `PAIDER_EMBEDDING_URL` | `https://api.openai.com/v1` | Any OpenAI-compatible embeddings endpoint |
+| `PAIDER_EMBEDDING_MODEL` | `text-embedding-3-small` | Exact model id; priced by exact id in `config/prices.php` |
+| `PAIDER_TEST_PG_URL` | unset | Points the test suite at a disposable Postgres |
 
 ## Configuration
 
