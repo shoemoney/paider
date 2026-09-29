@@ -8,6 +8,27 @@ extensions cost **94ms of a 143ms** PHP startup. A tool that inherits a user's i
 tax. Pinning the set is most of the reason
 [FrankenPHP](https://frankenphp.dev/docs/embed/) was chosen over `composer global require`.
 
+## v0.2 — optional, one
+
+`pdo_pgsql` is **suggested, not required**, and the distinction is the point.
+
+| extension | why | who needs it |
+|---|---|---|
+| `pdo_pgsql` | Postgres storage via `PAIDER_DATABASE_URL`, and RAG (which needs pgvector) | only users who set `PAIDER_DATABASE_URL` |
+
+It is in `composer.json`'s `suggest` block rather than `require` **on purpose**. Postgres is
+opt-in: `Database::connect()` falls back to the project-scoped SQLite file when
+`PAIDER_DATABASE_URL` is unset, and that file is the documented default
+([STORAGE.md](STORAGE.md): "One SQLite file. No services."). Promoting the driver into `require`
+would mean every user installs a database driver they will never load, purely to support a
+feature they did not ask for — the same trade this project declined for the server, for
+`pcntl`, and for the standalone binary.
+
+The cost of `suggest` is stated plainly rather than hidden: a user who sets `PAIDER_DATABASE_URL`
+without the driver gets a PDO error at connect time instead of a Composer error at install time.
+That is the better failure — it happens once, names the cause, and the fix is one command — and
+`mcp-extension-floor-holds` in `PLAN.md` stays at 12 declared / 15 resolved because nothing moved.
+
 ## v0.1 — required, twelve
 
 ⚠️ **Corrected 2026-08-02 (round 2).** This table was eight for one measurement cycle and it was
