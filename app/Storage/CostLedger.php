@@ -2,6 +2,8 @@
 
 namespace App\Storage;
 
+use App\Support\ModelPricing;
+
 /**
  * Pure read-side projection over EventLog. Holds no state of its own and is never
  * mutated directly — the cost ledger is a projection over events, never a mutable
@@ -9,6 +11,18 @@ namespace App\Storage;
  */
 class CostLedger
 {
+    /**
+     * Event type written by RagStore for every embedding call it makes.
+     *
+     * Not folded into `tier_call`: an embedding is not a tier, has no output tokens, and is not
+     * routed like one. It is its own event type, projected into its own labelled row so the
+     * per-tier table never implies RAG spend was a chat turn.
+     */
+    public const EMBEDDING_CALL = 'embedding_call';
+
+    /** The pseudo-tier embedding spend is reported under. */
+    public const EMBEDDING_TIER = 'embedding';
+
     public function __construct(private readonly EventLog $events) {}
 
     /**
@@ -46,11 +60,46 @@ class CostLedger
                 continue;
             }
 
+            $payload = $event['payload'];
+
+            if ($event['type'] === self::EMBEDDING_CALL) {
+                // An embedding call is real money and belongs in the same reconciliation as every
+                // other call, or the flagship claim ("the ledger reconciles against provider
+                // reported usage") quietly stops being true the moment RAG ships. Folding it into
+                // a 'tier_call' row would be worse than a separate one: these are NOT tiered
+                // calls, they have no output tokens, and pretending otherwise would make the
+                // per-tier table lie about what it contains.
+                //
+                // So they get their own pseudo-tier, visibly labelled, priced by exactly the
+                // same ModelPricing::costFor() rules — including the all-zero-means-unknown rule,
+                // so a provider that reports no usage surfaces as UNPRICED rather than $0.00.
+                $tier = self::EMBEDDING_TIER;
+
+                $tiers[$tier] ??= self::emptyRow();
+                $tiers[$tier]['calls']++;
+                $tiers[$tier]['tokens_in'] += $payload['tokens_in'] ?? 0;
+                $tiers[$tier]['tokens_out'] += 0;
+
+                $cost = ModelPricing::costFor(
+                    $payload['model'],
+                    (int) ($payload['tokens_in'] ?? 0),
+                    0,
+                );
+
+                if ($cost === null) {
+                    $tiers[$tier]['unpriced_calls']++;
+                    $tiers[$tier]['unpriced_models'][$payload['model']] = true;
+                } else {
+                    $tiers[$tier]['spend_usd'] += $cost;
+                }
+
+                continue;
+            }
+
             if ($event['type'] !== 'tier_call') {
                 continue;
             }
 
-            $payload = $event['payload'];
             $tier = $payload['tier'];
 
             $tiers[$tier] ??= self::emptyRow();
