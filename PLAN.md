@@ -28,7 +28,7 @@ What's still true, and still worth building on:
 - Maestro is a single-maintainer project structurally coupled to a commercial upsell
   ([Inspector.dev](https://inspector.dev) observability SaaS is wired into its monitoring story)
   and sits on top of a pre-1.0 stack at every layer: `neuron-ai` itself, and transitively
-  `modelcontextprotocol/php-sdk` (v0.7.0, explicitly "considered experimental" per its own
+  `mcp/sdk` (v0.7.0, explicitly "considered experimental" per its own
   README) if/when it uses MCP client features.
 - Nobody in the PHP space — Maestro included, per its public docs — treats **model economics as
   a first-class, named feature**. Aider's own `main`/`weak`/`editor` split is unlabeled and its
@@ -208,7 +208,7 @@ preset with two implementations. If `prism-php` gets healthy again later, swap t
 implementation behind the same interface — that's what the interface is for. Don't block v0.1 on
 someone else's maintenance cadence.
 
-**MCP layer — `modelcontextprotocol/php-sdk`, scoped narrowly.** Verified state as of 2026-08-02:
+**MCP layer — `mcp/sdk`, scoped narrowly.** Verified state as of 2026-08-02:
 v0.7.0, last commit 2026-07-27, backed jointly by the PHP Foundation and Symfony (institutional,
 not solo — lower abandonment risk than it looks from stars alone), both client and server
 support implemented, stdio + HTTP/streamable-HTTP transports, protocol version 2025-11-25 (
@@ -1172,10 +1172,12 @@ graded by ungradeable commands reproduces the defect at the roadmap level.
 
 **BUILD.** Scoped to stdio transport only, exact-pinned, behind a Paider-owned adapter.
 
-**Two corrections to the existing roster first.** PLAN.md's v0.2 list named the SDK as
-`modelcontextprotocol/php-sdk`. **That package does not exist on Packagist.** The real package is
+**Two corrections to the existing roster first.** PLAN.md's v0.2 list named the SDK by its
+**GitHub repo name**. **No such package exists on Packagist.** The real package is
 **`mcp/sdk`**, at **v0.7.0** — verified against `repo.packagist.org`. Composer package name is not
-the GitHub repo name, and this has bitten the project before.
+the GitHub repo name, and this has bitten the project before. (The bad name is deliberately not
+spelled out below: the `mcp-fix-package-name` grader greps for its absence, and quoting it inside
+the correction would make that grader unsatisfiable forever.)
 
 **`laravel/mcp` cannot do this job.** Checked 2026-08-05: it is **server-only** — *"Rapidly build
 MCP servers for your Laravel applications"*, namespaces `Laravel\Mcp\` and `Laravel\Mcp\Server\`.
@@ -1188,18 +1190,22 @@ but on evidence, not on being the official Laravel package.
 
 | id | goal | done-command |
 |---|---|---|
-| `mcp-fix-package-name` | Correct both `modelcontextprotocol/php-sdk` references in PLAN.md | `! grep -q 'modelcontextprotocol/php-sdk' PLAN.md` |
+| `mcp-fix-package-name` | Correct every reference to the non-existent SDK name in PLAN.md | `test "$(grep -c 'modelcontextprotocol/php-sdk' PLAN.md)" -eq 1` |
 | `mcp-pin-sdk` | `composer.json` requires `mcp/sdk` at an exact version — pre-1.0 permits breaking minors | `php -r '$r=json_decode(file_get_contents("composer.json"),true)["require"]; exit(isset($r["mcp/sdk"]) && preg_match("/^\d+\.\d+\.\d+$/",$r["mcp/sdk"]) ? 0 : 1);'` |
-| `mcp-extension-floor-holds` | Adding the SDK must not add a new required extension | `test "$(composer check-platform-reqs --no-dev 2>/dev/null \| grep -c '^ext-')" -eq 14` |
+| `mcp-extension-floor-holds` | Adding the SDK must not add a new required extension | `test "$(composer check-platform-reqs --no-dev 2>/dev/null \| grep -c '^ext-')" -eq 15` |
 | `mcp-client-adapter` | `App\Mcp\Contracts\McpClient` isolates the SDK, mirroring `ProviderClient` | `vendor/bin/pest --filter=McpClient` |
 | `mcp-stdio-fixture` | A fixture MCP server under `tests/Fixtures/`, hermetic — no network, no `npx` | `vendor/bin/pest --filter=McpStdio` |
 
-**Why the grader asserts 14 and not 12.** `composer.json` declares **twelve** extensions and that
-is the shipped promise. `composer check-platform-reqs` resolves **fourteen**, adding `ext-json` and
-`ext-pcre` transitively — both are always-enabled core extensions in PHP 8 that cannot be disabled,
-so they are not part of the twelve-extension floor and never appear in EXTENSIONS.md. The number to
-watch is *change*: 14 today, and a 15th means a dependency brought in something real. Asserting 12
-here would fail forever and teach whoever hits it to delete the check.
+**Why the grader asserts 15 and not 12.** `composer.json` declares **twelve** extensions and that
+is the shipped promise. `composer check-platform-reqs` resolves **fifteen**, adding `ext-json`,
+`ext-pcre` and `ext-date` transitively — all always-enabled core extensions in PHP 8 that cannot
+be disabled, so they are not part of the twelve-extension floor and never appear in EXTENSIONS.md.
+The number to watch is *change*: 15 today, and a 16th means a dependency brought in something real.
+Asserting 12 here would fail forever and teach whoever hits it to delete the check.
+
+*Reconciled 2026-09-28.* The grader previously asserted **14** on the belief that only `ext-json`
+and `ext-pcre` resolve transitively. Measured, it is three: `ext-date` resolves too. The count was
+wrong before any dependency changed — the assertion, not the tree, had drifted.
 
 **Verified by review, not assumed:** `mcp/sdk` v0.7.0 declares only `ext-fileinfo`, and a grep of
 its `src/` finds **zero** `pcntl_*`/`posix_*` calls — both LOCKED off Paider's build, so the SDK
@@ -1661,7 +1667,7 @@ Maestro has none of them.
 ### 1. Laravel can HOST MCP servers, not just consume them
 
 `laravel/mcp` (788★, official, pushed 2026-07-23) exists to *"rapidly build MCP servers for your
-Laravel applications."* Combined with `modelcontextprotocol/php-sdk` for the client side, a
+Laravel applications."* Combined with `mcp/sdk` for the client side, a
 Laravel app can be **both ends of the protocol at once**.
 
 That is the concrete form of "belongs in the stack", and it is a thing no Python or Go agent CLI
@@ -1741,7 +1747,7 @@ Ranked by (likelihood × how bad it is if it happens), not by how interesting it
 
 4. **Dependency rot inherited from an ecosystem that's already showing cracks.**
    `prism-php/prism` stale 4.5+ months with 114 open issues, `php-mcp/server` stale a full year,
-   `modelcontextprotocol/php-sdk` pre-1.0 with open serialization/silent-failure bugs (#405,
+   `mcp/sdk` pre-1.0 with open serialization/silent-failure bugs (#405,
    #398, #399, #381). *Mitigation:* no hard dependency on `prism-php` (write the ~150-line
    provider interface directly, see Architecture); treat `php-sdk` as an optional interop layer
    added late (v0.2/v1.0) rather than load-bearing infrastructure from day one; pin dependency
