@@ -43,34 +43,36 @@ class McpClient
     public static function tools(string $projectRoot): array
     {
         if (! self::enabled()) {
-            return [];
+            return McpdClient::toolsFromEnvironment();
         }
+
+        $mcpdTools = McpdClient::toolsFromEnvironment();
 
         $configPath = rtrim($projectRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.self::CONFIG_FILE;
 
         if (! is_file($configPath)) {
-            return [];
+            return $mcpdTools;
         }
 
         try {
             $raw = file_get_contents($configPath);
             $config = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
-            return [];
+            return $mcpdTools;
         }
 
         if (! is_array($config)) {
-            return [];
+            return $mcpdTools;
         }
 
         // Support both {"mcpServers": {"name": {...}}} and {"servers": [...]} shapes
         $servers = $config['mcpServers'] ?? $config['servers'] ?? [];
 
         if (! is_array($servers) || $servers === []) {
-            return [];
+            return $mcpdTools;
         }
 
-        $tools = [];
+        $tools = $mcpdTools;
 
         foreach ($servers as $name => $serverConfig) {
             if (! is_array($serverConfig)) {

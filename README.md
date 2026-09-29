@@ -650,3 +650,8 @@ but because an agent that lives inside your Laravel app knows things an external
 <sub>Every ✅ above is backed by a passing test. Every ⬜ is honest about not existing yet.</sub>
 
 </div>
+
+## MCP and mcpd integration
+
+Paider supports mcpd tool discovery/execution, a foreground `mcpd:daemon` command, and
+`mcp:serve` for exposing project file tools over stdio. See [setup and usage](docs/mcpd.md).
