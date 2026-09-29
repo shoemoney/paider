@@ -3,14 +3,14 @@
 namespace App\Providers;
 
 use App\Tools\Contracts\Tool;
-use App\Tools\McpTool;
-use App\Tools\ToolResult;
-use Mcp\Client;
-use Mcp\Server;
+use Mcp\Exception\ConnectionException;
+use RuntimeException;
 
 /**
- * MCP client provider — wraps modelcontextprotocol/php-sdk v0.7 as Tool adapters.
- * Behind PAIDER_MCP flag and only when mcp.json exists in project root.
+ * MCP client provider — composes two transports into one tool list:
+ *   - mcpd over HTTP (McpdClient), opt-in via PAIDER_MCPD_URL
+ *   - stdio servers from mcp.json (McpStdioClient), opt-in via PAIDER_MCP
+ *
  * Registered via ChatCommand::buildTools() / RunCommand::buildTools().
  */
 class McpClient
@@ -35,8 +35,10 @@ class McpClient
     }
 
     /**
-     * Load MCP tools from mcp.json if enabled and file exists.
-     * Returns empty array when disabled, missing file, or SDK not installed.
+     * Compose the MCP tool list: mcpd HTTP tools (always, if PAIDER_MCPD_URL is set) plus stdio
+     * servers declared in mcp.json (only when PAIDER_MCP is on).
+     *
+     * A stdio server that cannot start raises — see the catch in the loop below.
      *
      * @return array<int, Tool>
      */
@@ -81,74 +83,28 @@ class McpClient
 
             $serverName = is_string($name) ? $name : ($serverConfig['name'] ?? 'mcp');
 
-            // Try to discover tools via SDK if available; otherwise create a stub
-            // that will fail gracefully at execute() time. This keeps the suite green
-            // without requiring a live MCP server or the SDK to be installed.
-            $discovered = self::discoverViaSdk($serverName, $serverConfig);
+            $client = McpStdioClient::fromConfig($serverName, $serverConfig);
 
-            if ($discovered !== []) {
-                array_push($tools, ...$discovered);
-            } else {
-                // Fallback: create a single stub tool per server that indicates MCP is configured
-                // but SDK not available. This still satisfies "registered when mcp.json exists".
-                $tools[] = new McpTool(
-                    toolName: 'mcp__'.preg_replace('/[^a-zA-Z0-9_]/', '_', $serverName).'__list',
-                    description: "MCP server '{$serverName}' (SDK not installed or no tools discovered)",
-                    inputSchema: ['type' => 'object', 'properties' => (object) []],
-                    executor: static fn (array $input, bool $approved) => ToolResult::fail('MCP SDK not installed or server unavailable'),
+            // No `command` means this entry isn't a stdio server — an `url` entry is an HTTP
+            // server and belongs to McpdClient. Silently correct rather than fatal.
+            if ($client === null) {
+                continue;
+            }
+
+            try {
+                array_push($tools, ...$client->tools());
+            } catch (ConnectionException $e) {
+                // A server that cannot start is a CONFIG ERROR, and it must be visible. Silently
+                // dropping it would make "my MCP tools vanished" indistinguishable from "this
+                // server has no tools" — the same class of quiet failure the removed stub
+                // placeholder was guilty of, just with better manners about it.
+                throw new RuntimeException(
+                    "MCP server '{$serverName}' could not be started: ".$e->getMessage(),
+                    previous: $e
                 );
             }
         }
 
         return $tools;
-    }
-
-    /**
-     * Attempt SDK discovery. Returns Tool[] or empty if SDK missing.
-     *
-     * @return array<int, Tool>
-     */
-    private static function discoverViaSdk(string $serverName, array $serverConfig): array
-    {
-        // SDK class existence check — mcp/sdk v0.7 (github modelcontextprotocol/php-sdk)
-        // If not installed, return empty so caller can create stub.
-        if (! class_exists(Client::class) && ! class_exists(Client\Client::class) && ! class_exists(Server::class)) {
-            return [];
-        }
-
-        // The SDK API is still experimental; we handle both possible class names.
-        // We do not actually connect here — connection requires async/stdio setup.
-        // Instead we advertise that the server is available; real connection would be
-        // established at execute() time.
-        try {
-            // If SDK is present, try to list tools via config-provided tools list
-            // Some mcp.json files inline tools; otherwise we return empty to trigger stub.
-            $inlineTools = $serverConfig['tools'] ?? [];
-
-            if (! is_array($inlineTools) || $inlineTools === []) {
-                return [];
-            }
-
-            $tools = [];
-            foreach ($inlineTools as $toolDef) {
-                if (! is_array($toolDef) || ! is_string($toolDef['name'] ?? null)) {
-                    continue;
-                }
-                $tools[] = new McpTool(
-                    toolName: $toolDef['name'],
-                    description: $toolDef['description'] ?? "MCP tool {$toolDef['name']} from {$serverName}",
-                    inputSchema: $toolDef['inputSchema'] ?? ['type' => 'object', 'properties' => (object) []],
-                    executor: static function (array $input, bool $approved) use ($serverName, $toolDef): ToolResult {
-                        // Real MCP call would go through SDK client here.
-                        // For now, fail closed with diagnostic.
-                        return ToolResult::fail("MCP tool {$toolDef['name']} on {$serverName}: SDK execute not yet wired");
-                    },
-                );
-            }
-
-            return $tools;
-        } catch (\Throwable) {
-            return [];
-        }
     }
 }

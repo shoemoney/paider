@@ -1,20 +1,19 @@
 <?php
 
-use App\Providers\McpClient;
-use App\Tools\ToolResult;
+// HISTORY: these tests originally asserted the inline-"tools" placeholder path, which read a
+// `tools:` array out of mcp.json and returned a hardcoded "SDK execute not yet wired" failure.
+// The header note this replaces recorded that assumption as deliberate, and named its own
+// expiry: "If a future version wires real SDK execution, these tests will fail loudly and
+// must be revisited." That version has landed — McpClient now drives a real McpStdioClient
+// over a real JSON-RPC transport — so they were revisited and REPLACED, not deleted.
+//
+// The reasoning that note got right is preserved: a fixture the class under test never calls
+// is dead scaffolding that passes whether or not the code is broken. So the end-to-end stdio
+// contract (discovery, call round-trip, the DECISIONS.md §17 env scrub, unstartable servers,
+// name collisions) lives in McpStdioClientTest.php, where every test drives the shipped path.
+// What remains here is McpClient's own job: config shapes, and composing both transports.
 
-// ASSUMPTION: McpClient::discoverViaSdk() never spawns a subprocess or opens a stdio pipe
-// to a real MCP server in the shipped v0.7.0 code path — it only reads an inline "tools"
-// array out of mcp.json and, when present, builds McpTool adapters whose executor is a
-// hardcoded closure returning ToolResult::fail("... SDK execute not yet wired"). There is
-// no JSON-RPC framing anywhere in this class to round-trip against. Building a fixture
-// stdio MCP server (per the item's "OR" option) would therefore be dead test scaffolding
-// that the class under test never calls — exactly the "fixture constructs its own
-// precondition" trap the item warns about, since the test would pass regardless of whether
-// McpClient itself is broken. Instead, "tool call round-trip" and "error path" below both
-// exercise the REAL, only round trip this class performs: config -> discovered Tool ->
-// execute() -> the deterministic fail ToolResult it ships today. If a future version wires
-// real SDK execution, these tests will fail loudly (wrong output string) and must be revisited.
+use App\Providers\McpClient;
 
 function mcpProjectDir(array $files = []): string
 {
@@ -138,133 +137,116 @@ it('skips non-array server entries', function () {
     });
 });
 
-// --- tools(): discovery shapes -------------------------------------------
+// --- tools(): what McpClient itself is responsible for ---------------------
 
-it('builds a fallback stub tool per server when no inline tools are configured', function () {
+it('starts a configured stdio server and returns its real tools', function () {
     $root = mcpProjectDir(['mcp.json' => json_encode([
-        'mcpServers' => ['My Server!' => ['command' => 'irrelevant']],
+        'mcpServers' => ['fixture' => [
+            'command' => PHP_BINARY,
+            'args' => [base_path('tests/Fixtures/stdio-server.php')],
+        ]],
     ])]);
 
     withMcpEnabled(function () use ($root) {
-        $tools = McpClient::tools($root);
+        $names = array_map(fn ($t) => $t->name(), McpClient::tools($root));
 
-        expect($tools)->toHaveCount(1);
-        expect($tools[0]->name())->toBe('mcp__My_Server___list');
-        expect($tools[0]->description())->toContain("MCP server 'My Server!'");
-
-        $result = $tools[0]->execute([], false);
-        expect($result)->toBeInstanceOf(ToolResult::class);
-        expect($result->ok)->toBeFalse();
-        expect($result->output)->toBe('MCP SDK not installed or server unavailable');
+        expect($names)->toContain('mcp__fixture__echo', 'mcp__fixture__env')
+            ->and($names)->not->toContain('mcp__fixture__list');
     });
 });
 
-it('discovers inline tools from a server config under the mcpServers shape', function () {
-    $root = mcpProjectDir(['mcp.json' => json_encode([
-        'mcpServers' => [
-            'files' => [
-                'tools' => [
-                    [
-                        'name' => 'read_file',
-                        'description' => 'Reads a file',
-                        'inputSchema' => ['type' => 'object', 'properties' => ['path' => ['type' => 'string']]],
-                    ],
-                ],
-            ],
-        ],
-    ])]);
-
-    withMcpEnabled(function () use ($root) {
-        $tools = McpClient::tools($root);
-
-        expect($tools)->toHaveCount(1);
-        expect($tools[0]->name())->toBe('read_file');
-        expect($tools[0]->description())->toBe('Reads a file');
-        expect($tools[0]->inputSchema())->toBe(['type' => 'object', 'properties' => ['path' => ['type' => 'string']]]);
-    });
-});
-
-it('discovers inline tools under the list-shaped servers key, falling back to serverName "mcp"', function () {
+it('honours the list-shaped servers key, falling back to the default server name', function () {
     $root = mcpProjectDir(['mcp.json' => json_encode([
         'servers' => [
-            ['tools' => [['name' => 'ping']]],
+            ['command' => PHP_BINARY, 'args' => [base_path('tests/Fixtures/stdio-server.php')]],
         ],
     ])]);
 
     withMcpEnabled(function () use ($root) {
-        $tools = McpClient::tools($root);
+        $names = array_map(fn ($t) => $t->name(), McpClient::tools($root));
 
-        expect($tools)->toHaveCount(1);
-        expect($tools[0]->name())->toBe('ping');
-        expect($tools[0]->description())->toBe('MCP tool ping from mcp');
+        expect($names)->toContain('mcp__mcp__echo');
     });
 });
 
-it('skips tool definitions that are missing a string name', function () {
+it('raises rather than registering a fake tool when a server cannot start', function () {
     $root = mcpProjectDir(['mcp.json' => json_encode([
-        'mcpServers' => ['demo' => ['tools' => [
-            ['description' => 'no name here'],
-            'not-even-an-array',
-            ['name' => 'valid_one'],
-        ]]],
+        'mcpServers' => ['gone' => ['command' => '/nonexistent/definitely-not-a-real-binary']],
     ])]);
 
     withMcpEnabled(function () use ($root) {
-        $tools = McpClient::tools($root);
-
-        expect($tools)->toHaveCount(1);
-        expect($tools[0]->name())->toBe('valid_one');
+        // The old fallback registered mcp__gone__list and returned it happily. A server that
+        // cannot start is a config error, and it has to be visible — otherwise "my MCP tools
+        // disappeared" is indistinguishable from "that server has no tools".
+        expect(fn () => McpClient::tools($root))->toThrow(RuntimeException::class);
     });
 });
 
-it('defaults an unnamed inline tool description and schema', function () {
+it('ignores a url-only server entry, which is HTTP and belongs to McpdClient', function () {
     $root = mcpProjectDir(['mcp.json' => json_encode([
-        'mcpServers' => ['demo' => ['tools' => [['name' => 'bare']]]],
+        'mcpServers' => ['remote' => ['url' => 'https://example.com/mcp']],
     ])]);
 
     withMcpEnabled(function () use ($root) {
-        $tools = McpClient::tools($root);
-
-        expect($tools[0]->description())->toBe('MCP tool bare from demo');
-        expect($tools[0]->inputSchema())->toHaveKey('type', 'object');
+        expect(McpClient::tools($root))->toBe([]);
     });
 });
 
-// --- tools(): the execute() round trip & error path -----------------------
-
-it('round-trips a discovered inline tool call to the deterministic not-wired failure', function () {
-    $root = mcpProjectDir(['mcp.json' => json_encode([
-        'mcpServers' => ['weather' => ['tools' => [
-            ['name' => 'get_forecast', 'inputSchema' => ['type' => 'object']],
-        ]]],
-    ])]);
-
-    withMcpEnabled(function () use ($root) {
-        $tools = McpClient::tools($root);
-        $tool = $tools[0];
-
-        $result = $tool->execute(['city' => 'Dallas'], true);
-
-        expect($result)->toBeInstanceOf(ToolResult::class);
-        expect($result->ok)->toBeFalse();
-        expect($result->output)->toBe('MCP tool get_forecast on weather: SDK execute not yet wired');
-        expect($result->meta)->toBe([]);
-    });
-});
-
-it('returns a failing ToolResult on the error path for a server with no discoverable tools', function () {
+it('returns no tools when PAIDER_MCPD_URL is unset and mcp.json holds no runnable server', function () {
     $root = mcpProjectDir(['mcp.json' => json_encode([
         'mcpServers' => ['empty' => ['tools' => []]],
     ])]);
 
     withMcpEnabled(function () use ($root) {
-        $tools = McpClient::tools($root);
-
-        expect($tools)->toHaveCount(1);
-
-        $result = $tools[0]->execute(['anything' => true]);
-
-        expect($result->ok)->toBeFalse();
-        expect($result->output)->toBe('MCP SDK not installed or server unavailable');
+        // Inline `tools:` is no longer a supported shape — it was the placeholder's input. An
+        // entry with neither `command` nor `url` is skipped, not turned into a fake tool.
+        expect(McpClient::tools($root))->toBe([]);
     });
+});
+
+it('composes mcpd HTTP tools and stdio tools into one list', function () {
+    $root = mcpProjectDir(['mcp.json' => json_encode([
+        'mcpServers' => ['fixture' => [
+            'command' => PHP_BINARY,
+            'args' => [base_path('tests/Fixtures/stdio-server.php')],
+        ]],
+    ])]);
+
+    // McpdClient is selected purely by PAIDER_MCPD_URL, so a real loopback listener is the only
+    // honest way to prove the env wiring actually merges the two transports. A real socket, not a
+    // mocked Guzzle handler: a mock would test McpdClient in isolation and prove nothing about
+    // composition.
+    //
+    // Deliberately NO pcntl_fork: EXTENSIONS.md records pcntl as CUT from the shipped binary, so
+    // a suite that needs it would fail in the exact lean environment this project optimizes for.
+    // The server is a second PHP process instead — portable, and it also proves the stub test's
+    // "no subprocess" note is no longer a constraint that needs honouring.
+    $listener = proc_open(
+        [PHP_BINARY, __DIR__.'/../Fixtures/mcpd-stub-server.php'],
+        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes
+    );
+    $port = trim(fgets($pipes[1]));
+
+    try {
+        expect($port)->toMatch('/^[0-9]+$/');
+
+        putenv('PAIDER_MCPD_URL=http://127.0.0.1:'.$port);
+
+        withMcpEnabled(function () use ($root) {
+            $names = array_map(fn ($t) => $t->name(), McpClient::tools($root));
+
+            // Both transports in one list: the mcpd tool discovered over HTTP AND the stdio
+            // tools from the fixture process. The placeholder could never have shown this.
+            expect($names)->toContain('mcp__fixture__echo')
+                ->and($names)->toContain('mcp__fixture__env')
+                ->and($names)->toHaveCount(3);
+        });
+    } finally {
+        putenv('PAIDER_MCPD_URL');
+        proc_terminate($listener);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        proc_close($listener);
+    }
 });
