@@ -177,6 +177,89 @@ class EventLog
     }
 
     /**
+     * The session id of the most recent event that has one, or null for an empty log.
+     *
+     * Replaces a full forward scan that walked every event in the log to find the last
+     * session_start. `--session` needs exactly one number and was paying for the entire history
+     * to compute it.
+     *
+     * Bounded walk rather than a bare LIMIT 1: rows written before the session_id field existed
+     * (pre-v0.3) carry none, and the log is ordered by insertion, so the newest event is
+     * normally the answer — but a truncated table ending in a legacy row would return null
+     * rather than the correct earlier session. Fifty rows is far more than enough to clear any
+     * realistic run of legacy rows while staying a bounded read.
+     *
+     * Kept in PHP rather than pushed into SQL because session_id lives inside the JSON payload,
+     * and the accessor differs per driver (Postgres payload->>'session_id', SQLite
+     * json_extract) — one walk is honest about that, two SQL dialects are not.
+     */
+    public function lastSessionId(int $lookback = 50): ?string
+    {
+        $statement = $this->pdo->query(
+            'SELECT payload FROM events ORDER BY seq DESC LIMIT '.max(1, $lookback)
+        );
+
+        while ($row = $statement->fetch(PDO::FETCH_ASSOC)) {
+            $payload = json_decode((string) $row['payload'], true);
+
+            if (is_array($payload) && isset($payload['session_id']) && is_string($payload['session_id'])) {
+                return $payload['session_id'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The most recent event matching any of $types, or null.
+     *
+     * Exists because "what happened last" is a question the log should answer without loading
+     * the log. Two callers wanted exactly the last tool_call/test_run and both reached for
+     * `all()` + `array_reverse()`, which materialises every event — on a long-lived project that
+     * is the whole history in memory as decoded arrays, to read one row off the end.
+     *
+     * The query is DESC + LIMIT 1, so it is a single index seek and a single row returned, no
+     * matter how large the table is. The in-PHP `while` exists only to peel rows off the cursor
+     * one at a time; Postgres and SQLite both stream, so this never materialises a result set.
+     *
+     * @param  array<int, string>  $types
+     * @return array{id: string, type: string, payload: array<string, mixed>, created_at: string}|null
+     */
+    public function lastOf(array $types): ?array
+    {
+        if ($types === []) {
+            return null;
+        }
+
+        // Placeholders, not interpolated type names: the values come from a fixed call site, but
+        // binding them keeps this method incapable of producing invalid SQL no matter who calls
+        // it with what.
+        $placeholders = implode(',', array_fill(0, count($types), '?'));
+
+        $statement = $this->pdo->prepare(
+            "SELECT id, type, payload, created_at FROM events
+             WHERE type IN ({$placeholders})
+             ORDER BY seq DESC
+             LIMIT 1"
+        );
+
+        $statement->execute(array_values($types));
+
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+        if (! is_array($row)) {
+            return null;
+        }
+
+        return [
+            'id' => (string) $row['id'],
+            'type' => (string) $row['type'],
+            'payload' => json_decode((string) $row['payload'], true, 512, JSON_THROW_ON_ERROR),
+            'created_at' => (string) $row['created_at'],
+        ];
+    }
+
+    /**
      * Every event, streamed straight off the PDO cursor — constant memory regardless
      * of log size. PDO_SQLite steps row-by-row (unlike mysqlnd it does not client-
      * buffer the whole result set), so a projection like CostLedger::summary() that

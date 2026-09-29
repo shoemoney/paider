@@ -28,17 +28,12 @@ class CostCommand extends Command
     {
         $eventLog = new EventLog(Database::connect());
         $sessionId = null;
+
         if ($this->option('session')) {
-            // Find most recent session_id from stream (last session_start's id)
-            $lastSessionId = null;
-            foreach ($eventLog->stream() as $event) {
-                if ($event['type'] === 'session_start') {
-                    $lastSessionId = $event['payload']['session_id'] ?? null;
-                } elseif (isset($event['payload']['session_id'])) {
-                    $lastSessionId = $event['payload']['session_id'];
-                }
-            }
-            $sessionId = $lastSessionId;
+            // One bounded backward walk, not a scan of the whole history. Every event carries the
+            // session_id EventLog stamped at write time, so the most recent one IS the current
+            // session — the old loop walked every event in the log to reach the same answer.
+            $sessionId = $eventLog->lastSessionId();
         }
         $summary = (new CostLedger($eventLog))->summary($sessionId);
 

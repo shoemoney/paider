@@ -92,22 +92,19 @@ class RunCommand extends Command
             return self::FAILURE;
         }
 
-        // Check if last tool_call failed — exit non-zero for CI
-        // EventLog::all()/stream() already json_decode()s the payload column, so $event['payload']
-        // is an array here already — re-decoding it threw a TypeError on every real run that
-        // reached a tool_call/test_run event (caught by RunCommandTest.php).
-        $events = $eventLog->all();
-        foreach (array_reverse($events) as $event) {
-            if ($event['type'] === 'tool_call' || $event['type'] === 'test_run') {
-                $payload = $event['payload'];
-                if (isset($payload['ok']) && $payload['ok'] === false) {
-                    return self::FAILURE;
-                }
-                break;
-            }
+        // Check if last tool_call failed — exit non-zero for CI.
+        //
+        // lastOf() answers this as one indexed DESC LIMIT 1 row. It used to be
+        // $eventLog->all() + array_reverse(), which decodes the ENTIRE history into memory to
+        // read one event off the end — on a long-lived project that is the whole log as arrays,
+        // and it scales with total history rather than with the question being asked.
+        $last = $eventLog->lastOf(['tool_call', 'test_run']);
+
+        if ($last !== null && isset($last['payload']['ok']) && $last['payload']['ok'] === false) {
+            return self::FAILURE;
         }
 
-        if ($this->option('require-edit') && ! $this->sessionLandedAnEdit($eventLog, $events)) {
+        if ($this->option('require-edit') && ! $this->sessionLandedAnEdit($eventLog)) {
             $this->error('--require-edit: no write_file/patch_file tool call succeeded this run — nothing was edited.');
 
             return self::FAILURE;
@@ -120,12 +117,17 @@ class RunCommand extends Command
      * Scoped to THIS run's session_id, not just "the last matching event" — EventLog persists
      * across sessions in .paider/paider.db, so a prior session's successful write must not
      * satisfy --require-edit for a run that landed no edit of its own.
+     *
+     * Streams and returns on the first match. Passing the whole log in was the other half of
+     * the memory problem above, and it was avoidable: the answer is a boolean that usually
+     * resolves in the first few rows of a fresh session, so nothing after the first match is
+     * ever read.
      */
-    private function sessionLandedAnEdit(EventLog $eventLog, array $events): bool
+    private function sessionLandedAnEdit(EventLog $eventLog): bool
     {
         $sessionId = $eventLog->sessionId();
 
-        foreach ($events as $event) {
+        foreach ($eventLog->stream() as $event) {
             $payload = $event['payload'];
             if ($event['type'] === 'tool_call'
                 && ($payload['session_id'] ?? null) === $sessionId
