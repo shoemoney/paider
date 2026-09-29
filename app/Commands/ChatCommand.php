@@ -113,7 +113,7 @@ class ChatCommand extends Command
 
         Palette::render(sprintf(
             '<div class="mb-1">
-                <span class="%1$s">type </span><span class="%2$s">/quit</span><span class="%1$s"> to exit</span>
+                <span class="%1$s">type </span><span class="%2$s">/quit</span><span class="%1$s"> (or exit) to quit</span>
             </div>',
             Palette::tw(ColorRole::Muted),
             Palette::tw(ColorRole::Accent),
@@ -189,7 +189,26 @@ class ChatCommand extends Command
     {
         $line = trim($line);
 
-        if ($line === '' || $line[0] !== '/') {
+        if ($line === '') {
+            return false;
+        }
+
+        // "exit" / "quit" / "q" quit. Before this, anything not starting with '/' fell straight
+        // through to $loop->turn(), so the single most natural thing a new user types on their
+        // first message — "exit" — was sent to the model and BILLED as a tier_call, then
+        // answered with a confused reply. The hint line named only /quit, which is exactly why
+        // someone would type the English word instead.
+        //
+        // Caught by a reviewer reading the project's own TUI capture, which shows `exit` sitting
+        // in the input box with a spinner already running. A screenshot of your own product
+        // showing a money bug is a better bug report than a ticket.
+        if (preg_match('/^(?:exit|quit|q)$/i', $line) === 1) {
+            $this->quitRequested = true;
+
+            return true;
+        }
+
+        if ($line[0] !== '/') {
             return false;
         }
 

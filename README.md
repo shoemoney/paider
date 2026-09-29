@@ -9,7 +9,7 @@
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
 [![packagist](https://img.shields.io/badge/packagist-v1.0.1%20⚠️%20see%20erratum-blueviolet?style=for-the-badge)](https://packagist.org/packages/paider/paider)
 [![ci](https://img.shields.io/github/actions/workflow/status/shoemoney/paider/tests.yml?style=for-the-badge&label=tests)](https://github.com/shoemoney/paider/actions/workflows/tests.yml)
-[![tests](https://img.shields.io/badge/tests-518%20passing-brightgreen?style=for-the-badge)](tests/)
+[![tests](https://img.shields.io/badge/tests-570%20passing-brightgreen?style=for-the-badge)](tests/)
 [![cold start](https://img.shields.io/badge/cold%20start-94.8ms-success?style=for-the-badge)](#-measured-not-estimated)
 
 Built on [Laravel Zero](https://laravel-zero.com) · [Laravel Prompts](https://laravel.com/docs/prompts) · [Termwind](https://github.com/nunomaduro/termwind) · [MCP PHP SDK](https://github.com/modelcontextprotocol/php-sdk) *(v0.2)*
@@ -40,7 +40,7 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `cost`, `run`, `config:provider`, `config:show` all register and run |
 | 🔧 nine tools (7 + 2 conditional) | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `fetch_url`, `memory`, `git` + `artisan` (when `artisan` file exists) + `load_skill` (when skills indexed) |
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection; stored in `.paider/` (gitignored locally) |
-| 🧪 test suite | ✅ **518 passing**, 2975 assertions | hermetic by default; 3 live tests via `vendor/bin/pest --group=live` |
+| 🧪 test suite | ✅ **570 passing**, 3370 assertions | hermetic by default. 24 skip without `PAIDER_TEST_PG_URL` (Postgres/pgvector storage, RAG, library index) and 3 live tests run via `vendor/bin/pest --group=live` |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
 | 🌍 end-to-end edit in a foreign repo | ✅ **3/3 live runs** (2026-08-18) | `vlucas/valitron@fadce39f`, pre-registered rubric ([`m1/bench/RUBRIC.md`](m1/bench/RUBRIC.md)), evidence committed in `m1/runs/` — $1.57 across the three passes; run 0 failed the rubric and is committed too |
 | 📦 published on Packagist | ✅ **published** | `paider/paider` at https://packagist.org/packages/paider/paider |
@@ -170,12 +170,16 @@ $ paider cost
 > with these volumes, runs the real command, and asserts the output matches. The table cannot drift
 > from the code in either direction without a failing test.
 >
-> **`--json` shape.** Same data, machine-readable: `{tiers, session, unpriced_calls, comparison}`.
+> **`--json` shape.** Same data, machine-readable:
+> `{tiers, session, unpriced_calls, model_mismatches, comparison}`.
 > Each entry under `tiers` (and the `session` row, minus `share_pct`) carries `calls, tokens_in,
-> tokens_out, tokens_cache_write, tokens_cache_read, spend_usd, unpriced_calls, unpriced_models, hypothetical_usd, hypothetical_unknown,
-> share_pct`. `unpriced_calls` is a list of `{tier, count, calls, models}`. `comparison` is
-> `{hypothetical_usd, saved_usd, token_share_pct, spend_share_pct}`. Pinned by `CostJsonGoldenTest`
-> — an added, removed, or renamed key fails the suite, including on an empty ledger.
+> tokens_out, tokens_cache_write, tokens_cache_read, spend_usd, unpriced_calls, unpriced_models,
+> mismatched_calls, mismatched_models, cache_hits, cache_saved_usd, cache_unpriced_hits,
+> hypothetical_usd, hypothetical_unknown, share_pct`. `unpriced_calls` is a list of
+> `{tier, count, calls, models}`, `model_mismatches` a list of `{tier, count, mappings}`, and
+> `comparison` is `{hypothetical_usd, saved_usd, token_share_pct, spend_share_pct}`. Pinned by
+> `CostJsonGoldenTest` — an added, removed, or renamed key fails the suite, including on an empty
+> ledger.
 >
 > **Note on cache tokens:** The `spend_usd` is calculated from four token types at write time: `tokens_in`, `tokens_out`, plus Anthropic's cache write and cache read tokens when present. The `tokens_in` and `tokens_out` fields shown above do not itemize cache tokens separately, but they are priced and included in spend. On cached workloads this is significant — measured on real sessions, cache tokens represent ~93% of cost. See `PricesSyncTest` for the cache pricing contract and `config/prices.php` for rates per model.
 
@@ -354,7 +358,7 @@ vendor/bin/pest --group=live
   Measure both. Never derive one from the other.
 -->
 
-**Hermetic suite** (`vendor/bin/pest`, 518 tests, 2975 assertions) — all provider interactions mocked via Guzzle;
+**Hermetic suite** (`vendor/bin/pest`, 570 tests, 3370 assertions) — all provider interactions mocked via Guzzle;
 proves self-consistency, zero cost. Excluded group: `live`. This is the number in the badge above;
 the live suite is 3 more on top, **not** part of it.
 

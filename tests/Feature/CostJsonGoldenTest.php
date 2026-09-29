@@ -104,3 +104,37 @@ it('still emits the pinned --json key structure, with real zeroes, on an empty l
         ->and($data['comparison']['token_share_pct'])->toBeNull()
         ->and($data['comparison']['spend_share_pct'])->toBeNull();
 });
+
+it('the README documents the key set the golden test pins', function () {
+    // The README claimed to be "Pinned by CostJsonGoldenTest — an added, removed, or renamed key
+    // fails the suite". It was pinned in ONE direction only: the test pinned what the command
+    // emits, and nothing pinned what the README SAYS the command emits. So the prose drifted —
+    // model_mismatches, mismatched_calls, mismatched_models, cache_hits, cache_saved_usd and
+    // cache_unpriced_hits were all real and all missing from the documentation — while the test
+    // stayed green and the claim stayed in the README.
+    //
+    // Found by an adversarial review. This closes the loop: the documented shape is now derived
+    // from the same constant the test asserts against, so the two cannot disagree.
+    $pinned = costJsonKeySets();
+    $readme = (string) file_get_contents(base_path('README.md'));
+
+    // toContain() takes ONLY needles (Pest's signature is toContain(mixed ...$needles)), so a
+    // message cannot be passed as a second argument — it becomes another needle and the test
+    // searches for its own error text. That is why the keys are checked as a diffed LIST below
+    // rather than one assertion per key with a message.
+    $missingTop = array_values(array_filter(
+        $pinned['top'],
+        static fn (string $key): bool => ! str_contains($readme, $key)
+    ));
+
+    expect($missingTop)->toBe([], 'README does not document these top-level keys: '.implode(', ', $missingTop));
+
+    $tierList = substr($readme, strpos($readme, 'Each entry under `tiers`') ?: 0, 1200);
+
+    $missingTier = array_values(array_filter(
+        $pinned['tier'],
+        static fn (string $key): bool => ! str_contains($tierList, $key)
+    ));
+
+    expect($missingTier)->toBe([], 'README does not document these tier keys: '.implode(', ', $missingTier));
+});

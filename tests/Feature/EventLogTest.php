@@ -156,3 +156,24 @@ it('an empty log reports no session rather than throwing', function () {
     $log = new EventLog(Database::connect(':memory:'));
     expect($log->lastSessionId())->toBeNull();
 });
+
+it('lastOf() with a session id ignores another run\'s verdict', function () {
+    $log = new EventLog(Database::connect(':memory:'));
+    $previousSession = $log->sessionId();
+
+    // A failure belonging to THIS session.
+    $log->append('tool_call', ['tool' => 'write_file', 'ok' => false]);
+
+    // A second EventLog on the SAME database — a different run, sharing .paider/paider.db.
+    $next = new EventLog(Database::connect(':memory:'));
+    expect($next->sessionId())->not->toBe($previousSession);
+
+    // Unscoped, the previous run's failure is the newest row of that type, and a CI job that
+    // asked a question and made no tool calls would exit red on last run's verdict.
+    expect($log->lastOf(['tool_call'])['payload']['ok'])->toBeFalse()
+        // Scoped to the new run, there is nothing to report.
+        ->and($log->lastOf(['tool_call'], $next->sessionId()))->toBeNull();
+
+    // And a scoped hit still works when the session does have such an event.
+    expect($log->lastOf(['tool_call'], $previousSession)['payload']['ok'])->toBeFalse();
+});

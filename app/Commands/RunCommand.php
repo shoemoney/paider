@@ -94,11 +94,16 @@ class RunCommand extends Command
 
         // Check if last tool_call failed — exit non-zero for CI.
         //
-        // lastOf() answers this as one indexed DESC LIMIT 1 row. It used to be
-        // $eventLog->all() + array_reverse(), which decodes the ENTIRE history into memory to
-        // read one event off the end — on a long-lived project that is the whole log as arrays,
-        // and it scales with total history rather than with the question being asked.
-        $last = $eventLog->lastOf(['tool_call', 'test_run']);
+        // lastOf() answers this as one indexed DESC LIMIT 1 row, scoped to THIS session. It used
+        // to be all() + array_reverse(), which decoded the ENTIRE history into memory to read
+        // one event off the end — scaling with total history rather than with the question.
+        //
+        // The session scope is not optional. EventLog persists across runs in
+        // .paider/paider.db, so an UNSCOPED "last failing tool_call" is a previous run's verdict
+        // wearing this run's exit code: a CI job that asked a question, made no tool calls, and
+        // still went red because the last thing that happened last week failed. The method
+        // immediately below this one already argues exactly that point in its docblock.
+        $last = $eventLog->lastOf(['tool_call', 'test_run'], $eventLog->sessionId());
 
         if ($last !== null && isset($last['payload']['ok']) && $last['payload']['ok'] === false) {
             return self::FAILURE;

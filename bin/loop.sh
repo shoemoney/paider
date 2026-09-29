@@ -92,8 +92,11 @@ done=0
 # Highest iteration NUMBER seen, not a file count: each round writes up to four files
 # (raw.json, .json, .md, -unparsed.md) and counting files numbered round 3's output as rounds
 # 3,4,5,6 makes the next round announce itself as round 9.
+# BSD sed does not support \+ in a BRE, so the original pattern matched nothing and every
+# round announced itself as round 1. This is the portable form: a bracket expression with a
+# quantifier on the WHOLE class, which is POSIX and works on both seds.
 iteration=$(ls -1 "$REVIEWS" 2>/dev/null \
-    | sed -n 's/^iter\([0-9]\+\).*/\1/p' \
+    | sed -n 's/^iter\([0-9][0-9]*\).*/\1/p' \
     | sort -n | tail -1)
 iteration=${iteration:-0}
 

@@ -5,3 +5,7 @@ qwen/qwen3.7-flash
 unreasoning:~z-ai/glm-flash-latest
 ~deepseek/deepseek-flash-latest
 inclusionai/ling-3.0-flash-vl
+openai/gpt-5-nano
+nex-agi/nex-n2.5-mini
+unreasoning:nex-agi/nex-n2.5-mini
+qwen/qwen3.8-27b

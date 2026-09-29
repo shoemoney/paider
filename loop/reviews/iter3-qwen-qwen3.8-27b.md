@@ -1,0 +1,96 @@
+# Review — qwen/qwen3.8-27b (iteration 3)
+
+**Usage:** {"prompt_tokens":64652,"completion_tokens":11813,"total_tokens":76465,"cost":0.04150508,"is_byok":false,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":0,"audio_tokens":0,"video_tokens":0},"cost_details":{"upstream_inference_cost":0.04150508,"upstream_inference_prompt_cost":0.01551648,"upstream_inference_completions_cost":0.0259886},"completion_tokens_details":{"reasoning_tokens":9297,"image_tokens":0,"audio_tokens":0}}
+
+## Verdict
+
+Genuinely in good shape for an alpha: the append-only ledger-as-projection, the unpriced-≠-$0.00 discipline, and the fromEnvironment-vs-get permission split are real, tested design, and the docs are refreshingly honest (erratum, 'what this is not', measured numbers). The single biggest thing that would make it better is making the clone-to-RCE boundary total: skills and .paider/.env are walled off, but a project's mcp.json still names an arbitrary command that Paider spawns at `chat` startup when PAIDER_MCP is set — the one hole in the project's own security story. Second biggest: the suite the README swears is '569 passing / green' actually has a failing test.
+
+## Strengths
+
+- CostLedger as a pure read-side projection over an append-only log, with the 'unpriced is unknown, never $0.00' rule pinned by tests, is a real and well-argued design.
+- ProjectEnv::fromEnvironment() vs get() cleanly separates preferences from permissions (PAIDER_DATABASE_URL / PAIDER_EMBEDDING_URL / PAIDER_YOLO), closing a live credential-exfil path and tested both directions.
+- The docs are unusually honest — an erratum on the early v1.0 tags, a 'what this is not' section, and measured-not-estimated cold-start/size numbers with wrong turns left in.
+
+## Findings
+
+### 1. Stop advertising a green suite while one test is red
+
+- **severity:** high  
+- **area:** testing  
+- **effort:** M
+
+**Reason.** The README's status table and badge claim '✅ 569 passing, 3368 assertions' and the badge reads '569 passing', and the 'Test suites' section repeats '569 tests, 3368 assertions'. The measured hermetic run is '1 failed, 24 skipped, 569 passed (3370 assertions)'. So the claim hides a failing test and is off by two assertions — and the README's own HTML comment insists 'Measure both. Never derive one from the other', which is exactly the discipline being violated. A shipping project whose flagship 'hermetic by default' suite is red, presented as green, is a trust problem for a tool whose entire pitch is checkable honesty.
+
+**Suggestion.** Identify and fix the single failing hermetic test (or, if it is environment-dependent, move it to a skip with a reason rather than letting it fail). Then regenerate the badge and the three '569 / 3368' call-sites from one measured source, and add a CI gate that fails the build on any non-zero failure count so the badge can never again lead the tree.
+
+**Evidence.**
+
+```
+README: `[![tests](https://img.shields.io/badge/tests-569%20passing-brightgreen...)]` and '🧪 test suite | ✅ **569 passing**, 3368 assertions' vs measured 'Tests: 1 failed, 24 skipped, 569 passed (3370 assertions)'
+```
+
+### 2. Close the mcp.json clone-to-RCE gap the skill boundary already closed
+
+- **severity:** high  
+- **area:** security  
+- **effort:** M
+
+**Reason.** McpClient::tools() reads `$projectRoot/mcp.json` (a file a cloned repo ships) and, for each entry, McpStdioClient::fromConfig() takes `$command`/`$args`/`$cwd` straight from that file and `tools()` → withClient() → connect() spawns the process at `chat` startup — no Gate, no PathGuard, no approval on discovery. The ShellEnv::build() scrub only removes provider keys; the spawned process still has full filesystem/network capability as the user. This is the exact 'clone-to-RCE' shape SkillLibrary's docblock says is 'exactly as dangerous as a repository-controlled .paider/.env' and LibraryIndex::refusesPath() works hard to block — yet a repo's mcp.json executes arbitrary commands the moment PAIDER_MCP is on. The boundary is total for skills and .env and open for mcp.json.
+
+**Suggestion.** Treat mcp.json as untrusted input, not config: by default refuse project-local mcp.json the way project-local skills are refused (print the SkillLibrary-style notice), and only load MCP server definitions from an operator-named path (e.g. ~/.paider/mcp.json or an explicit --mcp-config), or require a per-server approval grant before the first spawn. At minimum, never auto-spawn a command sourced from getcwd() without an explicit human yes.
+
+**Evidence.**
+
+```
+McpClient::tools(): `$configPath = rtrim($projectRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.self::CONFIG_FILE;` ... `array_push($tools, ...$client->tools());` and McpStdioClient::fromConfig: `$command = $config['command'] ?? null;` → `new StdioTransport(command: $this->command, ...)`; contrast SkillLibrary: 'a directory a cloned REPOSITORY controls is exactly as dangerous as a repository-controlled `.paider/.env`'
+```
+
+### 3. Surface a malformed mcp.json instead of silently dropping the servers
+
+- **severity:** medium  
+- **area:** mcp  
+- **effort:** S
+
+**Reason.** In McpClient::tools(), a JSON parse failure on mcp.json is swallowed: `catch (\JsonException) { return $mcpdTools; }`. Ten lines later the ConnectionException path does the opposite and throws, with a comment stating the project's own rule: 'A server that cannot start is a CONFIG ERROR, and it must be visible. Silently dropping it would make "my MCP tools vanished" indistinguishable from "this server has no tools".' The JSON catch violates that rule for the most common config mistake (a typo in mcp.json): the user configured stdio servers, gets a syntax error, and Paider quietly runs with none of them — the precise quiet failure the placeholder stub was removed for.
+
+**Suggestion.** Replace `catch (\JsonException) { return $mcpdTools; }` with a throw (or, for chat, a visible Palette::render error line) that names the file and the parse error, matching the loudness of the ConnectionException branch. Same for an unreadable file (file_get_contents returning false currently also falls through to the silent return).
+
+**Evidence.**
+
+```
+McpClient::tools(): `try { $raw = file_get_contents($configPath); $config = json_decode($raw, true, 512, JSON_THROW_ON_ERROR); } catch (\JsonException) { return $mcpdTools; }` vs `catch (ConnectionException $e) { throw new RuntimeException("MCP server '{$serverName}' could not be started: ...") }`
+```
+
+### 4. Re-capture the hero image — it shows the billed-exit bug the code already fixed
+
+- **severity:** medium  
+- **area:** ui  
+- **effort:** S
+
+**Reason.** The README's hero capture (bin/capture-tui.sh) shows 'exit' sitting in the input box with a provider spinner already running ('🐘 ◐ anthropic/claude-opus-'), i.e. the word 'exit' being sent to and billed by the model. But ChatCommand::handleSlashCommand now intercepts it: `if (preg_match('/^(?:exit|quit|q)$/i', $line) === 1) { $this->quitRequested = true; return true; }`, whose own comment says this was 'Caught by a reviewer reading the project's own TUI capture, which shows `exit` sitting in the input box with a spinner already running.' So the shipped hero image is the pre-fix capture, now stale, and it demonstrates a money bug the current code does not have — the README is presenting a fixed defect as the product's current face. Secondary: the hint line renders with collapsed spacing ('type/quitto exit' rather than 'type /quit (or exit) to quit'), a legibility defect in the same capture.
+
+**Suggestion.** Re-run bin/capture-tui.sh against the current tree so the hero shows 'exit' quitting cleanly with no spinner, and verify the 'type /quit (or exit) to quit' line renders with correct inter-word spacing (check the Termwind span classes in ChatCommand::handle for a missing space). Commit the new capture and drop the old one.
+
+**Evidence.**
+
+```
+Screenshot: input box 'exit' + spinner '🐘 ◐ anthropic/claude-opus-'; ChatCommand::handleSlashCommand: `if (preg_match('/^(?:exit|quit|q)$/i', $line) === 1) { $this->quitRequested = true; return true; }` — comment: 'shows `exit` sitting in the input box with a spinner already running'
+```
+
+### 5. Make seq assignment atomic — the read-then-write race breaks the load-bearing order
+
+- **severity:** medium  
+- **area:** storage  
+- **effort:** M
+
+**Reason.** EventLog::nextSeq() does `SELECT COALESCE(MAX(seq),0)` then `INSERT ... seq = max+1` with no lock, and the comment waves it off: 'Two concurrent writers CAN interleave and take the same number. That is survivable ... the ledger sums values, it does not address events by seq.' That justification is incomplete: stream() orders by `seq ASC` and its own docblock calls 'the insertion order ... the load-bearing property here', and SessionStore::messages() replays session_message events in that order while MemoryStore relies on 'latest write wins'. Database.php explicitly anticipates concurrent writers ('two terminals, a hook and a chat session'), so two processes can both read MAX=N and both insert seq=N+1, producing a tie whose relative order stream() returns non-deterministically — a silently mis-ordered conversation, not a cosmetic glitch, exactly the failure the comment dismisses.
+
+**Suggestion.** Serialize the increment: keep a single-row counter (e.g. a `seq_meta` table) and, inside one transaction per insert, `UPDATE seq_meta SET seq = seq + 1` then INSERT with the returned value, on both drivers; and as a belt-and-suspenders determinism guarantee, change stream()/lastOf() to `ORDER BY seq ASC, created_at ASC, id ASC` so any residual tie resolves to a stable, documented order.
+
+**Evidence.**
+
+```
+EventLog::nextSeq(): `$max = $this->pdo->query('SELECT COALESCE(MAX(seq), 0) FROM events')->fetchColumn(); return (int) $max + 1;` comment 'Two concurrent writers CAN interleave and take the same number ... the ledger sums values, it does not address events by seq' vs stream(): 'the insertion order is the load-bearing property here'
+```
+

@@ -234,9 +234,10 @@ class EventLog
      * one at a time; Postgres and SQLite both stream, so this never materialises a result set.
      *
      * @param  array<int, string>  $types
+     * @param  string|null  $sessionId  restrict to one session — see below
      * @return array{id: string, type: string, payload: array<string, mixed>, created_at: string}|null
      */
-    public function lastOf(array $types): ?array
+    public function lastOf(array $types, ?string $sessionId = null): ?array
     {
         if ($types === []) {
             return null;
@@ -247,27 +248,45 @@ class EventLog
         // it with what.
         $placeholders = implode(',', array_fill(0, count($types), '?'));
 
-        $statement = $this->pdo->prepare(
-            "SELECT id, type, payload, created_at FROM events
-             WHERE type IN ({$placeholders})
-             ORDER BY seq DESC
-             LIMIT 1"
-        );
+        $sql = "SELECT id, type, payload, created_at FROM events
+                WHERE type IN ({$placeholders})";
 
-        $statement->execute(array_values($types));
+        $params = array_values($types);
 
-        $row = $statement->fetch(PDO::FETCH_ASSOC);
-
-        if (! is_array($row)) {
-            return null;
+        if ($sessionId !== null) {
+            // The log persists across runs, so "the last failing tool_call" is a PREVIOUS run's
+            // verdict unless you say whose you mean. session_id lives inside the JSON payload
+            // and the accessor differs per driver (Postgres payload->>'session_id', SQLite
+            // json_extract), so the filter runs in PHP rather than in SQL.
+            //
+            // Which means LIMIT 1 would be wrong: the newest row of that type might belong to
+            // someone else. A bounded window is taken instead and the FIRST row matching the
+            // session is returned. 200 rows is far more than one run produces, and it keeps the
+            // read bounded when a project has run thousands of times.
+            $sql .= ' ORDER BY seq DESC LIMIT 200';
+        } else {
+            $sql .= ' ORDER BY seq DESC LIMIT 1';
         }
 
-        return [
-            'id' => (string) $row['id'],
-            'type' => (string) $row['type'],
-            'payload' => json_decode((string) $row['payload'], true, 512, JSON_THROW_ON_ERROR),
-            'created_at' => (string) $row['created_at'],
-        ];
+        $statement = $this->pdo->prepare($sql);
+        $statement->execute($params);
+
+        while ($row = $statement->fetch(PDO::FETCH_ASSOC)) {
+            $payload = json_decode((string) $row['payload'], true, 512, JSON_THROW_ON_ERROR);
+
+            if ($sessionId !== null && ($payload['session_id'] ?? null) !== $sessionId) {
+                continue;
+            }
+
+            return [
+                'id' => (string) $row['id'],
+                'type' => (string) $row['type'],
+                'payload' => $payload,
+                'created_at' => (string) $row['created_at'],
+            ];
+        }
+
+        return null;
     }
 
     /**

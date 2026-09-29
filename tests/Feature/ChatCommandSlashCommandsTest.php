@@ -104,3 +104,33 @@ test('an unrecognized slash command is not treated as handled', function () {
         expect($handled)->toBeFalse();
     });
 });
+
+test('a bare "exit" quits instead of being sent to the model and billed', function () {
+    withChatCommand(function (ChatCommand $command, Session $session) {
+        // The most natural first message, and the one the project's own TUI capture shows a user
+        // typing. Before this, anything without a leading '/' fell through to $loop->turn() and
+        // produced a billed tier_call, then an answer explaining that it could not exit.
+        foreach (['exit', 'EXIT', ' quit ', 'q', 'quit'] as $word) {
+            $handled = $command->handleSlashCommand($session, $word);
+
+            expect($handled)->toBeTrue('expected "'.$word.'" to be handled')
+                ->and($command->shouldQuit())->toBeTrue('expected "'.$word.'" to quit');
+
+            // shouldQuit() is one-way by design, so each word needs a fresh command to test.
+            $command = new ChatCommand;
+        }
+    });
+});
+
+test('ordinary prose is still a turn, not a quit', function () {
+    withChatCommand(function (ChatCommand $command, Session $session) {
+        // The fix must not swallow real input: only those exact words quit.
+        foreach (['exit the loop', 'quit gracefully', 'quitting the job', 'q and then some', 'q.'] as $line) {
+            expect($command->handleSlashCommand($session, $line))->toBeFalse(
+                'expected "'.$line.'" to fall through as a normal turn'
+            );
+        }
+
+        expect($command->shouldQuit())->toBeFalse();
+    });
+});
