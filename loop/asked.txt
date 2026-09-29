@@ -1,0 +1,2 @@
+google/gemma-4-31b-it
+qwen/qwen3.7-flash
