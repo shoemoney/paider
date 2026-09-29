@@ -188,8 +188,19 @@ $payload = [
         ['role' => 'user', 'content' => $content],
     ],
     'temperature' => 0.4,
-    'max_tokens' => 8000,
 ];
+
+// A reasoning model can spend its ENTIRE completion budget on thinking and emit no content at
+// all — measured on qwen3.7-flash: 8001 completion tokens, 8000 of them reasoning, content
+// empty. The result is a "review" of zero length that looks like a network failure if you are
+// not counting token fields. Spending half the ceiling on the answer is the fix: reasoning
+// models need room to think AND room to write, and max_tokens covers both.
+//
+// The 16000 floor is not arbitrary: the cheapest reliable settings still produce a complete
+// 5-finding JSON review, and any smaller truncates the object into unparseable JSON.
+$maxTokens = (int) (getenv('PAIDER_REVIEWER_MAX_TOKENS') ?: 16000);
+
+$payload['max_tokens'] = $maxTokens;
 
 $ch = curl_init('https://openrouter.ai/api/v1/chat/completions');
 curl_setopt_array($ch, [
@@ -200,13 +211,12 @@ curl_setopt_array($ch, [
         'Content-Type: application/json',
     ],
     CURLOPT_POSTFIELDS => json_encode($payload),
-    CURLOPT_TIMEOUT => 600,
+    CURLOPT_TIMEOUT => 900,
 ]);
 
 $body = curl_exec($ch);
 $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $error = curl_error($ch);
-curl_close($ch);
 
 if ($body === false) {
     fwrite(STDERR, "transport failure: {$error}\n");
@@ -222,13 +232,24 @@ if ($status !== 200) {
 $decoded = json_decode($body, true);
 $text = $decoded['choices'][0]['message']['content'] ?? '';
 $usage = $decoded['usage'] ?? [];
+$finish = $decoded['choices'][0]['finish_reason'] ?? 'unknown';
 
 file_put_contents($outDir."/iter{$iteration}-{$slug}-raw.json", json_encode([
     'model' => $model,
     'iteration' => $iteration,
+    'finish_reason' => $finish,
     'usage' => $usage,
     'content' => $text,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+// A reasoning model that burned the whole budget thinking and wrote nothing is a HARNESS
+// failure, not a model failure, and the two need different responses. Say which, loudly.
+if (trim($text) === '') {
+    $reasoning = $usage['completion_tokens_details']['reasoning_tokens'] ?? 0;
+    $completion = $usage['completion_tokens'] ?? '?';
+    fwrite(STDERR, "empty review from {$model}: finish_reason={$finish}, completion={$completion}, reasoning={$reasoning}\n");
+    exit(3);
+}
 
 // Models wrap JSON in prose or fences more often than they should. Take the outermost
 // brace-balanced object rather than trusting that the response is pure JSON.

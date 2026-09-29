@@ -23,7 +23,16 @@ final class Banner
         ' "',
     ];
 
-    private const SUBTITLE = 'The PHP Aider';
+    /**
+     * The product's own name, not a competitor's.
+     *
+     * This read "The PHP Aider" — a leftover from before the project was renamed. Aider is the
+     * Python agent this project benchmarks itself against in the README, so shipping its name in
+     * our own startup banner was a branding collision in the one piece of output every user sees
+     * before typing anything. Caught by a vision reviewer reading the TUI screenshot; no test
+     * covers it, because nothing asserted what the subtitle says.
+     */
+    private const SUBTITLE = 'The PHP coding agent';
 
     /**
      * The subtitle is set into the wordmark rather than printed beneath it: row 5 holds only

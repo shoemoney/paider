@@ -142,7 +142,10 @@ CODE;
         .'env -u NO_COLOR -u PAIDER_COLOR -u PAIDER_THEME php -r '.escapeshellarg($php).' 2>/dev/null');
 
     expect($output)->not->toBeNull();
-    expect($output)->toContain('The PHP Aider');   // it really rendered — not an empty string
+    // It really rendered — not an empty string. The subtitle doubles as the "did it print
+    // anything" probe, so it must track Banner::SUBTITLE; it said "The PHP Aider" until a
+    // vision reviewer read the TUI screenshot and spotted the stale pre-rename name.
+    expect($output)->toContain('The PHP coding agent');
     expect($output)->not->toContain("\e");         // ...and rendered without colour
 });
 
