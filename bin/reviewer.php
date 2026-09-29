@@ -251,12 +251,68 @@ if (trim($text) === '') {
     exit(3);
 }
 
-// Models wrap JSON in prose or fences more often than they should. Take the outermost
-// brace-balanced object rather than trusting that the response is pure JSON.
+// Models wrap JSON in prose or fences more often than they should, and some (ling-3.0-flash-vl)
+// narrate for 60k tokens and never emit the object at all. Two recovery strategies, cheapest
+// first, because losing a paid 60k-token review to a missing brace is a waste worth engineering
+// around.
+//
+// 1. Take the outermost brace-balanced object.
+// 2. If that fails, find the FIRST complete "findings" array and treat everything before the
+//    enclosing '{' as preamble to discard.
+//
+// A review we cannot parse is still recorded verbatim — losing it is worse than keeping it ugly.
 $review = null;
 
 if (preg_match('/\{[\s\S]*\}/', $text, $m)) {
     $review = json_decode($m[0], true);
+}
+
+if (! is_array($review) || ! isset($review['findings'])) {
+    // Recover: locate a complete JSON object that actually carries `findings`.
+    $offset = 0;
+
+    while (($start = strpos($text, '{', $offset)) !== false) {
+        $depth = 0;
+        $inString = false;
+        $escaped = false;
+
+        for ($i = $start, $n = strlen($text); $i < $n; $i++) {
+            $ch = $text[$i];
+
+            if ($inString) {
+                if ($escaped) {
+                    $escaped = false;
+                } elseif ($ch === '\\') {
+                    $escaped = true;
+                } elseif ($ch === '"') {
+                    $inString = false;
+                }
+
+                continue;
+            }
+
+            if ($ch === '"') {
+                $inString = true;
+            } elseif ($ch === '{') {
+                $depth++;
+            } elseif ($ch === '}') {
+                $depth--;
+
+                if ($depth === 0) {
+                    $candidate = json_decode(substr($text, $start, $i - $start + 1), true);
+
+                    if (is_array($candidate) && isset($candidate['findings'])) {
+                        $review = $candidate;
+                        break 2;
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        $offset = $start + 1;
+    }
 }
 
 if (! is_array($review) || ! isset($review['findings'])) {
