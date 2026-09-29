@@ -9,11 +9,19 @@ function paiderMcpProject(array $servers): string
     mkdir($root);
     file_put_contents($root.'/mcp.json', json_encode(['mcpServers' => $servers]));
 
+    // A project-local mcp.json is REFUSED now — it names commands to run and a cloned repository
+    // can ship one. So these tests name it explicitly, the way an operator would. The refusal
+    // itself is asserted in McpClientTest; without this line every test here would silently
+    // exercise an empty config and pass for the wrong reason.
+    putenv('PAIDER_MCP_CONFIG='.$root.'/mcp.json');
+
     return $root;
 }
 
 function paiderMcpCleanup(string $root): void
 {
+    putenv('PAIDER_MCP_CONFIG');
+
     if (is_file($root.'/mcp.json')) {
         unlink($root.'/mcp.json');
     }
@@ -38,6 +46,9 @@ afterEach(function () {
     putenv('PAIDER_MCP');
     putenv('PAIDER_MCPD_URL');
     putenv('PAIDER_TEST_FAKE_SECRET');
+    // Never let the operator config path leak into another test file — a leftover path makes
+    // the next file read a config it did not create.
+    putenv('PAIDER_MCP_CONFIG');
 });
 
 it('discovers real tool definitions from a stdio server, not a stub', function () {

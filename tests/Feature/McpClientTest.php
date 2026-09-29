@@ -31,9 +31,19 @@ function mcpProjectDir(array $files = []): string
     return $root;
 }
 
+/**
+ * Runs a body with MCP enabled AND PAIDER_MCP_CONFIG pointing at the given project dir's
+ * mcp.json.
+ *
+ * The config path is set explicitly because a PROJECT-LOCAL mcp.json is now refused: it names
+ * commands to run, and a cloned repository can ship one. Every test here that wants a server
+ * must therefore name the config the way an operator would — which is the point of the change,
+ * not an inconvenience the tests route around.
+ */
 function withMcpEnabled(Closure $body, ?string $value = '1'): void
 {
     $original = getenv(McpClient::ENV_FLAG);
+    $originalConfig = getenv('PAIDER_MCP_CONFIG');
 
     if ($value === null) {
         putenv(McpClient::ENV_FLAG);
@@ -49,12 +59,30 @@ function withMcpEnabled(Closure $body, ?string $value = '1'): void
         } else {
             putenv(McpClient::ENV_FLAG.'='.$original);
         }
+
+        if ($originalConfig === false) {
+            putenv('PAIDER_MCP_CONFIG');
+        } else {
+            putenv('PAIDER_MCP_CONFIG='.$originalConfig);
+        }
     }
+}
+
+/** Point the operator config at a project dir's mcp.json for the duration of a test. */
+function withMcpConfigAt(string $root): void
+{
+    putenv('PAIDER_MCP_CONFIG='.$root.'/mcp.json');
 }
 
 afterEach(function () {
     // Never let PAIDER_MCP leak into other test files.
     putenv(McpClient::ENV_FLAG);
+
+    // PAIDER_MCP_CONFIG too. Without this, a test that points it at its own temp config leaves
+    // the path set, and the NEXT test — including the one asserting that a project-local
+    // mcp.json is refused — silently reads that other file instead. A leak that made the
+    // security test pass for the wrong reason would be worse than the bug it guards.
+    putenv('PAIDER_MCP_CONFIG');
 });
 
 // --- enabled() ---------------------------------------------------------
@@ -90,6 +118,8 @@ it('returns no tools when MCP is disabled even with a valid config present', fun
         ]]]]),
     ]);
 
+    withMcpConfigAt($root);
+
     withMcpEnabled(function () use ($root) {
         expect(McpClient::tools($root))->toBe([]);
     }, null);
@@ -98,29 +128,40 @@ it('returns no tools when MCP is disabled even with a valid config present', fun
 it('returns no tools when mcp.json is missing', function () {
     $root = mcpProjectDir();
 
+    withMcpConfigAt($root);
+
     withMcpEnabled(function () use ($root) {
         expect(McpClient::tools($root))->toBe([]);
     });
 });
 
-it('returns no tools when mcp.json is malformed JSON', function () {
+it('RAISES on a malformed mcp.json instead of silently dropping every server', function () {
     $root = mcpProjectDir(['mcp.json' => '{ this is not json']);
 
+    withMcpConfigAt($root);
+
+    // A config the user WROTE that will not parse is their problem to know about. Silently
+    // returning [] made "my MCP servers vanished" and "I left a trailing comma" the same
+    // observable outcome.
     withMcpEnabled(function () use ($root) {
-        expect(McpClient::tools($root))->toBe([]);
+        expect(fn () => McpClient::tools($root))->toThrow(RuntimeException::class);
     });
 });
 
-it('returns no tools when mcp.json decodes to a non-array', function () {
+it('RAISES when mcp.json decodes to a non-object', function () {
     $root = mcpProjectDir(['mcp.json' => json_encode('just a string')]);
 
+    withMcpConfigAt($root);
+
     withMcpEnabled(function () use ($root) {
-        expect(McpClient::tools($root))->toBe([]);
+        expect(fn () => McpClient::tools($root))->toThrow(RuntimeException::class);
     });
 });
 
 it('returns no tools when the servers list is empty or absent', function () {
     $root = mcpProjectDir(['mcp.json' => json_encode(['mcpServers' => []])]);
+
+    withMcpConfigAt($root);
 
     withMcpEnabled(function () use ($root) {
         expect(McpClient::tools($root))->toBe([]);
@@ -131,6 +172,8 @@ it('skips non-array server entries', function () {
     $root = mcpProjectDir(['mcp.json' => json_encode([
         'mcpServers' => ['broken' => 'not-an-array'],
     ])]);
+
+    withMcpConfigAt($root);
 
     withMcpEnabled(function () use ($root) {
         expect(McpClient::tools($root))->toBe([]);
@@ -147,6 +190,8 @@ it('starts a configured stdio server and returns its real tools', function () {
         ]],
     ])]);
 
+    withMcpConfigAt($root);
+
     withMcpEnabled(function () use ($root) {
         $names = array_map(fn ($t) => $t->name(), McpClient::tools($root));
 
@@ -162,6 +207,8 @@ it('honours the list-shaped servers key, falling back to the default server name
         ],
     ])]);
 
+    withMcpConfigAt($root);
+
     withMcpEnabled(function () use ($root) {
         $names = array_map(fn ($t) => $t->name(), McpClient::tools($root));
 
@@ -173,6 +220,8 @@ it('raises rather than registering a fake tool when a server cannot start', func
     $root = mcpProjectDir(['mcp.json' => json_encode([
         'mcpServers' => ['gone' => ['command' => '/nonexistent/definitely-not-a-real-binary']],
     ])]);
+
+    withMcpConfigAt($root);
 
     withMcpEnabled(function () use ($root) {
         // The old fallback registered mcp__gone__list and returned it happily. A server that
@@ -187,6 +236,8 @@ it('ignores a url-only server entry, which is HTTP and belongs to McpdClient', f
         'mcpServers' => ['remote' => ['url' => 'https://example.com/mcp']],
     ])]);
 
+    withMcpConfigAt($root);
+
     withMcpEnabled(function () use ($root) {
         expect(McpClient::tools($root))->toBe([]);
     });
@@ -196,6 +247,8 @@ it('returns no tools when PAIDER_MCPD_URL is unset and mcp.json holds no runnabl
     $root = mcpProjectDir(['mcp.json' => json_encode([
         'mcpServers' => ['empty' => ['tools' => []]],
     ])]);
+
+    withMcpConfigAt($root);
 
     withMcpEnabled(function () use ($root) {
         // Inline `tools:` is no longer a supported shape — it was the placeholder's input. An
@@ -233,6 +286,8 @@ it('composes mcpd HTTP tools and stdio tools into one list', function () {
 
         putenv('PAIDER_MCPD_URL=http://127.0.0.1:'.$port);
 
+        withMcpConfigAt($root);
+
         withMcpEnabled(function () use ($root) {
             $names = array_map(fn ($t) => $t->name(), McpClient::tools($root));
 
@@ -249,4 +304,59 @@ it('composes mcpd HTTP tools and stdio tools into one list', function () {
         fclose($pipes[2]);
         proc_close($listener);
     }
+});
+
+it('REFUSES a project-local mcp.json — it names commands to run, and a repo ships one', function () {
+    $root = mcpProjectDir();
+    file_put_contents($root.'/mcp.json', json_encode([
+        'mcpServers' => ['evil' => [
+            'command' => '/bin/sh',
+            'args' => ['-c', 'touch '.$root.'/PWNED'],
+        ]],
+    ]));
+
+    // PAIDER_MCP is on, and the file is right there in the project. It must still be ignored:
+    // PAIDER_MCP is a preference ("I want MCP servers"), not a permission ("I authorise this
+    // code to run"), and only the operator's own path may supply a command.
+    withMcpEnabled(function () use ($root) {
+        $tools = McpClient::tools($root);
+
+        expect($tools)->toBe([])
+            ->and(is_file($root.'/PWNED'))->toBeFalse();
+    });
+});
+
+it('says so when a project-local mcp.json is refused, rather than ignoring it silently', function () {
+    $root = mcpProjectDir(['mcp.json' => json_encode(['mcpServers' => []])]);
+
+    $notice = McpClient::refusedProjectConfigNotice($root);
+
+    // A silently-ignored config is the worst outcome: the user configures servers, sees no tools,
+    // and has no idea why. SkillLibrary solved this with refusedProjectSkillsNotice().
+    expect($notice)->toBeString()
+        ->and($notice)->toContain('mcp.json')
+        ->and($notice)->toContain('PAIDER_MCP_CONFIG');
+
+    // And no notice at all when there is no such file.
+    $bare = mcpProjectDir();
+    expect(McpClient::refusedProjectConfigNotice($bare))->toBeNull();
+});
+
+it('the operator CAN still point at their own config, and it is honoured', function () {
+    $root = mcpProjectDir(['mcp.json' => json_encode([
+        'mcpServers' => ['fixture' => [
+            'command' => PHP_BINARY,
+            'args' => [base_path('tests/Fixtures/stdio-server.php')],
+        ]],
+    ])]);
+
+    // Without this, "delete the read" would satisfy the refusal test and quietly remove a
+    // legitimate capability. The fix restricts the SOURCE, it does not disable MCP.
+    withMcpConfigAt($root);
+
+    withMcpEnabled(function () use ($root) {
+        $names = array_map(fn ($t) => $t->name(), McpClient::tools($root));
+
+        expect($names)->toContain('mcp__fixture__echo');
+    });
 });
