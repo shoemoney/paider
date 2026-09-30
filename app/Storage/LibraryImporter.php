@@ -48,9 +48,11 @@ final class LibraryImporter
             return ['imported' => 0, 'skipped' => 0, 'refused' => $real];
         }
 
-        $items = self::collect($real);
-
-        $result = $index->importItems($items, $embedder);
+        // Only now, after refusesPath() returned false, may anything be written.
+        $result = $index->importVetted(
+            VettedItems::afterRefusalCheck(self::collect($real)),
+            $embedder
+        );
 
         return $result + ['refused' => null];
     }
@@ -83,7 +85,10 @@ final class LibraryImporter
             ];
         }
 
-        $result = $index->importItems($items, $embedder);
+        $result = $index->importVetted(
+            VettedItems::afterRefusalCheck($items),
+            $embedder
+        );
 
         return $result + ['refused' => null];
     }
@@ -135,7 +140,10 @@ final class LibraryImporter
             $items[] = $parsed;
         }
 
-        return $index->importItems($items, $embedder) + ['refused' => null];
+        return $index->importVetted(
+            VettedItems::afterRefusalCheck($items),
+            $embedder
+        ) + ['refused' => null];
     }
 
     /**
@@ -185,7 +193,7 @@ final class LibraryImporter
      *
      * @return array<int, array{kind: string, name: string, description: string, body: string, source: string}>
      */
-    public static function collect(string $directory): array
+    private static function collect(string $directory): array
     {
         $items = [];
         $files = new RecursiveIteratorIterator(

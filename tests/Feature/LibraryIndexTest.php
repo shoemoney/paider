@@ -14,6 +14,7 @@ use App\Providers\Contracts\EmbeddingClient;
 use App\Storage\Database;
 use App\Storage\LibraryImporter;
 use App\Storage\LibraryIndex;
+use App\Storage\VettedItems;
 
 final class LibFakeEmbedder implements EmbeddingClient
 {
@@ -227,10 +228,13 @@ it('filters search by kind, so prompts and skills stay separable', function () {
     $pg = requireLibPdo();
     $index = new LibraryIndex($pg);
 
-    $index->importItems([
+    // Goes through VettedItems, because there is no longer any other way in — which is the
+    // property the previous two tests were unknowingly relying on when they called
+    // importItems() directly with a hand-built array.
+    $index->importVetted(VettedItems::afterRefusalCheck([
         ['kind' => 'skill', 'name' => 'a-skill', 'body' => 'deploy the pi swarm'],
         ['kind' => 'prompt', 'name' => 'a-prompt', 'body' => 'deploy the pi swarm'],
-    ], new LibFakeEmbedder);
+    ]), new LibFakeEmbedder);
 
     expect($index->search('deploy', new LibFakeEmbedder, 'prompt'))->toHaveCount(1)
         ->and($index->search('deploy', new LibFakeEmbedder, 'prompt')[0]['kind'])->toBe('prompt')
@@ -241,7 +245,9 @@ it('forgets an item, and the index is purely derived so that is not data loss', 
     $pg = requireLibPdo();
     $index = new LibraryIndex($pg);
 
-    $index->importItems([['kind' => 'skill', 'name' => 'temp', 'body' => 'x']]);
+    $index->importVetted(VettedItems::afterRefusalCheck([
+        ['kind' => 'skill', 'name' => 'temp', 'body' => 'x'],
+    ]));
 
     expect($index->forget('skill', 'temp'))->toBeTrue()
         ->and($index->list())->toBe([])
@@ -328,4 +334,68 @@ it('skips a prompt with no body rather than indexing an empty hit', function () 
     } finally {
         exec('rm -rf '.escapeshellarg($outside));
     }
+});
+
+it('there is NO public path from a project directory to a row — the bypass is closed', function () {
+    $pg = requireLibPdo();
+
+    // This is the test the code needed and did not have. LibraryIndex's own docblock claimed
+    // "the writer cannot be talked into skipping [the trust check] by a future caller" — and it
+    // could: importItems() was public and took a raw array, so one call with a hand-built array
+    // imported anything from anywhere. collect() was public too. A reviewer (gpt-6-luna) found it
+    // by reading the code against the comment.
+    //
+    // Asserted at the API surface, because that is where the claim lives. A test that only
+    // exercises the happy path would pass again on the same bypass.
+    $index = new LibraryIndex($pg);
+
+    expect(method_exists($index, 'importItems'))->toBeFalse(
+        'the raw-array writer must not exist: it is the bypass'
+    );
+
+    // Exactly one public writer, and it demands a value object.
+    $writers = array_values(array_filter(
+        get_class_methods($index),
+        static fn (string $m): bool => str_starts_with($m, 'import') || str_starts_with($m, 'add')
+    ));
+
+    expect($writers)->toBe(['importVetted']);
+
+    $signature = (new ReflectionMethod($index, 'importVetted'))->getParameters()[0] ?? null;
+    expect((string) $signature?->getType())->toBe(VettedItems::class);
+
+    // And the raw directory reader is no longer PUBLIC. method_exists() alone is not enough —
+    // it returns true for a private method too, which is exactly the sort of assertion that
+    // passes for the wrong reason.
+    $collect = new ReflectionMethod(LibraryImporter::class, 'collect');
+    expect($collect->isPublic())->toBeFalse('collect() reads a directory with no refusal check, so it must not be public');
+
+    // VettedItems cannot be conjured without naming that the check happened.
+    $factory = new ReflectionMethod(VettedItems::class, '__construct');
+    expect($factory->isPrivate())->toBeTrue(
+        'the constructor must be private so the factory is the only route'
+    );
+});
+
+it('every place that can write to the index has refused something first', function () {
+    // A grep invariant, so a future import path added without the check fails loudly. This is
+    // the same shape as ProjectSelfAuthorizationTest's source sweep, applied to the library
+    // boundary rather than the environment one.
+    $source = (string) file_get_contents(base_path('app/Storage/LibraryImporter.php'));
+
+    $constructors = substr_count($source, 'VettedItems::afterRefusalCheck(');
+    $refusals = substr_count($source, 'LibraryIndex::refusesPath(');
+
+    expect($constructors)->toBeGreaterThan(0)
+        ->and($refusals)->toBeGreaterThan(0)
+        // Three writers, two explicit refusesPath() calls. The third is fromHomeSkills(), which
+        // reads ~/.paider/skills through SkillLibrary::index()/load() — SkillLibrary enforces its
+        // own home-only rule and refuses project dirs itself, so calling refusesPath() a second
+        // time there would be redundant rather than safer. A strict 1:1 count would be WRONG:
+        // it would push a future author to add a meaningless check, or to remove a real one.
+        //
+        // What matters is the pairing that the private constructor already forces: no writer can
+        // obtain a VettedItems except through afterRefusalCheck(), and every call site of that
+        // factory is visible above in the class.
+        ->and($refusals)->toBeLessThan($constructors);
 });

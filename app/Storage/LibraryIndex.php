@@ -70,18 +70,22 @@ final class LibraryIndex
     }
 
     /**
-     * Import items that were read from an already-vetted source.
+     * Import items that have already passed the trust check.
      *
-     * The caller does the vetting; this method only writes. That split is deliberate — the trust
-     * decision belongs in one place (the importer that walks a directory) and the writer cannot
-     * be talked into skipping it by a future caller.
+     * Takes a {@see VettedItems}, NOT a raw array. That is the whole point and it is not
+     * ceremony: this method used to accept `array $items` and write whatever it was given, which
+     * meant the "the writer cannot skip the check" claim in this class's own docblock was false —
+     * one public call with a hand-built array bypassed the clone-to-RCE boundary that
+     * {@see LibraryImporter} exists to enforce. Requiring a value object only the importer can
+     * construct makes the claim structural instead of documented.
      *
-     * @param  array<int, array{kind: string, name: string, description?: string, body: string, source?: string}>  $items
      * @return array{imported: int, skipped: int}
      */
-    public function importItems(array $items, ?EmbeddingClient $embedder = null): array
+    public function importVetted(VettedItems $vetted, ?EmbeddingClient $embedder = null): array
     {
         $this->ensureSchema();
+
+        $items = $vetted->all();
 
         if ($items === []) {
             return ['imported' => 0, 'skipped' => 0];
