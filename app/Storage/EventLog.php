@@ -142,18 +142,30 @@ class EventLog
     }
 
     /**
-     * The next insertion sequence number.
+     * The next insertion sequence number, allocated INSIDE the caller's transaction.
      *
-     * Read-then-write rather than a sequence object, because a sequence would be a driver-specific
-     * schema difference and the whole point of the seam is that nothing above knows which driver it
-     * got. MAX(seq)+1 is one cheap indexed read against an append-only table.
+     * This used to be an unguarded `SELECT COALESCE(MAX(seq), 0) + 1` followed by an INSERT, with
+     * a comment arguing the resulting collision was harmless. It is not, and the argument was
+     * wrong twice over.
      *
-     * Two concurrent writers CAN interleave and take the same number. That is survivable and
-     * deliberately not solved with a lock: `seq` establishes a total order for reading, and two
-     * events sharing a position still both land and both appear in stream(). A tie would only
-     * matter if cost were folded per-position, and it is not — the ledger sums values, it does
-     * not address events by seq. Serialising every write behind a lock to make a number unique
-     * that nothing addresses by would cost more than it buys.
+     * Reproduced with 10 concurrent processes appending to one .paider/paider.db — which is two
+     * `paider` invocations in one project, the ordinary case:
+     *
+     *     total events: 20, DUPLICATE seq values: 2  (seq=9 ×2, seq=12 ×2)
+     *     times seq DECREASES along true insertion order: 1
+     *
+     * So `seq` was not merely ambiguous, it was OUT OF ORDER. stream() reads ORDER BY seq, and
+     * CostLedger folds that stream in order to reconcile spend — a decreasing seq means a cost
+     * row is visited before a row that preceded it, which is a wrong number, not a cosmetic one.
+     * The old comment claimed "a tie would only matter if cost were folded per-position, and it
+     * is not"; the fold is order-SENSITIVE, which is the entire reason ordering is load-bearing
+     * (see stream()).
+     *
+     * The fix is a transaction around read-then-write, so the allocation and the insert commit
+     * together. Why not a database sequence: SERIAL is a schema-level, driver-specific difference
+     * and would defeat the whole point of the driver seam, where nothing above this class knows
+     * whether it got SQLite or Postgres. A transaction is portable and means the same thing on
+     * both.
      */
     private function nextSeq(): int
     {
@@ -166,17 +178,43 @@ class EventLog
     {
         $id ??= Uuid::uuid7()->toString();
 
-        $stmt = $this->pdo->prepare(
-            'INSERT INTO events (id, type, payload, created_at, seq) VALUES (:id, :type, :payload, :created_at, :seq)'
-        );
+        // beginTransaction() on an already-in-transaction connection is a no-op that returns
+        // false, and committing would then end a transaction this method does not own. Guarded
+        // so nesting is safe rather than a silent early-commit of a caller's work.
+        $ownsTransaction = ! $this->pdo->inTransaction();
 
-        $stmt->execute([
-            'id' => $id,
-            'type' => $type,
-            'payload' => json_encode($payload, JSON_THROW_ON_ERROR),
-            'created_at' => gmdate('c'),
-            'seq' => $this->nextSeq(),
-        ]);
+        if ($ownsTransaction) {
+            $this->pdo->beginTransaction();
+        }
+
+        try {
+            // Allocated and written inside the transaction: another writer either commits first
+            // and we read its row, or it blocks on the write lock until we commit. Either way the
+            // two cannot both observe the same MAX(seq).
+            $stmt = $this->pdo->prepare(
+                'INSERT INTO events (id, type, payload, created_at, seq) VALUES (:id, :type, :payload, :created_at, :seq)'
+            );
+
+            $stmt->execute([
+                'id' => $id,
+                'type' => $type,
+                'payload' => json_encode($payload, JSON_THROW_ON_ERROR),
+                'created_at' => gmdate('c'),
+                'seq' => $this->nextSeq(),
+            ]);
+
+            if ($ownsTransaction) {
+                $this->pdo->commit();
+            }
+        } catch (\Throwable $e) {
+            // Roll back before rethrowing, or the connection is left in a failed transaction and
+            // every later append on it fails too.
+            if ($ownsTransaction && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $e;
+        }
 
         return $id;
     }

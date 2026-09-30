@@ -14,3 +14,6 @@ openai/gpt-6-luna
 google/gemini-2.5-flash-lite
 openai/gpt-4.1-nano
 google/gemma-3-4b-it
+google/gemma-3-12b-it
+z-ai/glm-5.3-flash
+amazon/nova-lite-v1

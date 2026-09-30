@@ -1,0 +1,81 @@
+{
+    "reviewer": "claude-opus-4-6",
+    "verdict": "This is a genuinely well-engineered project for its stage: the append-only event log with pure projections, the capability-shaped clone-to-RCE boundary, and the write-time cost pricing with NULL-means-unpriced discipline are all better than most shipping agent CLIs. But the project's own brand \u2014 'measured, not assumed' \u2014 is currently undercut by its docs: the README/ROADMAP assert a green 575-test suite while the measured run shows 1 failed + 24 skipped, the README/ROADMAP claim a PHAR distribution that DECISIONS.md \u00a78\u20139 explicitly decided against ('no PHAR'), and the TUI capture shipped as the hero image still shows the billed-'exit' bug and a spacing-mangled hint line. The single biggest improvement is a docs-vs-reality reconciliation pass enforced by CI, because right now the project's most distinctive asset \u2014 its honesty \u2014 has drifted.",
+    "strengths": [
+        "CostLedger's 'NULL cost means unpriced, never $0.00' discipline, enforced by golden tests in both directions (CostTableTest/CostJsonGoldenTest), is exemplary accounting design.",
+        "The clone-to-RCE boundary is capability-shaped and layered (ProjectEnv::fromEnvironment, SkillLibrary, LibraryIndex::refusesPath, McpClient::configPath) with refusal notices that are announced, never silent.",
+        "EventLog's seq-allocation story (transaction-bounded allocation, driver-aware migration, documented concurrency reproduction) is exactly how load-bearing ordering should be handled."
+    ],
+    "findings": [
+        {
+            "title": "Fix the failing test and reconcile every '575 passing' claim with the real suite result",
+            "severity": "high",
+            "area": "docs",
+            "reason": "The measured suite is 'Tests: 1 failed, 24 skipped, 576 passed (3384 assertions)', yet the README badge says 'tests-575 passing', the status table says '\u2705 575 passing, 3381 assertions', and ROADMAP.md \u00a71 repeats '\u2705 575 passing'. For a project whose erratum section scolds an autonomous run because 'the run's scoring loop graded polish, not the release gate', shipping a README that asserts a green suite while a red test exists is the same failure mode one layer up.",
+            "suggestion": "Make the test-count badge generated, not typed: a CI step runs the hermetic suite, writes the count to a JSON artifact, and a badge/check fails on any non-zero failure count. Until then, fix or xfail the one failing test and update README/ROADMAP to '576 passed, 1 failed, 24 skipped' with the failing test named.",
+            "effort": "S",
+            "evidence": "README: '[![tests](https://img.shields.io/badge/tests-575%20passing-brightgreen...)]' vs measured 'Tests: 1 failed, 24 skipped, 576 passed (3384 assertions)'"
+        },
+        {
+            "title": "Resolve the PHAR contradiction between DECISIONS.md and README/ROADMAP",
+            "severity": "high",
+            "area": "docs",
+            "reason": "DECISIONS.md \u00a78 states the distribution decision as 'Composer package + FrankenPHP embed binary, no PHAR, no Docker-as-distribution' and \u00a79 restates it 'CONFIRMED on both axes'. Yet the README status table says '\ud83d\udce6 curl | sh installer \u2705 live \u2014 PHAR built 32MB (build/paider.phar via box, 222ms), FrankenPHP trimmed still deferred' and ROADMAP.md \u00a71 says 'Distribution | \u2705 PHAR 32MB, curl | sh live'. These cannot all be true: either the no-PHAR decision was reversed (and DECISIONS.md needs a \u00a723 recording it) or the README is describing an artifact the decision log says should not exist.",
+            "suggestion": "Add a DECISIONS.md entry that explicitly supersedes \u00a78/\u00a79's 'no PHAR' clause if the PHAR is now the shipped distribution path, and update \u00a78/\u00a79 with a 'superseded by \u00a7N' pointer \u2014 the same convention the file already uses for its own superseded measurements. Then make README and ROADMAP cite that entry.",
+            "effort": "S",
+            "evidence": "DECISIONS.md \u00a78: 'no PHAR, no Docker-as-distribution is now CONFIRMED on both axes' vs README: 'PHAR built 32MB (build/paider.phar via box, 222ms)'"
+        },
+        {
+            "title": "Scrub secrets from tool_call event payloads, not just conversation messages",
+            "severity": "high",
+            "area": "security",
+            "reason": "Loop::remember() routes all user/assistant content through ProseStream::scrubSecrets() before it reaches the log ('session->pushHistory($role, ProseStream::scrubSecrets($content))'), but the tool_call event is appended raw: \" $this->eventLog->append('tool_call', ['tool' => $call['name'], 'input' => $call['input'], 'ok' => $result->ok]) \". A run_shell command like 'curl -H \"Authorization: Bearer sk-...\"' \u2014 exactly the kind of thing a coding agent is asked to do \u2014 lands verbatim in the plaintext .paider/paider.db, which STORAGE.md describes as 'local-only' but which is also the corpus RagStore embeds and sends to PAIDER_EMBEDDING_URL.",
+            "suggestion": "Apply the same ProseStream::scrubSecrets() to the serialized tool input (per string value in $call['input'], recursively) before the append('tool_call', ...) in Loop::turn, and add a test asserting a keyed shell command never appears in the event payload.",
+            "effort": "S",
+            "evidence": "Loop::turn: \"$this->eventLog->append('tool_call', ['tool' => $call['name'], 'input' => $call['input'], 'ok' => $result->ok]);\" \u2014 no scrubSecrets, vs remember(): 'ProseStream::scrubSecrets($content)' on every message"
+        },
+        {
+            "title": "Stop LibraryIndex::refusesPath from refusing the operator's own ~/.paider/skills",
+            "severity": "medium",
+            "area": "skills",
+            "reason": "refusesPath()'s docblock says 'Everything else \u2014 a path the user names explicitly, outside a project, in their own home \u2014 is allowed, because the user pointing at it IS the authorisation.' But the depth-tail check ('Any path with the shape of a project-local agent config (.paider/\u2026 or .claude/\u2026) is refused anywhere on the filesystem') matches the user's own trusted home directory too: for '/home/me/.paider/skills', the last two segments are '.paider/skills', so fromPath('/home/me/.paider/skills', ...) returns refused \u2014 the exact directory STORAGE.md and SkillLibrary designate as 'the ONLY place skills are discovered from' and 'user-owned and user-trusted'.",
+            "suggestion": "Exempt the resolved home path before the shape check: compute $home = realpath(getenv('HOME').'/.paider') and, if $real is inside it, return false (the user naming their own home library is the stated authorisation). Add a test: LibraryIndex::refusesPath(getenv('HOME').'/.paider/skills') === false while refusesPath('/tmp/clone/.paider/skills') === true.",
+            "effort": "S",
+            "evidence": "refusesPath(): '$tail = implode(DIRECTORY_SEPARATOR, array_slice($segments, -$depth)); if ($tail === $wanted ...) return true;' \u2014 matches /home/<user>/.paider/skills, contradicting the docblock's 'a path the user names explicitly, outside a project, in their own home \u2014 is allowed'"
+        },
+        {
+            "title": "Fix the TUI's collapsed hint text and regenerate the hero capture, which still shows the billed-exit bug",
+            "severity": "medium",
+            "area": "ui",
+            "reason": "The screenshot shows the quit hint rendering as 'type/quitto exit' \u2014 the spaces around '/quit' live inside adjacent Termwind spans ('<span>type </span><span>/quit</span><span> (or exit) to quit</span>' in ChatCommand::handle) and are being collapsed in the rendered box, making the single most-shown line of the UI read as one token. The same capture shows the model line truncated mid-token ('anthropic/claude-opus-'), and \u2014 most damning for a README that just spent a paragraph explaining why a corrupt hero image 'makes people draw false conclusions about the code' \u2014 it shows 'exit' sitting in the input box with a spinner already running, i.e. the exact billed-exit behaviour commits b05edbe/656f6f9 claim is fixed.",
+            "suggestion": "Render the hint as a single span with inline colour via Palette::wrap instead of three sibling div spans so whitespace survives; widen or wrap the spinner model label (PhpSpinner) so it never truncates mid-model-id; and re-run bin/capture-tui.sh post-fix so the README hero shows the current behaviour, matching the standard the README itself sets for capture artifacts.",
+            "effort": "M",
+            "evidence": "Screenshot: 'type/quitto exit' (collapsed spaces), spinner line 'anthropic/claude-opus-' (truncated), and 'exit' in the input box with spinner running; ChatCommand renders '<span class=\"...\">type </span><span class=\"...\">/quit</span><span class=\"...\"> (or exit) to quit</span>'"
+        }
+    ],
+    "model": "z-ai/glm-5.3-flash",
+    "iteration": 18,
+    "usage": {
+        "prompt_tokens": 63315,
+        "completion_tokens": 3485,
+        "total_tokens": 66800,
+        "cost": 0.03403315,
+        "is_byok": false,
+        "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "audio_tokens": 0,
+            "video_tokens": 0
+        },
+        "cost_details": {
+            "upstream_inference_cost": 0.03403315,
+            "upstream_inference_prompt_cost": 0.03229065,
+            "upstream_inference_completions_cost": 0.0017425
+        },
+        "completion_tokens_details": {
+            "reasoning_tokens": 1334,
+            "image_tokens": 0,
+            "audio_tokens": 0
+        }
+    }
+}
