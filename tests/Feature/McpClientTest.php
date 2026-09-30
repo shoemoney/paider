@@ -13,6 +13,7 @@
 // name collisions) lives in McpStdioClientTest.php, where every test drives the shipped path.
 // What remains here is McpClient's own job: config shapes, and composing both transports.
 
+use App\Commands\ChatCommand;
 use App\Providers\McpClient;
 
 function mcpProjectDir(array $files = []): string
@@ -359,4 +360,36 @@ it('the operator CAN still point at their own config, and it is honoured', funct
 
         expect($names)->toContain('mcp__fixture__echo');
     });
+});
+
+it('the refusal notice resolves a NULL project root, the way its sibling is called', function () {
+    $root = mcpProjectDir();
+    file_put_contents($root.'/mcp.json', json_encode(['mcpServers' => []]));
+
+    $original = getcwd();
+    chdir($root);
+
+    try {
+        // Called exactly as ChatCommand now calls it — with no argument, or null. Under the
+        // old `$projectRoot !== '' ? ... : getcwd()` guard, `null !== ''` is true, so this
+        // built the path "/mcp.json", is_file() was false, and the notice returned null: a
+        // refusal that failed closed into silence.
+        expect(McpClient::refusedProjectConfigNotice())->toBeString()
+            ->and(McpClient::refusedProjectConfigNotice(null))->toBeString();
+    } finally {
+        chdir($original);
+    }
+});
+
+it('the notice is actually RENDERED to the user, not merely returned', function () {
+    // The previous test proves the string is well-formed. This proves someone shows it to the
+    // user — the difference the commit message claimed and the code did not deliver. A method
+    // with two test assertions and zero production callers is not a feature.
+    $chat = (new ReflectionClass(ChatCommand::class))->getFileName();
+    $source = (string) file_get_contents($chat);
+
+    // Grep the call site, because rendering a full interactive session in a test would need a
+    // TTY, and the wiring IS the thing being asserted here.
+    expect($source)->toContain('McpClient::refusedProjectConfigNotice(')
+        ->and($source)->toContain('Palette::render(');
 });

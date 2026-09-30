@@ -91,9 +91,15 @@ class McpClient
      * servers, see no tools, and have no idea why. SkillLibrary solved the identical problem with
      * refusedProjectSkillsNotice(), and this is that idea applied to MCP.
      */
-    public static function refusedProjectConfigNotice(?string $projectRoot): ?string
+    public static function refusedProjectConfigNotice(?string $projectRoot = null): ?string
     {
-        $projectRoot = $projectRoot !== '' ? $projectRoot : (string) getcwd();
+        // `?? getcwd()`, NOT `$projectRoot !== '' ? ... : ...`. The signature is ?string, and
+        // under strict comparison `null !== ''` is TRUE — so the fallback was unreachable for
+        // the one value the type declares valid, and the method built the path "/mcp.json"
+        // instead of "<cwd>/mcp.json". Latent while nothing called it; the moment it was wired
+        // up the way its sibling is (no argument, or null) it would have failed closed into
+        // silence, which is the opposite of what a refusal notice is for.
+        $projectRoot = $projectRoot ?? (getcwd() ?: '.');
         $local = rtrim($projectRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.self::CONFIG_FILE;
 
         if (! is_file($local)) {

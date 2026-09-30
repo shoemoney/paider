@@ -111,6 +111,21 @@ class ChatCommand extends Command
             ));
         }
 
+        // The same rule for MCP, and for a sharper reason: a project-local mcp.json is not
+        // merely ignored, it names COMMANDS that would be spawned at startup. Saying so is the
+        // difference between "my servers didn't load" and "this repo tried to run code and I
+        // declined". Wired here, next to its sibling, because a notice nobody calls is not a
+        // notice.
+        $mcpNotice = McpClient::refusedProjectConfigNotice($this->projectRoot);
+
+        if ($mcpNotice !== null) {
+            Palette::render(sprintf(
+                '<div class="mb-1 %s">%s</div>',
+                Palette::tw(ColorRole::Alert),
+                htmlspecialchars($mcpNotice, ENT_QUOTES),
+            ));
+        }
+
         Palette::render(sprintf(
             '<div class="mb-1">
                 <span class="%1$s">type </span><span class="%2$s">/quit</span><span class="%1$s"> (or exit) to quit</span>
