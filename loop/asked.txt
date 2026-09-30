@@ -21,3 +21,8 @@ qwen/qwen3.5-flash-02-23
 unreasoning:qwen/qwen3.5-flash-02-23
 prism-ml/ternary-bonsai-2-27b
 unreasoning:prism-ml/ternary-bonsai-2-27b
+nex-agi/nex-n2.5-pro
+mistralai/mistral-small-2603
+bytedance-seed/seed-1.6-flash
+unreasoning:bytedance-seed/seed-1.6-flash
+mistralai/ministral-8b-2512

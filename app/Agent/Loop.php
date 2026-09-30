@@ -90,6 +90,49 @@ class Loop
         return 'search';
     }
 
+    /**
+     * Scrub credentials out of a tool call's input, at every depth.
+     *
+     * The `tool_call` event wrote `$call['input']` RAW while every conversation message went
+     * through `ProseStream::scrubSecrets()` — an asymmetry a reviewer spotted by reading the code
+     * against the surrounding scrub calls. It mattered because a coding agent is routinely asked to
+     * run `curl -H "Authorization: Bearer sk-..."` against somebody else's API, and that string
+     * landed in plaintext .paider/paider.db… which `RagStore` then EMBEDS AND SENDS to
+     * `PAIDER_EMBEDDING_URL`. A credential in a tool argument was therefore on an outbound path.
+     *
+     * Recursive because inputs nest: `patch_file` carries a string, but a future tool may carry
+     * an array of edits, and a non-recursive scrub would silently protect only the shallow case.
+     *
+     * Keys are preserved and only VALUES are replaced, so a log reader can still see which
+     * command ran, and which arguments were involved.
+     */
+    private function scrubToolInput(mixed $value, int $depth = 0): mixed
+    {
+        // Bounded, because input is model-produced and a self-referential structure would
+        // otherwise recurse forever. Deeper than any real tool argument.
+        if ($depth > 8) {
+            return '[truncated: scrub depth exceeded]';
+        }
+
+        if (is_string($value)) {
+            return ProseStream::scrubSecrets($value);
+        }
+
+        if (is_array($value)) {
+            $out = [];
+
+            foreach ($value as $key => $item) {
+                // The KEY can carry a secret too (`run_shell` with an
+                // `Authorization: Bearer …` argument name), so it is scrubbed as well.
+                $out[is_string($key) ? ProseStream::scrubSecrets($key) : $key] = $this->scrubToolInput($item, $depth + 1);
+            }
+
+            return $out;
+        }
+
+        return $value;
+    }
+
     /** @param callable(string): string $approvalPrompt returns 'allow-once'|'allow-session'|'deny' */
     public function turn(Session $session, string $userInput, callable $approvalPrompt): void
     {
@@ -177,7 +220,10 @@ class Loop
 
             $this->eventLog->append('tool_call', [
                 'tool' => $call['name'],
-                'input' => $call['input'],
+                // Scrubbed, and recursively: the raw input used to be written verbatim, so a
+                // credential in a shell command or a header sat in the log — and in the RAG
+                // corpus derived from it. See scrubToolInput().
+                'input' => $this->scrubToolInput($call['input']),
                 'ok' => $result->ok,
             ]);
 
