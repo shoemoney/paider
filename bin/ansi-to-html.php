@@ -300,6 +300,27 @@ foreach ($screen as $r => $line) {
         continue;
     }
 
+    // Blank the word typed into the prompt box, keeping the box itself.
+    //
+    // "exit" is typed only to make laravel/prompts draw its multi-line box, and shipping that
+    // word in the README hero reads as "this is what typing exit does" — which is how a reviewer
+    // reading our own screenshot correctly concluded it started a billed model request. The first
+    // attempt at this blanked the whole box, borders and prompt label included, which was worse;
+    // the fix is to clear only the CONTENT row (the one starting with the box's vertical bar and
+    // not its top-left corner), leaving ┌ paider> ─┐ and └────┘ intact.
+    $rowText = '';
+    foreach ($line as $cell) {
+        $rowText .= $cell[0];
+    }
+
+    if (preg_match('/^\s*│/u', $rowText) === 1) {
+        // Blank the LOCAL copy, not $screen[$r]. This loop iterates `foreach ($screen as $r =>
+        // $line)`, so $line is a by-value copy taken before this point — writing to $screen[$r]
+        // has no effect on the render that follows. The first version of this feature did
+        // exactly that and the word survived into the image anyway.
+        $line = [];
+    }
+
     $text = '';
     $open = null;
 

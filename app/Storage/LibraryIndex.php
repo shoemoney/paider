@@ -299,6 +299,27 @@ final class LibraryIndex
             return true;
         }
 
+        // The operator's OWN Paider directory is exempt from the shape check below, and this is
+        // a correction rather than a nicety.
+        //
+        // The capability-shaped rule ("any path that LOOKS like a project-local agent config is
+        // refused anywhere on disk") was written to close a hole: a location check alone let a
+        // clone in /tmp straight through. But the shape `.paider/skills` is precisely the shape of
+        // the user's own home library — the ONE directory SkillLibrary trusts and calls "the only
+        // place skills are discovered from". So the rule also refused the trusted directory, and
+        // the method's own docblock ("a path the user names explicitly … in their own home — is
+        // allowed") described behaviour the code did not have. Found by a reviewer reading the
+        // code against the comment, which is the second time that has happened on this class.
+        //
+        // The exemption is scoped as tightly as the threat allows: the real path must be INSIDE
+        // the resolved ~/.paider. A repository that plants `.paider/skills` inside the project is
+        // still refused by the check above, and a path elsewhere on disk with the same tail is
+        // still refused by the shape check — only the user's own home library is exempt, and only
+        // because naming it is the authorisation.
+        if (self::isInsideOwnPaiderHome($real)) {
+            return false;
+        }
+
         $relative = str_starts_with($real, $cwd.DIRECTORY_SEPARATOR) && $cwd !== false
             ? substr($real, strlen($cwd) + 1)
             : $real;
@@ -324,5 +345,32 @@ final class LibraryIndex
         }
 
         return false;
+    }
+
+    /**
+     * Is this path inside the OPERATOR's own ~/.paider?
+     *
+     * Resolves HOME and compares realpaths, so a symlink pointing out of the home directory does
+     * not inherit the exemption. Deliberately narrow: it does not exempt the whole home tree, and
+     * it does not exempt anything merely shaped like a Paider directory. Only the directory the
+     * tool itself owns.
+     */
+    private static function isInsideOwnPaiderHome(string $realPath): bool
+    {
+        $home = getenv('HOME');
+
+        if (! is_string($home) || $home === '') {
+            return false;
+        }
+
+        $own = realpath(rtrim($home, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'.paider');
+
+        if ($own === false) {
+            // No ~/.paider yet, so nothing can be inside it. Not an error — refusing by default
+            // is the safe direction and the caller will hit the shape check instead.
+            return false;
+        }
+
+        return $realPath === $own || str_starts_with($realPath, $own.DIRECTORY_SEPARATOR);
     }
 }

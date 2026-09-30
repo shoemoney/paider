@@ -399,3 +399,54 @@ it('every place that can write to the index has refused something first', functi
         // factory is visible above in the class.
         ->and($refusals)->toBeLessThan($constructors);
 });
+
+it('refuses a clone ANYWHERE but allows the operator their own ~/.paider', function () {
+    $home = getenv('HOME');
+    expect($home)->toBeString();
+
+    @mkdir($home.'/.paider/skills', 0777, true);
+
+    // The rule that closes the /tmp hole is shape-based, not location-based: any path whose last
+    // segments are a project-local agent config is refused wherever it lives. But that shape is
+    // exactly the shape of the user's OWN home library — the one directory SkillLibrary trusts.
+    // So the rule also refused the trusted directory, contradicting its own docblock.
+    //
+    // Found by a reviewer reading the code against the comment. Second time on this class, which
+    // is the argument for treating a docblock's claims as assertions to be tested.
+    expect(LibraryIndex::refusesPath($home.'/.paider/skills'))->toBeFalse(
+        'the operator naming their own home library IS the authorisation'
+    );
+
+    // The exemption is narrow: same shape, elsewhere on disk, still refused.
+    $clone = sys_get_temp_dir().'/paider-clone-'.bin2hex(random_bytes(6));
+    mkdir($clone.'/.paider/skills', 0777, true);
+    mkdir($clone.'/.claude/skills', 0777, true);
+
+    try {
+        expect(LibraryIndex::refusesPath($clone.'/.paider/skills'))->toBeTrue(
+            'a clone in /tmp is still refused'
+        )->and(LibraryIndex::refusesPath($clone.'/.claude/skills'))->toBeTrue();
+    } finally {
+        exec('rm -rf '.escapeshellarg($clone));
+    }
+});
+
+it('a project that plants .paider/skills inside itself is still refused, home exemption or not', function () {
+    // The exemption resolves through realpath, so it cannot be reached by a symlink out of a
+    // clone. This asserts the narrow case explicitly rather than trusting the helper.
+    $clone = sys_get_temp_dir().'/paider-clone-'.bin2hex(random_bytes(6));
+    mkdir($clone, 0777, true);
+    mkdir($clone.'/.paider/skills', 0777, true);
+
+    $original = getcwd();
+    chdir($clone);
+
+    try {
+        expect(LibraryIndex::refusesPath($clone.'/.paider/skills'))->toBeTrue(
+            'inside the project is refused regardless of the tail'
+        );
+    } finally {
+        chdir($original);
+        exec('rm -rf '.escapeshellarg($clone));
+    }
+});
