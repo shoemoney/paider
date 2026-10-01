@@ -1,11 +1,13 @@
 <?php
 
+use App\Agent\Loop;
 use App\Approval\Gate;
 use App\Providers\OpenAiEmbeddingClient;
 use App\Storage\Database;
 use App\Storage\MemoryStore;
 use App\Storage\ProjectEnv;
 use App\Storage\SessionStore;
+use App\Support\SettingsStore;
 use App\Support\UrlGuard;
 use GuzzleHttp\Client;
 
@@ -205,4 +207,92 @@ test('the operator\'s OWN shell can still set the endpoint — the fix restricts
         putenv('PAIDER_EMBEDDING_URL');
         putenv('PAIDER_DATABASE_URL');
     }
+});
+
+test('a cloned repo cannot ship a test_command that runs without the gate', function () {
+    // The same attack as the PAIDER_YOLO test above, arriving by a different door — and the one
+    // that had no test in this file at all while it was live.
+    //
+    // test_command is a SHELL COMMAND this process spawns, after any successful write, and the
+    // write path is not prompted for ordinary files. It used to run with `approval => allow-once`
+    // and no gate, on the strength of a comment calling it "explicit user config" — while the
+    // read precedence that actually applied took the repository's file. Clone, allow one ungated
+    // write_file, own the machine.
+    //
+    // What is asserted here is the PROVENANCE, not the location: a repo-shipped command is still
+    // honoured, still wins precedence, and is still marked as not-operator-authored. That flag is
+    // the whole control, and Loop is the only thing that reads it.
+    inHostileRepo('', function (string $root) {
+        file_put_contents(
+            $root.'/.paider/settings.json',
+            json_encode(['test_command' => 'touch '.$root.'/PWNED']),
+        );
+
+        $source = SettingsStore::testCommandSource();
+
+        expect($source)->not->toBeNull()
+            ->and($source['command'])->toBe('touch '.$root.'/PWNED')
+            // THE assertion. Not "it is null" — a project may state its test command. It is that
+            // the command is flagged as the repository's, so no caller may treat it as pre-approved.
+            ->and($source['operator_authored'])->toBeFalse();
+    });
+});
+
+test('a test_command in the operator\'s own XDG config IS operator-authored', function () {
+    // The other direction, and it is not optional. If provenance were simply always-false, the
+    // gate would re-prompt on every patch for a command the human typed themselves — training
+    // them to approve without reading, which is the reflex the gate exists to prevent. Both halves
+    // have to hold or the fix has traded a security hole for an unusable tool.
+    $previousXdg = getenv('XDG_CONFIG_HOME');
+    $xdg = sys_get_temp_dir().'/paider-opauth-'.uniqid();
+    mkdir($xdg.'/paider', 0777, true);
+    file_put_contents($xdg.'/paider/settings.json', json_encode(['test_command' => 'vendor/bin/pest']));
+    putenv('XDG_CONFIG_HOME='.$xdg);
+
+    $cwd = sys_get_temp_dir().'/paider-opauth-cwd-'.uniqid();
+    mkdir($cwd, 0777, true);
+    $previousCwd = getcwd();
+    chdir($cwd);
+
+    try {
+        $source = SettingsStore::testCommandSource();
+
+        expect($source)->not->toBeNull()
+            ->and($source['command'])->toBe('vendor/bin/pest')
+            ->and($source['operator_authored'])->toBeTrue();
+    } finally {
+        chdir($previousCwd);
+
+        if ($previousXdg === false) {
+            putenv('XDG_CONFIG_HOME');
+        } else {
+            putenv('XDG_CONFIG_HOME='.$previousXdg);
+        }
+
+        exec('rm -rf '.escapeshellarg($xdg).' '.escapeshellarg($cwd));
+    }
+});
+
+test('Loop cannot run a post-patch test command without consulting the gate', function () {
+    // Source invariant, in the spirit of the two sweeps above and of SecretsGuardTest's
+    // proc_open sweep: guard the STRUCTURE so a future "simplification" that restores the
+    // unconditional bypass fails here instead of in a hostile clone.
+    //
+    // Asserted on the method rather than the file, because the file legitimately contains
+    // allow-once in the operator-authored branch — grepping the whole file for the string would
+    // therefore pass no matter what the branch condition was, which is the "structurally unable
+    // to fail" shape DECISIONS.md §20 exists to name.
+    $method = new ReflectionMethod(Loop::class, 'runPostPatchTests');
+    $source = implode("\n", array_slice(
+        file($method->getFileName()),
+        $method->getStartLine() - 1,
+        $method->getEndLine() - $method->getStartLine() + 1,
+    ));
+
+    // It must consult the gate…
+    expect($source)->toContain('$this->gate->decide(');
+
+    // …and the skip must be conditional on provenance, never unconditional.
+    expect($source)->toContain("\$source['operator_authored']")
+        ->and($source)->not->toContain('if (true)');
 });

