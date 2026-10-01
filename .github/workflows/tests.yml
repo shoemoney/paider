@@ -78,11 +78,55 @@ jobs:
       - name: Check code style (pint)
         run: vendor/bin/pint --test
 
+      # A pin is a STABILITY control, not a security control, and this repository learned that
+      # the expensive way: mcp/sdk was pinned to an exact 0.7.0 in Aug, and when the HIGH advisory
+      # PKSA-p9gd-j6gr-6f9t (CVE-2026-53965) landed, the exact pin held the vulnerable version
+      # in place indefinitely. The advisory was found only because the lowest-deps job happened
+      # to refuse the install — nothing was checking for it.
+      #
+      # Fail on high and critical, tolerate low: league/flysystem carries a low advisory that is
+      # transitive and pre-existing, and gating on it would train people to reach for
+      # audit.abandoned/ignore rather than fix the real one.
+      - name: Security audit (fail on high or critical)
+        run: |
+          set -euo pipefail
+          composer audit --format=plain --no-interaction || true
+          echo "---"
+          # exit 0 when a high/critical advisory EXISTS (so `if` takes the failure branch).
+          # The earlier version was inverted — `exit((int) ! $found)` returned 1 when the list
+          # was EMPTY, which would have failed CI on a clean tree and passed on a vulnerable
+          # one. A gate that is backwards is worse than no gate, so this is asserted by
+          # tests/Feature/CiGateLogicTest.php rather than trusted.
+          if composer audit --format=json --no-interaction 2>/dev/null \
+            | php -r '$a=json_decode(stream_get_contents(STDIN),true); $all=array_merge(...array_values($a["advisories"] ?? [])) ?: []; exit(array_filter($all, fn(array $v): bool => in_array($v["severity"] ?? "", ["high","critical"], true)) ? 0 : 1);'
+          then
+            echo "::error::high or critical dependency advisory — see the audit output above"
+            exit 1
+          else
+            echo "no high or critical advisories"
+          fi
+
       # The default suite excludes the `live` group (phpunit.xml.dist), so this is hermetic:
       # no network, no provider credentials, no spend. If this step ever needs a secret,
       # something has leaked out of tests/Live and that is the bug, not the missing secret.
       - name: Run the hermetic suite
         run: vendor/bin/pest
+
+      # The README, ROADMAP and this file all quote a test count, and a hand-maintained number is
+      # wrong within one commit of any change — it was wrong three times in one day (518, 527,
+      # 575). bin/sync-test-counts.sh regenerates it from a real run, so CI asserts the docs match
+      # the suite instead of trusting them.
+      - name: Docs quote the measured test count
+        run: |
+          set -euo pipefail
+          expected="$(vendor/bin/pest 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E '^ *Tests:' | tail -1 | sed -n 's/[^0-9]*\([0-9]*\) passed.*/\1/p')"
+          for doc in README.md ROADMAP.md; do
+            if ! grep -qE "(tests-${expected}%20passing|\*\*${expected} passing\*\*)" "$doc"; then
+              echo "::error::$doc does not quote the measured count (${expected} passing). Run bin/sync-test-counts.sh"
+              exit 1
+            fi
+          done
+          echo "docs agree with the suite: ${expected} passing"
 
       - name: Prove the live suite is genuinely opt-in
         # With no credentials present the live tests must SKIP, not fail — otherwise every

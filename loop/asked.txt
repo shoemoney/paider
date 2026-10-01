@@ -26,3 +26,8 @@ mistralai/mistral-small-2603
 bytedance-seed/seed-1.6-flash
 unreasoning:bytedance-seed/seed-1.6-flash
 mistralai/ministral-8b-2512
+openai/gpt-4o-mini
+google/gemma-3-27b-it
+google/gemma-4-26b-a4b-it
+mistralai/mistral-small-3.2-24b-instruct
+meta-llama/llama-4-scout

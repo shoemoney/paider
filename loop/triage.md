@@ -12,9 +12,31 @@ The loop is run by [`bin/loop.sh`](../bin/loop.sh), which asks one vision model 
 |---|---|---|---|---|
 | 1 | `google/gemma-4-31b-it` | 5 | 3 | 1 false, 1 superseded |
 | 2 | `qwen/qwen3.7-flash` | 5 | 1 | 1 false, 3 rejected |
+| 3 | `~deepseek/deepseek-flash-latest` | 5 | 4 | 1 false |
+| 3b | `qwen/qwen3.8-27b` | 5 | 2 | 1 false, 1 already fixed |
+| 4-6 | `gpt-6-luna-pro`, `gpt-6-luna`, `gpt-5-nano` | 15 | 4 | 2 stale, rest overlapping |
 
-**Running rate: 4 of 10 reported findings were real.** That ratio is the headline and it is the
-reason the driver gates on a human.
+**Running rate: roughly 14 of 30 reported findings were real.** That ratio is the headline and
+it is the reason the driver gates on a human.
+
+### The three ways a finding turns out to be wrong
+
+Worth recording separately, because the failure modes are not the same and each has a lesson:
+
+1. **It read a screenshot through a corrupt artifact.** The hero image was a double exposure of
+   the TUI over this README, so a reviewer read README bleed-through as UI and reported a
+   "critical" TUI defect. The image is now generated, not hand-taken.
+2. **It read a commit message or the README, not the code.** `ministral-8b` reported a "critical"
+   `/exit bills a turn" bug from the text of commit `b05edbe`, in code that commit had already
+   fixed and covered with a test. Same reviewer also claimed total spend renders at the *bottom*
+   of `paider cost`; it is the *first* line. Both were checked by running the thing.
+3. **It inverted a negation.** The TUI says "`/quit` does not clear it" — an honest disclosure
+   that resume is the user's choice. The reviewer read it as a promise that `/quit` clears, and
+   filed a "high" severity bug about missing behaviour that the string explicitly says is absent.
+
+The second one is the expensive lesson: a finding whose evidence is a commit message or a
+docstring is a claim about what the code *should* be, not what it *is*. Verify at the code, and
+prefer running the command over reading about it.
 
 ---
 
