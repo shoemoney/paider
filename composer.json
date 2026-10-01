@@ -47,7 +47,7 @@
     "require-dev": {
         "laravel/pint": "^1.25.1",
         "mockery/mockery": "^1.6.12",
-        "pestphp/pest": "^3.8.4|^4.1.2"
+        "pestphp/pest": "5.3.0"
     },
     "suggest": {
         "ext-pdo_pgsql": "Required only for PAIDER_DATABASE_URL (Postgres storage, and RAG via pgvector). Paider's default storage is SQLite, so this is NOT a hard requirement — a user who never sets PAIDER_DATABASE_URL should not have to install a database driver they will never load."
