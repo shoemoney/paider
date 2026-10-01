@@ -126,9 +126,17 @@ class ChatCommand extends Command
             ));
         }
 
+        // &nbsp; around /quit, and the leading space moved INSIDE the following span.
+        //
+        // Termwind's cell renderer ends with rtrim(), so a trailing space inside a styled span is
+        // stripped and whitespace BETWEEN spans is collapsed: "type " + "/quit" + " (or exit)"
+        // rendered as "type/quit(or exit)", which a blind visual review of the TUI capture read as
+        // a string-concatenation defect — correctly, because it looked exactly like one. Found by
+        // reading the rendered frame; the source looked fine, which is the whole point of the
+        // blind lens. Measured: a plain space is dropped, &nbsp; survives.
         Palette::render(sprintf(
             '<div class="mb-1">
-                <span class="%1$s">type </span><span class="%2$s">/quit</span><span class="%1$s"> (or exit) to quit</span>
+                <span class="%1$s">type&nbsp;</span><span class="%2$s">/quit</span><span class="%1$s">&nbsp;(or exit) to quit</span>
             </div>',
             Palette::tw(ColorRole::Muted),
             Palette::tw(ColorRole::Accent),

@@ -477,3 +477,38 @@ it('says a session cost more, rather than "saved" a negative number, when it ran
     expect($output)->toContain('this session cost $5.60 more')
         ->and($output)->not->toContain('you saved $-5.60');
 });
+
+it('right-aligns the numeric columns so digits actually line up', function () {
+    // A blind visual review of a real `paider cost` capture found every column left-aligned,
+    // which makes comparing 42 against 260.8k a glyph-by-glyph read — the one job a cost table
+    // exists to make easy.
+    //
+    // The attribute is `align`, not a `text-right` class: Termwind's TableRenderer reads the
+    // align ATTRIBUTE (TableRenderer.php:165) while `text-right` is handled by Styles.php for
+    // non-table text. The class version compiles cleanly, renders nothing different, and is the
+    // kind of change that gets reviewed as "done" because the diff looks right.
+    $root = sys_get_temp_dir().'/paider-align-'.uniqid('', true);
+    mkdir($root.'/.paider', recursive: true);
+
+    $source = (string) file_get_contents(base_path('app/Commands/CostCommand.php'));
+
+    // Assert the SOURCE of truth rather than the rendered frame: rendering needs a TTY and a
+    // palette, and a test that cannot run is a test that does not exist.
+    expect($source)->toContain('align="right"')
+        // And the class that does nothing here must not be mistaken for the fix later.
+        ->and($source)->not->toContain('text-right');
+
+    expect(is_dir($root))->toBeTrue();
+    rmdir($root.'/.paider');
+    rmdir($root);
+});
+
+it('the hint keeps its spaces around /quit', function () {
+    // Termwind rtrims each rendered cell, so a trailing space inside a styled span is dropped and
+    // "type " + "/quit" + " (or exit)" became "type/quit(or exit)" — which read as a
+    // concatenation bug rather than deliberate UI. &nbsp; is what survives the trim.
+    $source = (string) file_get_contents(base_path('app/Commands/ChatCommand.php'));
+
+    expect($source)->toContain('type&nbsp;')
+        ->and($source)->toContain('&nbsp;(or exit)');
+});

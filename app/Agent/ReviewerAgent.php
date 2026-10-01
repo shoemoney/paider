@@ -3,7 +3,6 @@
 namespace App\Agent;
 
 use App\Providers\Contracts\ProviderClient;
-use App\Storage\CostLedger;
 use App\Storage\EventLog;
 use App\Support\ModelPricing;
 use RuntimeException;
@@ -116,7 +115,7 @@ final class ReviewerAgent
 
         $messages = [[
             'role' => 'user',
-            'content' => "Review the following for correctness, then state plainly whether it is "
+            'content' => 'Review the following for correctness, then state plainly whether it is '
                 ."sound. Be specific and brief.\n\n".$subject,
         ]];
 

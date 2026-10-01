@@ -109,7 +109,7 @@ class CostCommand extends Command
             <div class="my-1">
                 <table>
                     <thead>
-                        <tr><th class="px-1">tier</th><th class="px-1">calls</th><th class="px-1">tokens in</th><th class="px-1">tokens out</th><th class="px-1">spend</th><th class="px-1">share</th></tr>
+                        <tr><th class="px-1">tier</th><th class="px-1" align="right">calls</th><th class="px-1" align="right">tokens in</th><th class="px-1" align="right">tokens out</th><th class="px-1" align="right">spend</th><th class="px-1" align="right">share</th></tr>
                     </thead>
                     <tbody>
                         {$rows}
@@ -203,8 +203,14 @@ class CostCommand extends Command
         $calls = $isSession ? '—' : (string) $row['calls'];
         $share = $isSession ? '—' : ($row['share_pct'] === null ? '—' : number_format($row['share_pct'], 1).'%');
 
+        // Numeric cells right-align; the tier name stays left. Found by a blind visual review of
+        // a real `paider cost` capture: with every column left-aligned the digits did not line
+        // up, so comparing 42 against 260.8k meant reading glyph by glyph — which is the one job a
+        // cost table exists to make easy. Column headers align with their cells for the same
+        // reason.
         return sprintf(
-            '<tr><td class="px-1">%s</td><td class="px-1">%s</td><td class="px-1">%s</td><td class="px-1">%s</td><td class="px-1">%s</td><td class="px-1">%s</td></tr>',
+            '<tr><td class="px-1">%s</td><td class="px-1" align="right">%s</td><td class="px-1" align="right">%s</td>'
+            .'<td class="px-1" align="right">%s</td><td class="px-1" align="right">%s</td><td class="px-1" align="right">%s</td></tr>',
             e($tier),
             e($calls),
             e($this->formatCount($row['tokens_in'])),
