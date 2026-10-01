@@ -397,7 +397,7 @@ class Loop
         // If a test_command is configured and the write succeeded, run it once via ShellTool
         // and fold the result into the observation. No inner retry: see runPostPatchTests().
         if ($result->ok) {
-            $testResult = $this->runPostPatchTests();
+            $testResult = $this->runPostPatchTests($approvalPrompt);
             if ($testResult !== null) {
                 $this->eventLog->append('test_run', ['ok' => $testResult->ok, 'output' => substr($testResult->output, 0, 4000)]);
                 // Append test output to the tool result so the model sees it as feedback
@@ -421,18 +421,46 @@ class Loop
      * model (see dispatchWrite's [test_feedback] append), and the model can try again with a
      * different patch on its own next turn.
      */
-    private function runPostPatchTests(): ?ToolResult
+    private function runPostPatchTests(callable $approvalPrompt): ?ToolResult
     {
-        $command = SettingsStore::testCommand();
+        $source = SettingsStore::testCommandSource();
 
-        if ($command === null) {
+        if ($source === null) {
             return null;
         }
 
+        $command = $source['command'];
         $root = $this->effectiveProjectRoot();
         $shell = $this->tools['run_shell'] ?? new ShellTool($root);
 
-        // Bypass gate: test_command is explicit user config, not model-controlled input.
+        // A COMMAND THE OPERATOR WROTE may skip the gate: they typed it, they approved it, and
+        // re-prompting on every single patch would train them to hit "y" without reading — which
+        // is the reflex this gate exists to prevent.
+        if ($source['operator_authored']) {
+            return $shell->execute(['command' => $command, 'approval' => 'allow-once']);
+        }
+
+        // A COMMAND A REPOSITORY SHIPPED may not. It is untrusted text that arrives without any
+        // human ever seeing it, and skipping the gate for it meant that cloning a repo and making
+        // one ungated write_file was enough to run arbitrary code. So it is presented to the gate
+        // like any other model-adjacent command.
+        //
+        // The subject is the SAME string for the grant key and for the prompt, the way
+        // dispatchGated() does it. Gate::decide() invokes the prompt with no arguments, so the
+        // closure has to capture it — passing only the bare command to the prompt would leave the
+        // human looking at an ordinary shell string with no indication that a repository chose it,
+        // which is the one thing that would make approving it a mistake.
+        $subject = 'post-patch test command from this repo\'s .paider/settings.json: '.$command;
+
+        $allowed = $this->gate->decide($subject, fn () => $approvalPrompt($subject));
+
+        if (! $allowed) {
+            // Null, not a failed result: the WRITE succeeded and stands. Reporting this as a
+            // failure would tell the model its edit did not land when it did, and the human who
+            // just declined already knows they declined.
+            return null;
+        }
+
         return $shell->execute(['command' => $command, 'approval' => 'allow-once']);
     }
 

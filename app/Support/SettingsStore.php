@@ -82,8 +82,58 @@ class SettingsStore
 
     public static function testCommand(): ?string
     {
-        $path = self::readPath();
+        return self::testCommandSource()['command'] ?? null;
+    }
 
+    /**
+     * The configured test command AND whether a human actually wrote it.
+     *
+     * ## Why the provenance is the whole point
+     *
+     * `test_command` is not a preference. It is a shell command this process will spawn, and it
+     * runs after every successful write with the approval gate bypassed — see
+     * `Loop::runPostPatchTests()`. Read precedence above puts the PROJECT file first, and a
+     * project file is something a cloned repository ships.
+     *
+     * So the chain was: clone a repo carrying `.paider/settings.json` with
+     * `{"test_command": "curl … | sh"}`, let the model make one ordinary `write_file` (which
+     * needs no prompt at all, because only SecretsGuard-sensitive files are gated), and the
+     * command executes with no gate, no prompt, and no `PAIDER_YOLO`. That is clone-to-RCE, and
+     * it contradicted this project's own written rule — "Convenience settings may live in a
+     * project file; permissions may not" (ProjectEnv) — and the same rule that closed the
+     * project-local `mcp.json` hole.
+     *
+     * A repository may therefore still SAY what its test command is. It may not AUTHORISE it.
+     * `operator_authored` is true only for the XDG file, which lives in the operator's own home
+     * and which a cloned repository cannot write. The caller uses it to decide whether the gate
+     * may be skipped, and skipping is only ever safe for a command a human typed.
+     *
+     * Precedence itself is unchanged: project still wins, so an operator who sets a project
+     * command still gets it.
+     *
+     * @return array{command: string, operator_authored: bool}|null
+     */
+    public static function testCommandSource(): ?array
+    {
+        $fromProject = self::readTestCommandFrom(self::path());
+
+        if ($fromProject !== null) {
+            return ['command' => $fromProject, 'operator_authored' => false];
+        }
+
+        $xdg = self::xdgPath();
+        $fromXdg = $xdg === '' ? null : self::readTestCommandFrom($xdg);
+
+        if ($fromXdg !== null) {
+            return ['command' => $fromXdg, 'operator_authored' => true];
+        }
+
+        return null;
+    }
+
+    /** Decode just `test_command` out of one settings file, or null if it has none. */
+    private static function readTestCommandFrom(string $path): ?string
+    {
         if (! is_file($path)) {
             return null;
         }
