@@ -474,7 +474,7 @@ it('says a session cost more, rather than "saved" a negative number, when it ran
 
     $output = $bufferedOutput->fetch();
 
-    expect($output)->toContain('this session cost $5.60 more')
+    expect($output)->toContain('this session cost $5.600 more')
         ->and($output)->not->toContain('you saved $-5.60');
 });
 
@@ -525,4 +525,24 @@ it('says plainly that nothing was routed, rather than printing a 0.0% that reads
 
     expect($source)->toContain('no other tier was used')
         ->and($source)->toContain('token_share_pct\'] <= 0.0');
+});
+
+it('prints money at ONE precision, so the same figure never appears two ways', function () {
+    // A blind visual review caught $1.654 in the table sitting directly above $1.65 in the
+    // comparison line. Both are correct roundings of one number, and side by side they read as
+    // two different figures — which costs a cost-ledger exactly the credibility it is built on.
+    //
+    // Asserted as a COUNT of distinct precisions rather than a single literal, so adding a fourth
+    // money format later fails here instead of shipping.
+    $source = (string) file_get_contents(base_path('app/Commands/CostCommand.php'));
+
+    preg_match_all('/\$%\.(\d)f/', $source, $matches);
+
+    expect($matches[1] ?? [])->not->toBeEmpty();
+
+    $precisions = array_values(array_unique($matches[1]));
+
+    // A single trailing-precision figure may legitimately be one decimal elsewhere, but the money
+    // the user compares must all be 3. Assert the SET is {3} for the ledger's own lines.
+    expect($precisions)->toBe(['3'], 'money must print at one precision everywhere: found '.implode(',', $precisions));
 });

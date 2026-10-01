@@ -173,8 +173,8 @@ class CostCommand extends Command
                 $saved = abs($comparison['saved_usd']) < 0.005 ? 0.0 : $comparison['saved_usd'];
 
                 Palette::render('<div class="px-1">'.e($saved >= 0
-                    ? sprintf('Same work on all-Opus 5: $%.2f · you saved $%.2f', $comparison['hypothetical_usd'], $saved)
-                    : sprintf('Same work on all-Opus 5: $%.2f · this session cost $%.2f more', $comparison['hypothetical_usd'], -$saved)
+                    ? sprintf('Same work on all-Opus 5: $%.3f · you saved $%.3f', $comparison['hypothetical_usd'], $saved)
+                    : sprintf('Same work on all-Opus 5: $%.3f · this session cost $%.3f more', $comparison['hypothetical_usd'], -$saved)
                 ).'</div>');
             }
         }

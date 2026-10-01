@@ -26,7 +26,7 @@ open v0.2 work and is planned below.
 |---|---|---|
 | v0.1 command surface, 9 tools, SQLite ledger | ✅ **shipped** | `chat`, `commit`, `cost`, `run`, `config:*` |
 | M1 — end-to-end edit in a foreign repo | ✅ **closed** | 3/3 rubric-graded live runs in `vlucas/valitron`, `m1/runs/`, $1.57 total |
-| Test suite | ✅ **602 passing**, 3447 assertions | `vendor/bin/pest`, hermetic; 25 skip without `PAIDER_TEST_PG_URL` |
+| Test suite | ✅ **603 passing**, 3449 assertions | `vendor/bin/pest`, hermetic; 25 skip without `PAIDER_TEST_PG_URL` |
 | Cold start | ✅ 94.8ms measured | — |
 | Distribution | ✅ PHAR 32MB, `curl \| sh` live | Packagist v1.0.1 — see erratum, `DECISIONS.md` §22 |
 | **v0.2 Track A — MCP client** | ✅ **CLOSED this session** | committed `fe469bb`; all 5 done-commands pass |
