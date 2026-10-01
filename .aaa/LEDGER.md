@@ -125,3 +125,61 @@ printed output.
 3 artifacts correctly dismissed · 1 harness defect fixed · 0 rejected real findings.
 
 Every fix is fail-closed: each was verified to fail against the pre-fix code before commit.
+
+---
+
+## Cycle 3 — `google/gemini-3.6-flash`
+
+**Verdict:** functional and informative, bogged down by grid clutter and alignment quirks.
+**Confidence:** high. **Attempts:** 1. **Accepted:** yes (`b675e5c`).
+
+| finding | confirmed? | outcome |
+|---|---|---|
+| `$1.654` above `$1.65` | ✅ **real** | fixed — one precision everywhere |
+| "numbers are CENTERED" | ❌ **wrong** | verified right-aligned in the capture |
+| "heavy ASCII borders" | ⚠️ **real, and I had dismissed it twice** | attempted, then reverted — see below |
+| Summary line | ✅ praised | — |
+
+### The finding I dismissed twice was real
+
+Cycles 1 and 2 both reported "inconsistent ASCII vs Unicode table borders" and I dismissed both
+as my capture renderer. **That was wrong.** Reading `Termwind/src/Html/TableRenderer.php:124`:
+
+```php
+$this->table->addRow(new TableSeparator);
+```
+
+Termwind inserts a **Symfony Console `TableSeparator`** before every `<tr>`. That is real product
+output. Two cycles of reviewer budget spent on me insisting otherwise, and the reason I believed
+it was that the two *screenshots in the dossier* did look inconsistent — the TUI genuinely uses
+Unicode, the cost table genuinely uses ASCII. The observation was right and my explanation was
+wrong.
+
+**Attempted fix, then reverted.** The grid is only avoidable by not using `<table>`, so I rebuilt
+the rows as `flex` + `w-*` columns. It fails: `w-*` exists in Termwind only as a **fraction**
+(`w-1/2`), never a fixed character width, so columns cannot be sized. `StyleNotFound:
+Style [table] not found` on the first attempt, then no width primitive on the second. Reverted,
+precision fix kept.
+
+So the honest status: **known, real, and not fixable within Termwind.** It would need a custom
+column renderer rather than `<table>`. Recorded rather than quietly dropped, because a dismissed
+finding that turns out to be real is the most expensive kind of dismissal.
+
+### The currency finding rode inside a wrong one
+
+"Centering breaks decimal alignment" was flatly wrong — the capture shows 42, 260.8k and $1.654
+sharing a right edge, which is cycle 2's fix being described as the defect. But the same item
+also observed two currency precisions in one output, which was **the actual bug of this cycle**.
+
+That is now the loop's most reliable shape: **the real defect is rarely the headline.** It was
+found by measuring each claim rather than ranking them.
+
+---
+
+## Standing decisions (revised after cycle 3)
+
+- ~~Border style is NOT a defect.~~ **CORRECTED.** It is real product output from Termwind. It is
+  not fixable without replacing `<table>`, so it is a known limitation, not a dismissed finding.
+- Currency precision: **one precision everywhere**, asserted as a set so a fourth format fails.
+- Colour hierarchy: still deferred. Lower value than the two fixed above, and worth a cycle only
+  when the reviewer is not being handed a recurring non-finding.
