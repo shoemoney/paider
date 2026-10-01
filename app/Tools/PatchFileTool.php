@@ -109,7 +109,11 @@ class PatchFileTool implements Tool
 
         $dir = dirname($absolute);
 
-        if (! is_dir($dir) && ! mkdir($dir, 0777, true) && ! is_dir($dir)) {
+        // 0755, matching WriteFileTool. This was 0777 — world-writable before umask, for a
+        // directory inside someone's project, and inconsistent with the sibling tool that
+        // creates the same directories on the same paths. Nothing here needs a writable
+        // directory that the owner cannot already write.
+        if (! is_dir($dir) && ! mkdir($dir, 0755, recursive: true) && ! is_dir($dir)) {
             return ToolResult::fail('could not create parent directory', ['io_error' => true]);
         }
 

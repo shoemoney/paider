@@ -7,8 +7,15 @@ use App\Tools\Contracts\Tool;
 /**
  * v0.1 Laravel-host proof: exactly one hardcoded call (`php artisan route:list --json`),
  * not a general Artisan passthrough — `php artisan <anything>` boots the target app's
- * service providers, which is arbitrary code execution, so it needs its own approval
- * gate rather than a slot in run_shell's allowlist. See PLAN.md.
+ * service providers, which is arbitrary code execution, so it gets its own approval gate
+ * rather than being reachable through run_shell. See PLAN.md.
+ *
+ * There is NO allowlist anywhere in ShellTool, and this docblock used to imply there was one
+ * ("a slot in run_shell's allowlist"). That was a description of a control which does not
+ * exist, and it is the kind of sentence that makes a later reader believe they are safer
+ * than they are: run_shell will execute any string a human approves. The only thing
+ * separating an approved command from arbitrary code execution here is the Gate, which is why
+ * this tool is hardcoded to one call instead of being a passthrough.
  *
  * UI-agnostic like ShellTool: the caller (Loop) resolves the approval decision and
  * passes it in as $input['approval'].
