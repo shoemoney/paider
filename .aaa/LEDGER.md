@@ -390,14 +390,79 @@ always *whose code is this?*
 
 ---
 
-## Eight-cycle scoreboard
+## Cycle 9 — NOT a visual cycle, and that is the finding
+
+**Method: none of the above.** No dossier, no capture, no blind reviewer. Instead: run every
+done-command in `COMPLETION-PLAN.md` and compare each answer against the file. The plan is written
+as done-commands precisely so it can be checked rather than believed, and nobody had checked all
+of them. Three did not say what the checkmarks claimed.
+
+| what the plan said | what the command said |
+|---|---|
+| Phase A2 gate in place | gate exists, and was **RED** — docs quoted 603, suite measured 611 |
+| Phase C shipped | `ReviewerAgent` shipped in c9aefd6 with a hard budget and **zero tests** |
+| (not in the plan) | `.paider/settings.json` `test_command` ran **with the gate bypassed** |
+
+**The headline was not on the list at all.** `SettingsStore::path()` is `getcwd().'/.paider/'`;
+`readPath()` prefers it; `testCommand()` reads it; `Loop::runPostPatchTests()` spawned it with
+`approval => allow-once` and the comment *"Bypass gate: test_command is explicit user config."*
+A repository ships that file. The model needs one ordinary `write_file` — which is not prompted,
+because only secret-shaped paths are gated — and arbitrary code runs. No gate, no prompt, no
+`--yolo`. It contradicted `ProjectEnv`'s own rule ("convenience settings may live in a project
+file; permissions may not") and re-opened, one layer over, the exact hole `mcp.json` had been
+refused for. Fixed in `fa70d9d`, on provenance rather than location, and mutation-proved.
+
+It was not written down anywhere. `grep test_command DECISIONS.md` → zero hits. A test asserted
+the bypass was **correct**. And `council_meetings/top5-execute/research.md` had already spotted
+the bypass, described it accurately, and routed it nowhere.
+
+**Cycle 9's lesson, and it is the whole point of this entry.** Eight cycles of blind visual
+review found ten real defects in Paider's own code and **did not find this**, because no rendered
+frame contains it. A pixel diff cannot see an authorisation decision. The visual loop's strength
+is that it catches what is *invisible in the source* — a wrong alignment, a ghosted prompt box —
+and its exact blind spot is the inverse: what is invisible in the *render*. A method that keeps
+finding presentation defects has not thereby earned the right to be the only method.
+
+The plan's own framing was right and is worth repeating: this is not a project with a feature
+backlog, it is a project with a **verification backlog**. The cheapest possible check — run the
+done-commands — found a remote-code-execution hole that eight paid review cycles missed.
+
+**Two smaller fixes from the same sweep, both about a codebase lying to its reader.** `ArtisanTool`
+documented itself as needing "a slot in run_shell's allowlist"; no allowlist exists anywhere, and
+the sentence's real damage is to whoever reads it next and concludes `run_shell` is filtered.
+`PatchFileTool` created directories `0777` where its sibling creates the same paths `0755`. Both
+committed in `86945bd`. A security document written from the code as it stood would have had to
+repeat the allowlist lie, which is how `SECURITY.md` ended up with a **known-gaps** section
+instead of a list of strengths.
+
+### Two artifacts that had rotted, in ways only a crash could reveal
+
+The client died mid-session and the tree came back **clean and green** — which is the state that
+hides this class of damage, because nothing is red. `5c098e4` is titled
+`docs: cycle 7 ledger entry` and is neither: a nested heredoc had put cycle 8's *code fix* inside
+it, and appended a second near-duplicate of cycle 7 to this file. Both repaired in `d2cfb5b`
+without rewriting history, because a ledger that quietly edits its own past is not a ledger.
+
+Worse, cycle 8's error frame had been built by an ad-hoc shell line, so the recipe died with the
+temp directory and the surface could not be re-captured — the failure `bin/capture-tui.sh` exists
+to prevent, one cycle later and in a different costume. `bin/capture-err.sh` is that recipe, and
+it self-gates: it exits non-zero unless the remedy line is present *and* the malformed config's
+contents are absent. It also caught `sips --cropOffset 0 0` **not** anchoring to the top — it
+cropped from the middle and removed the `RuntimeException` header and the entire remedy line,
+producing a plausible, non-empty, correctly-sized PNG. A crop that eats the subject still looks
+like proof.
+
+---
+
+## Nine-cycle scoreboard
 
 | | |
 |---|---|
-| cycles run | 8 |
-| accepted commits | 8 |
-| real defects in **Paider's** code fixed | 10 |
+| cycles run | 9 (the last one not visual) |
+| accepted commits | 13 |
+| real defects in **Paider's** code fixed | 13 |
 | findings about vendor code, correctly not fixed | 5 |
 | wrong findings caught by measuring | 9 |
-| surfaces reviewed | cost, chat, list, config:show, **error path** |
+| **security holes found by running done-commands, after 8 visual cycles missed them** | **1 (clone-to-RCE)** |
+| surfaces reviewed | cost, chat, list, config:show, error path, **the plan's own claims** |
 | abandoned after investigation | 1 (cycle 6 describer) |
