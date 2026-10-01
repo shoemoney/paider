@@ -373,3 +373,58 @@ caught far faster this time because the pattern was already written down.
 
 **Cycle 6's lesson, applied:** nothing here required touching the framework's container, so nothing
 here was abandoned. That is the dividing line.
+
+---
+
+## Cycle 8 — `google/gemini-3.6-flash` (THE ERROR PATH)
+
+**Attempts:** 1. **Accepted:** yes.
+
+| finding | confirmed? | outcome |
+|---|---|---|
+| parse error does not say what to DO | ✅ real, **ours** | fixed |
+| code-frame vs trace-number gutter breaks | ⚠️ vendor | not ours — Collision's renderer |
+| `JsonException::("Syntax error")` looks like bad syntax | ⚠️ vendor | not ours |
+| trace paths not dimmed by directory | ⚠️ vendor | not ours |
+
+**Pointed the reviewer at a MALFORMED-CONFIG crash**, a surface this loop had never judged, and
+three of its four findings were about **Collision's exception renderer** — a transitive Laravel
+Zero dependency, not Paider code. Overriding it is the same container fight cycle 6 abandoned,
+so: not ours, not fixed, recorded.
+
+The fourth was ours and it is the one that matters:
+
+```
+RuntimeException
+Could not parse /tmp/errdemo/.paider/mcp.json: Syntax error
+```
+
+True, and useless to the person reading it. Collision renders the trace either way, so the
+**actionable half has to be in the message itself** — otherwise a user who mistyped one
+character in a JSON file is told a JsonException occurred and left to work out which file. Now:
+
+> Could not parse …/mcp.json: Syntax error. **Fix the JSON, or point PAIDER_MCP_CONFIG somewhere
+> else.**
+
+Still deliberately does not echo the file contents: a config can carry a token-bearing URL, and an
+error screen is the worst place to leak one. The test asserts both — the remedy is present AND
+the contents are not.
+
+**Cycle 8's lesson:** three of four findings were in code this project does not own. Judging a
+dependency's presentation as if it were yours is the new variant of "right about the smell,
+wrong about the detail" — and it is cheaper to catch than to fix, because the first question is
+always *whose code is this?*
+
+---
+
+## Eight-cycle scoreboard
+
+| | |
+|---|---|
+| cycles run | 8 |
+| accepted commits | 8 |
+| real defects in **Paider's** code fixed | 10 |
+| findings about vendor code, correctly not fixed | 5 |
+| wrong findings caught by measuring | 9 |
+| surfaces reviewed | cost, chat, list, config:show, **error path** |
+| abandoned after investigation | 1 (cycle 6 describer) |

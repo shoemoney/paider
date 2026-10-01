@@ -393,3 +393,28 @@ it('the notice is actually RENDERED to the user, not merely returned', function 
     expect($source)->toContain('McpClient::refusedProjectConfigNotice(')
         ->and($source)->toContain('Palette::render(');
 });
+
+it('the parse error tells the user what to DO, not only what went wrong', function () {
+    // A blind visual review of the ERROR path — a surface this loop had never judged — found
+    // that the message named the file and the parse error but not the remedy. Collision renders
+    // the trace either way, so the actionable half has to be in the message itself: a user who
+    // mistyped one character in a JSON file was told a JsonException happened and left to work
+    // out which file it meant.
+    $root = mcpProjectDir();
+    file_put_contents($root.'/mcp.json', '{ not json');
+
+    withMcpConfigAt($root);
+
+    withMcpEnabled(function () use ($root) {
+        try {
+            McpClient::tools($root);
+            $this->fail('expected a RuntimeException for unparseable JSON');
+        } catch (RuntimeException $e) {
+            expect($e->getMessage())->toContain('mcp.json')
+                ->and($e->getMessage())->toContain('Fix the JSON')
+                // Still must not echo the file — a config can carry a token-bearing URL, and an
+                // error screen is the worst place to leak one.
+                ->and($e->getMessage())->not->toContain('not json');
+        }
+    });
+});
