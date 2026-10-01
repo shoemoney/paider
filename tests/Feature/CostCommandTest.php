@@ -561,3 +561,31 @@ it('prints an exact-zero saving as $0.00, not $0.000', function () {
         ->and($source)->toContain("\$savedAmount == 0.0 ? '\$0.00'")
         ->and($source)->toContain('you saved %s');
 });
+
+it('gives Total spend its own visual weight instead of rendering it like a table cell', function () {
+    // "Total spend" is the entire reason anyone runs `paider cost`, and it rendered in the same
+    // weight and colour as a table cell — so the number a user came for did not stand out from
+    // the numbers they did not. Named as the top remaining fixability across three blind
+    // visual review cycles.
+    //
+    // The label dims and the figure takes the accent role. Asserted on the SOURCE because the
+    // colour only exists in the escape stream, which needs a pty to capture.
+    $source = (string) file_get_contents(base_path('app/Commands/CostCommand.php'));
+
+    expect($source)->toContain('Total spend:</span>')
+        ->and($source)->toContain('ColorRole::Accent')
+        ->and($source)->toContain('ColorRole::Muted');
+});
+
+it('colours a real saving as a success, and a zero saving NOT as good news', function () {
+    // Dressing "you saved $0.00" in the success colour would be decoration lying about the
+    // result. Saving is the only good news this command can produce, so it earns that role —
+    // and only when it is actually positive.
+    $source = (string) file_get_contents(base_path('app/Commands/CostCommand.php'));
+
+    // The exact expression, not the mere presence of ColorRole::Success elsewhere in the file —
+    // the first version of this assertion passed with the ternary deleted, because a success role
+    // is used on the unpriced marker too. A test that survives deleting the thing it names is
+    // a test that measures nothing.
+    expect($source)->toContain('$saved > 0.0 ? ColorRole::Success : ColorRole::Muted');
+});

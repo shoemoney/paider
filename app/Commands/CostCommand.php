@@ -5,6 +5,7 @@ namespace App\Commands;
 use App\Storage\CostLedger;
 use App\Storage\Database;
 use App\Storage\EventLog;
+use App\Support\ColorRole;
 use App\Support\CostComparison;
 use App\Support\Palette;
 use LaravelZero\Framework\Commands\Command;
@@ -103,7 +104,13 @@ class CostCommand extends Command
         $totalSpend = $session['unpriced_calls'] > 0
             ? sprintf('$%.3f*', $sessionSpend)
             : sprintf('$%.3f', $sessionSpend);
-        Palette::render('<div class="px-1 mt-1">Total spend: '.e($totalSpend).'</div>');
+        // The hero metric. "Total spend" is the entire reason anyone runs this command, and it
+        // was rendered in the same weight and colour as a table cell, so the number a user came
+        // for did not stand out from the numbers they did not. Label muted, figure accented.
+        Palette::render('<div class="px-1 mt-1">'
+            .'<span class="'.Palette::tw(ColorRole::Muted).'">Total spend:</span> '
+            .'<span class="'.Palette::tw(ColorRole::Accent).'">'.e($totalSpend).'</span>'
+            .'</div>');
 
         Palette::render(<<<HTML
             <div class="my-1">
@@ -183,10 +190,16 @@ class CostCommand extends Command
                 $savedAmount = abs($saved);
                 $savedText = $savedAmount == 0.0 ? '$0.00' : sprintf('$%.3f', $savedAmount);
 
-                Palette::render('<div class="px-1">'.e($saved >= 0
-                    ? sprintf('Same work on all-Opus 5: $%.3f · you saved %s', $comparison['hypothetical_usd'], $savedText)
-                    : sprintf('Same work on all-Opus 5: $%.3f · this session cost %s more', $comparison['hypothetical_usd'], $savedText)
-                ).'</div>');
+                $savingRole = $saved > 0.0 ? ColorRole::Success : ColorRole::Muted;
+
+                Palette::render('<div class="px-1">'.e(sprintf(
+                    'Same work on all-Opus 5: $%.3f · ',
+                    $comparison['hypothetical_usd']
+                ))
+                    .'<span class="'.Palette::tw($savingRole).'">'.e($saved >= 0
+                        ? sprintf('you saved %s', $savedText)
+                        : sprintf('this session cost %s more', $savedText))
+                    .'</span></div>');
             }
         }
 

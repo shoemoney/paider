@@ -183,3 +183,78 @@ found by measuring each claim rather than ranking them.
 - Currency precision: **one precision everywhere**, asserted as a set so a fourth format fails.
 - Colour hierarchy: still deferred. Lower value than the two fixed above, and worth a cycle only
   when the reviewer is not being handed a recurring non-finding.
+
+---
+
+## Cycle 4 — `google/gemini-3.6-flash`
+
+**Attempts:** 1. **Accepted:** yes (`b05d195`).
+
+| finding | confirmed? | outcome |
+|---|---|---|
+| `$0.000 saved` reads as a raw float | ✅ real | fixed — exact zero prints `$0.00` |
+| hint spacing still broken | ⚠️ **stale asset** | code was fixed in cycle 1; the published capture predated it |
+| "dashes are center-aligned" | ❌ wrong | verified right-aligned |
+| grid borders | known Termwind limit | unchanged |
+
+The hint finding is the interesting one: the reviewer was judging the **committed capture**, not
+the code. Cycle 1 fixed the spacing; the image shipped alongside it had not been regenerated. A
+stale artifact in a docs image is the same failure as the double-exposure capture earlier in this
+loop — it does not merely look wrong, it makes whoever reads it draw a false conclusion about
+the code. **Regenerated.**
+
+Fixing the zero case introduced `$-5.600 more` on the negative branch (formatted `$saved` where
+the line prints `-$saved` as positive). Caught by the golden test that already covered that
+line, and `abs()` fixed it. Two cycles running where the suite that *reported* a change is the
+suite that *policed* its consequences — which is the correct relationship and worth keeping.
+
+## Cycle 5 — `google/gemini-3.6-flash`
+
+**Attempts:** 1. **Accepted:** yes.
+
+| finding | confirmed? | outcome |
+|---|---|---|
+| Total spend has no visual hierarchy | ✅ **real, deferred since cycle 2** | fixed |
+| numbers right-aligned | ✅ praised | cycle 2's fix, confirmed stable |
+| ASCII grid | known Termwind limit | unchanged |
+| ASCII banner "illegible" | ❌ **taste** | the wordmark is the product's identity |
+
+**Hero metric.** `Total spend` is the reason anyone runs this command and it rendered in the same
+weight and colour as a table cell. Label now muted, figure accented, and a real saving takes the
+success role — while a *zero* saving deliberately does not, because dressing "you saved $0.00" in
+the success colour would be decoration lying about the result.
+
+Dropping the colon while splitting the label from the figure broke two golden tests. Kept the
+colon inside the muted span: emphasis should not cost a character of the sentence.
+
+My own hierarchy test passed with the ternary deleted at first, because `ColorRole::Success`
+appears elsewhere in the file. Tightened to the exact expression — **a test that survives
+deleting the thing it names measures nothing.**
+
+---
+
+## Closing assessment — 5 cycles
+
+**4 accepted commits.** Real defects fixed: 6. Wrong findings caught by measurement: 7. Artifacts
+correctly dismissed: 2. Artifacts I dismissed and was **wrong** about: 1 (the grid, twice).
+
+Three things this loop taught that generalise beyond it:
+
+1. **The real defect is almost never the headline.** Cycle 2's headline was a capture artifact
+   and the real finding was a sentence. Cycle 3's headline was a false alignment claim and the real
+   finding was currency precision. Cycle 4's headline was a stale image and the real finding was a
+   float in prose. Measure every claim; rank none by confidence.
+2. **The reviewer describes a correct fix as a defect roughly once a cycle**, because it reads the
+   current state with no idea what changed. "Numbers are centered" was cycle 2's own fix, reported
+   as a bug in cycle 3.
+3. **A dismissed artifact that is not removed comes back.** `^Dit` was reported twice before the
+   capture tool was actually fixed. And a dismissal made with the wrong reasoning — the grid, which
+   I called a capture artifact twice when Termwind emits it — costs more than the fix would have.
+
+**Known and not fixed:** the `+---+` grid, because Termwind inserts a Symfony `TableSeparator`
+before every `<tr>` and `w-*` exists only as a fraction, so the table cannot be rebuilt as columns
+without a custom renderer. Recorded as a limitation, not dismissed.
+
+**The loop's value was not the six fixes.** It was finding the two places where I was confidently
+wrong about my own code — the grid, twice, and the CI gate's inverted logic — which no amount of
+reading would have surfaced.
