@@ -342,3 +342,34 @@ caught faster this time because the pattern was already known.
 
 **Cycle 6's lesson, applied:** nothing here required touching the framework's container, so
 nothing here was abandoned. That is the dividing line.
+
+---
+
+## Cycle 7 — `google/gemini-3.6-flash`
+
+**Attempts:** 1. **Accepted:** yes.
+
+| finding | confirmed? | outcome |
+|---|---|---|
+| trailing periods inconsistent across descriptions | ✅ real | fixed — house rule: none |
+| price headers misaligned with their values | ✅ real | fixed |
+| ASCII grid | known Termwind limit | unchanged |
+| colour separation in help | ✅ praised | — |
+
+**Two consistency defects, neither caught in six cycles**, because they only exist when you look
+at all the commands *together* rather than one at a time.
+
+`paider list` mixed trailing periods in a single column — `chat`, `run`, `config:*` ended with
+one, `commit`, `cost`, `mcp:*` did not. Reads as a style nobody owns. The test now scans every
+`$description` in the tree, so the next command added is covered by the same rule instead of by
+whoever remembers it, and the failure names the offending file rather than counting offenders.
+
+Mid-sentence periods stay (`(CI mode). Auto-approves…`) — those separate clauses and are a
+different thing from a sentence terminator.
+
+Price headers were left-aligned over right-aligned values, which Termwind pads to the widest
+cell, so `in / 1M` sat a column left of the figure it labels. Exactly cycle 1's `text-right` trap,
+caught far faster this time because the pattern was already written down.
+
+**Cycle 6's lesson, applied:** nothing here required touching the framework's container, so nothing
+here was abandoned. That is the dividing line.
