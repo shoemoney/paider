@@ -75,3 +75,39 @@ it('right-aligns both price columns so magnitudes compare down the column', func
     // because TableRenderer reads the align ATTRIBUTE. Assert the attribute.
     expect(substr_count($source, 'align="right"'))->toBeGreaterThanOrEqual(2);
 });
+
+it('every command description ends the same way', function () {
+    // `paider list` mixed trailing periods in one column: chat/run/config:* ended with one,
+    // commit/cost/mcp:* did not. Read as a style nobody owns. House rule is NO trailing period;
+    // a mid-sentence period stays, because it separates clauses ("(CI mode). Auto-approves…").
+    //
+    // Read from the COMMANDS rather than asserted per-file, so a new command added next year is
+    // covered by the same rule instead of by whoever remembers it.
+    $files = array_merge(
+        glob(base_path('app/Commands/*.php')) ?: [],
+        glob(base_path('app/Commands/Config/*.php')) ?: []
+    );
+
+    $offenders = [];
+
+    foreach ($files as $file) {
+        if (preg_match("/protected \\\$description = '([^']*)'/", (string) file_get_contents($file), $m) !== 1) {
+            continue;
+        }
+
+        if (str_ends_with(trim($m[1]), '.')) {
+            $offenders[] = basename($file).': '.$m[1];
+        }
+    }
+
+    expect($offenders)->toBe([], "descriptions must not end with a period:\n".implode("\n", $offenders));
+});
+
+it('price headers align with the price values beneath them', function () {
+    $source = (string) file_get_contents(base_path('app/Commands/Config/ShowCommand.php'));
+
+    // A left-aligned short header over right-aligned numbers sits a column left of the figure it
+    // labels, because Termwind pads the header to the widest cell in its column.
+    expect($source)->toContain('<th class="px-1 text-right">in / 1M</th>')
+        ->and($source)->toContain('<th class="px-1 text-right">out / 1M</th>');
+});

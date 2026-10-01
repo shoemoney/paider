@@ -28,7 +28,7 @@ class RunCommand extends Command
 {
     protected $signature = 'run {prompt? : Prompt to send non-interactively} {--y|yes : Auto-approve without prompting} {--yolo : Alias for --yes} {--require-edit : Fail if no write_file/patch_file tool call succeeded this run}';
 
-    protected $description = 'Run a single non-interactive turn (CI mode). Auto-approves when --yes/--yolo is set.';
+    protected $description = 'Run a single non-interactive turn (CI mode). Auto-approves when --yes/--yolo is set';
 
     private readonly string $projectRoot;
 

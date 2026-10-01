@@ -56,7 +56,7 @@ class ShowCommand extends Command
                 <div class="px-1 mb-1">Active preset: <span class="{$presetClass}">{$preset}</span></div>
                 <table>
                     <thead>
-                        <tr><th class="px-1">tier</th><th class="px-1">model</th><th class="px-1" align="right">in / 1M</th><th class="px-1" align="right">out / 1M</th></tr>
+                        <tr><th class="px-1">tier</th><th class="px-1">model</th><th class="px-1 text-right">in / 1M</th><th class="px-1 text-right">out / 1M</th></tr>
                     </thead>
                     <tbody>
                         {$rows}

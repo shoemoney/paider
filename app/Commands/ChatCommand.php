@@ -37,7 +37,7 @@ class ChatCommand extends Command
 {
     protected $signature = 'chat {--y|yolo : Approve every action without asking. Still cannot leave the project root or reach a private address.}';
 
-    protected $description = 'Start an interactive Paider chat session in the current project.';
+    protected $description = 'Start an interactive Paider chat session in the current project';
 
     private readonly string $projectRoot;
 
