@@ -51,10 +51,30 @@ control, not a security control; a CI gate makes that distinction operational.
 
 ---
 
-## Phase B — Close Track B properly *(the "unproven" column)*
+## Phase B — Close Track B properly *(the "unproven" column)* — ✅ **VERIFIED, no code needed**
 
-Sessions and memory **exist**. They are not *verified*, which is a different state and an easy one
-to mistake for done.
+**Architect's note on this phase, recorded because the plan was wrong about it.** The plan
+predicted sessions and memory would need building. They did not: on execution, all four
+milestones were **already implemented and already tested** — `SessionStore::messages()` replays
+stored turns, `ChatCommand` wires it, `Session::replay()` exists specifically to avoid the
+double-post, and `CacheLedger` prices a hit from the *original* token counts rather than zeros,
+which is the exact trap B3 warned about.
+
+The done-commands all pass:
+
+```
+vendor/bin/pest --filter=SessionResume|SessionStore   19 passed
+vendor/bin/pest --filter=CacheLedger                   10 passed
+vendor/bin/pest --filter=unpriced|Unpriced             10 passed, 1 skipped
+```
+
+So Phase B was a **verification** task, not a build task. Recorded here rather than quietly
+reordered, because "the plan said build and the answer was verify" is the useful finding — and
+because a plan that is never wrong about its own state is not being read carefully.
+
+**What the original plan got right, and it was the important part:** the roadmap marked this
+"🟡 partial, unproven" while the code was complete. Both were true. Unproven is not the same as
+unbuilt, and the difference is exactly what a done-command is for.
 
 | # | todo | done-command |
 |---|---|---|
