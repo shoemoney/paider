@@ -152,13 +152,11 @@ class McpClient
             // mcp.json has a trailing comma" the same observable outcome, which is how a
             // one-character typo becomes an afternoon.
             //
-            // The message names the file and the parse error. It deliberately does NOT echo the
-            // file contents: a config may carry a token-bearing URL.
-            // Names the file, the parse error, AND the fix. Collision renders the trace either
-            // way, so the actionable half has to be in the message itself — otherwise a user who
-            // mistyped one character in a JSON file is told a JsonException happened and left to
-            // work out which file. Caught by a blind visual review of the ERROR path, a surface
-            // this loop had never judged.
+            // The message names the file, the parse error, AND the fix. Collision renders the
+            // trace either way, so the actionable half has to be in the message itself — otherwise
+            // a user who mistyped one character is told a JsonException occurred and left to work
+            // out which file. Caught by a blind visual review of the ERROR path, a surface this
+            // loop had never judged.
             //
             // It deliberately does NOT echo the file contents: a config may carry a token-bearing
             // URL, and an error screen is the worst place to leak one.

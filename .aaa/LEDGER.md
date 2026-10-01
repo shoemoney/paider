@@ -325,37 +325,6 @@ understood is not a cosmetic fix. Either it is understood or it is deferred.
 | ASCII grid | known Termwind limit | unchanged |
 | colour separation in help | ✅ praised | — |
 
-**Two consistency defects, neither of which any test or review had caught in six cycles**,
-because they only exist when you look at all the commands *together* rather than one at a time.
-
-`paider list` mixed trailing periods in a single column — `chat`, `run`, `config:*` ended with
-one, `commit`, `cost`, `mcp:*` did not. It reads as a style nobody owns. The test now scans every
-`$description` in the tree, so the next command added is covered by the same rule instead of by
-whoever remembers it, and the failure message names the offending file rather than just counting.
-
-Mid-sentence periods stay (`(CI mode). Auto-approves…`) — those separate clauses and are a
-different thing from a trailing one.
-
-The price headers were left-aligned over right-aligned values, which Termwind pads to the widest
-cell, so `in / 1M` sat a column left of the figure it labels. Same trap as cycle 1's `text-right`,
-caught faster this time because the pattern was already known.
-
-**Cycle 6's lesson, applied:** nothing here required touching the framework's container, so
-nothing here was abandoned. That is the dividing line.
-
----
-
-## Cycle 7 — `google/gemini-3.6-flash`
-
-**Attempts:** 1. **Accepted:** yes.
-
-| finding | confirmed? | outcome |
-|---|---|---|
-| trailing periods inconsistent across descriptions | ✅ real | fixed — house rule: none |
-| price headers misaligned with their values | ✅ real | fixed |
-| ASCII grid | known Termwind limit | unchanged |
-| colour separation in help | ✅ praised | — |
-
 **Two consistency defects, neither caught in six cycles**, because they only exist when you look
 at all the commands *together* rather than one at a time.
 
@@ -378,7 +347,11 @@ here was abandoned. That is the dividing line.
 
 ## Cycle 8 — `google/gemini-3.6-flash` (THE ERROR PATH)
 
-**Attempts:** 1. **Accepted:** yes.
+**Attempts:** 1. **Accepted:** yes — in `5c098e4`, which is titled `docs: cycle 7 ledger entry`
+and is neither. A nested-heredoc mistake in the writing step put the code fix *and* this entry
+into one commit under the previous cycle's label, and also left a second, near-duplicate copy of
+cycle 7 in this file. Both were repaired in the cleanup commit rather than by rewriting history;
+the lesson is in the cycle 9 entry.
 
 | finding | confirmed? | outcome |
 |---|---|---|
