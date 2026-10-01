@@ -50,3 +50,28 @@ it('shows all four tiers with the resolved model for the active preset', functio
         ->toContain('anthropic/claude-opus-5')
         ->toContain('meta/muse-spark-1.2');
 });
+
+it('labels the two price columns instead of printing an ambiguous "a / b"', function () {
+    // `paider config:show` printed one column headed "price" containing "$5.00 / $25.00", scraped
+    // from a `// $in / $out` comment in config/presets.php. Nothing in the output said which was
+    // input and which was output — and on a table whose whole purpose is choosing a model by
+    // cost, guessing wrong is expensive. Found by a blind visual review of a surface this loop
+    // had never judged before.
+    $source = (string) file_get_contents(base_path('app/Commands/Config/ShowCommand.php'));
+
+    expect($source)->toContain('in / 1M')
+        ->and($source)->toContain('out / 1M')
+        // The unit is part of the meaning: "$5.00" alone is a number, not a rate.
+        ->and($source)->toContain("return ['in' => \$m[1], 'out' => \$m[2]];");
+
+    // And it must no longer be reachable as one ambiguous cell.
+    expect($source)->not->toContain('<th class="px-1">price</th>');
+});
+
+it('right-aligns both price columns so magnitudes compare down the column', function () {
+    $source = (string) file_get_contents(base_path('app/Commands/Config/ShowCommand.php'));
+
+    // Same trap as the cost table: `text-right` compiles cleanly and renders identically,
+    // because TableRenderer reads the align ATTRIBUTE. Assert the attribute.
+    expect(substr_count($source, 'align="right"'))->toBeGreaterThanOrEqual(2);
+});

@@ -258,3 +258,56 @@ without a custom renderer. Recorded as a limitation, not dismissed.
 **The loop's value was not the six fixes.** It was finding the two places where I was confidently
 wrong about my own code — the grid, twice, and the CI gate's inverted logic — which no amount of
 reading would have surfaced.
+
+---
+
+## Cycle 6 — `google/gemini-3.6-flash` (NEW SURFACES)
+
+**Deliberately reviewed `paider list` and `config:show` this round** — the previous five cycles
+only ever looked at `paider cost` and `paider chat`, and a review that keeps re-examining one
+surface stops finding things there. Yield confirms it: this cycle found the worst defect of the
+six on a surface that had never been judged.
+
+**Attempts:** 1. **Accepted:** yes.
+
+| finding | confirmed? | outcome |
+|---|---|---|
+| `price` column is ambiguous | ✅ **worst defect of the run** | fixed — split into `in / 1M` and `out / 1M` |
+| `paider list` description padding is uneven | ✅ real | **attempted, abandoned** — see below |
+| ASCII grid | known Termwind limit | unchanged |
+
+### `price` — the finding the first five cycles missed
+
+```
+| tier         | model                  | price           |
+| orchestrator | anthropic/claude-opus-5 | $5.00 / $25.00 |
+```
+
+Nothing said which number was input and which was output. The value is scraped from a
+`// $in / $out` comment in `config/presets.php`, so the ambiguity is a *presentation* bug in a
+table whose entire purpose is choosing a model by cost. Now two labelled, right-aligned columns
+with the unit in the header, because `$5.00` alone is a number rather than a rate.
+
+### The abandoned fix, and why
+
+`paider list` really is ragged — `config:provider` gets a 1-space gap where `run` gets 13 — and
+the cause is upstream: `Describer.php:68` resets `$this->width = 0` **per namespace group**, and
+Paider registers one command per group, so nearly every gap collapses.
+
+Fixing it took **four attempts** and I stopped:
+
+1. A provider binding the contract — silently lost to the vendor's own `register()`.
+2. A provider extending the vendor one — still lost; Zero registers it from a hardcoded list.
+3. `config/app.php`'s `providers` — **not the seam at all**; Zero never calls
+   `registerConfiguredProviders()`. It produced a CLI that died with a `foreach()` error pointing
+   at a file with no `foreach` in it.
+4. `booted()` — collided with `ServiceProvider::booted(Closure)`, which is the method that
+   *registers* a callback. Fatal, exit 255, no output.
+
+Deliberately abandoned and reverted rather than shipped half-working. It is a legitimate
+improvement worth roughly one space of alignment, and the cost was already six of my eight failed
+substitution attempts this session — the shape of this loop's recurring trap, where a change looks
+applied and does nothing. Recorded as a known gap rather than a fix.
+
+**Standing rule from cycle 6:** a cosmetic fix that needs the framework's container internals
+understood is not a cosmetic fix. Either it is understood or it is deferred.

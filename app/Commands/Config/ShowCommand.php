@@ -42,10 +42,12 @@ class ShowCommand extends Command
                 : null;
 
             $rows .= sprintf(
-                '<tr><td class="px-1">%s</td><td class="px-1">%s</td><td class="px-1">%s</td></tr>',
+                '<tr><td class="px-1">%s</td><td class="px-1">%s</td>'
+                .'<td class="px-1" align="right">%s</td><td class="px-1" align="right">%s</td></tr>',
                 e($tier),
                 e($model ?? '—'),
-                e($price ?? '')
+                e($price === null ? '—' : '$'.$price['in']),
+                e($price === null ? '—' : '$'.$price['out'])
             );
         }
 
@@ -54,7 +56,7 @@ class ShowCommand extends Command
                 <div class="px-1 mb-1">Active preset: <span class="{$presetClass}">{$preset}</span></div>
                 <table>
                     <thead>
-                        <tr><th class="px-1">tier</th><th class="px-1">model</th><th class="px-1">price</th></tr>
+                        <tr><th class="px-1">tier</th><th class="px-1">model</th><th class="px-1" align="right">in / 1M</th><th class="px-1" align="right">out / 1M</th></tr>
                     </thead>
                     <tbody>
                         {$rows}
@@ -74,7 +76,8 @@ class ShowCommand extends Command
      *
      * @param  string[]  $lines
      */
-    private function priceFor(array $lines, string $preset, string $tier): ?string
+    /** @return array{in: string, out: string}|null */
+    private function priceFor(array $lines, string $preset, string $tier): ?array
     {
         $currentPreset = null;
 
@@ -97,12 +100,16 @@ class ShowCommand extends Command
 
             $tierPattern = preg_quote($tier, '/');
 
+            // Both halves are captured separately. Returning the raw "$5.00 / $25.00" string
+            // left the reader to guess which was input and which was output — and on a table whose
+            // whole job is choosing a model by cost, guessing wrong is expensive. Caught by a blind
+            // visual review as an "ambiguous header".
             if (preg_match(
-                "/^\s*'{$tierPattern}'\s*=>\s*'[^']+'.*?\/\/\s*(\\\$[0-9.]+\s*\/\s*\\\$[0-9.]+)/",
+                "/^\s*'{$tierPattern}'\s*=>\s*'[^']+'.*?\/\/\s*\\\$([0-9.]+)\s*\/\s*\\\$([0-9.]+)/",
                 $line,
                 $m
             )) {
-                return trim($m[1]);
+                return ['in' => $m[1], 'out' => $m[2]];
             }
         }
 
