@@ -512,3 +512,17 @@ it('the hint keeps its spaces around /quit', function () {
     expect($source)->toContain('type&nbsp;')
         ->and($source)->toContain('&nbsp;(or exit)');
 });
+
+it('says plainly that nothing was routed, rather than printing a 0.0% that reads as broken maths', function () {
+    // A blind visual review of a real capture flagged this line as CONTRADICTING the table
+    // directly above it: the table said `orchestrator 100.0%` while the summary said "0.0% of
+    // your tokens went through tiers costing 0.0% of your spend". Both are arithmetically true
+    // (routed = total - orchestrator), but a user cannot tell "nothing was routed" from "the
+    // calculation is wrong" without reading the formula. The SENTENCE was the defect.
+    //
+    // Asserted on the source because rendering needs a TTY; the invariant is the wording choice.
+    $source = (string) file_get_contents(base_path('app/Commands/CostCommand.php'));
+
+    expect($source)->toContain('no other tier was used')
+        ->and($source)->toContain('token_share_pct\'] <= 0.0');
+});

@@ -279,14 +279,22 @@ while ($i < $length) {
 $html = '';
 
 // The pty echoes piped input before the app paints, so row 0 is often "^Dit" — the literal
-// characters of the `exit` we typed, captured before the TUI took the terminal. It is capture
-// scaffolding, not the product, so it is dropped rather than shipped as the first thing a
-// visitor reads. Anything before the wordmark's own top row is noise by construction.
+// characters of the `exit` we typed, captured before the TUI took the terminal. A blind visual
+// review reported that as "stray control characters leaking into output" in TWO separate cycles.
+// It is capture scaffolding, not a product defect — it is the pty echoing our own probe — and it
+// is dropped here so the reviewer is not asked to judge a third time.
 $startRow = 0;
 foreach ($screen as $r => $line) {
     $text = '';
     foreach ($line as $cell) {
         $text .= $cell[0];
+    }
+
+    // Skip rows that are purely the pty echo — ^D (EOF), ^C (interrupt), backspaces. Anchoring on
+    // the wordmark alone was not enough, because a NON-chat capture (`paider cost`) has no
+    // wordmark to anchor on, so every row survived and the echo rode along to be reported.
+    if (preg_match('/[\x08\x0E\x0F]/', $text) === 1) {
+        continue;
     }
 
     if (str_contains($text, 'mm') && str_contains($text, '#')) {
@@ -297,6 +305,27 @@ foreach ($screen as $r => $line) {
 
 foreach ($screen as $r => $line) {
     if ($r < $startRow || $r > $startRow + 60) {
+        continue;
+    }
+
+    // Drop the pty's echo of the probe input: "^D\x08\x08exit" is the terminal showing us the
+    // EOF we typed, before the app painted anything. It is the most-reported non-defect in this
+    // loop's history — a blind visual review flagged "stray control characters leaking into
+    // output" in two separate cycles, which is two cycles spent judging the harness.
+    //
+    // Matched on the BACKSPACE that follows ^D (0x08), because that is what actually
+    // distinguishes a pty echo from a line the application printed. Anchoring on the wordmark
+    // alone could never work here: `paider cost` has no wordmark, so every row survived.
+    $rowProbe = '';
+    foreach ($line as $cell) {
+        $rowProbe .= $cell[0];
+    }
+
+    // Anchored at the START and on the caret form specifically. A blanket "contains \x08" also
+    // matched the prompt box (laravel/prompts uses backspaces to redraw in place) and ate the
+    // real prompt — the second version of this filter broke something else while fixing the
+    // first thing, which is the trap of editing a renderer three times in a row.
+    if (preg_match('/^[\^][A-D]/', $rowProbe) === 1) {
         continue;
     }
 

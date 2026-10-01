@@ -143,11 +143,27 @@ class CostCommand extends Command
         // a fabricated result, not a measurement (LOCKED decision #3's spirit).
         if ($sessionSpend > 0.0) {
             if ($comparison['token_share_pct'] !== null && $comparison['spend_share_pct'] !== null) {
-                Palette::render('<div class="px-1">'.e(sprintf(
-                    '%s%% of your tokens went through tiers costing %s%% of your spend.',
-                    number_format($comparison['token_share_pct'], 1),
-                    number_format($comparison['spend_share_pct'], 1)
-                )).'</div>');
+                // A zero share means NOTHING WAS ROUTED, which is a fact worth stating plainly
+                // rather than dressing up as a measurement.
+                //
+                // A blind visual review flagged this line as contradicting the table directly
+                // above it — the table showing `orchestrator 100.0%` while the summary read
+                // "0.0% of your tokens went through tiers costing 0.0% of your spend". Both are
+                // arithmetically true and together they read as a broken calculation. The
+                // arithmetic is correct (routed = total - orchestrator); the SENTENCE was the
+                // defect, because a user cannot tell "nothing was routed" from "the maths is
+                // wrong" without reading the formula.
+                if ($comparison['token_share_pct'] <= 0.0 && $comparison['spend_share_pct'] <= 0.0) {
+                    Palette::render('<div class="px-1">'.e(
+                        'Everything went through the orchestrator tier — no other tier was used.'
+                    ).'</div>');
+                } else {
+                    Palette::render('<div class="px-1">'.e(sprintf(
+                        '%s%% of your tokens went through tiers costing %s%% of your spend.',
+                        number_format($comparison['token_share_pct'], 1),
+                        number_format($comparison['spend_share_pct'], 1)
+                    )).'</div>');
+                }
             }
 
             if ($comparison['hypothetical_usd'] !== null && $comparison['saved_usd'] !== null) {
