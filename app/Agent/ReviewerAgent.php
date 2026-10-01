@@ -133,8 +133,34 @@ final class ReviewerAgent
             $response->cacheRead,
         );
 
+        // What the same call would have cost at the reference model. Used for the ledger's
+        // comparison column, and — see below — as the meter's fallback.
+        $hypothetical = ModelPricing::costFor(
+            ModelPricing::REFERENCE_MODEL,
+            $response->tokensIn,
+            $response->tokensOut,
+            $response->cacheWrite,
+            $response->cacheRead,
+        );
+
         $this->callsMade++;
-        $this->spentUsd += $cost ?? 0.0;
+
+        // AN UNPRICED MODEL IS NOT A FREE ONE. `?? 0.0` here made maxSpendUsd inert for every
+        // model missing from config('prices'): the meter sat at 0.00, exhausted() could only ever
+        // fire on maxCalls, and a caller who set a spend ceiling got no spend protection and no
+        // hint that they had not. This is COMPLETION-PLAN.md's B3 trap from the other direction —
+        // there a zero-token event made savings vanish as null, here a null cost made spend vanish
+        // as zero. Same lie, opposite sign.
+        //
+        // So the meter charges the reference-model price for the same tokens when the served model
+        // has no rate. The table's most expensive entry, deliberately: a budget that guesses low is
+        // worse than one that guesses high, because the failure mode of guessing high is a review
+        // that stops early and says so.
+        //
+        // The LEDGER still records the real null (see below) — the cost report must keep surfacing
+        // the unknown rather than printing a confident number. Meter and ledger are allowed to
+        // disagree, and this is the one direction they are allowed to.
+        $this->spentUsd += $cost ?? $hypothetical ?? 0.0;
 
         // Booked to its OWN tier, not a literal 'orchestrator' — the defect this loop's own
         // review found in Loop::turn, where the tier was hardcoded in both the routing call and
@@ -148,13 +174,7 @@ final class ReviewerAgent
             'tokens_cache_write' => $response->cacheWrite,
             'tokens_cache_read' => $response->cacheRead,
             'cost_usd' => $cost,
-            'hypothetical_usd' => ModelPricing::costFor(
-                ModelPricing::REFERENCE_MODEL,
-                $response->tokensIn,
-                $response->tokensOut,
-                $response->cacheWrite,
-                $response->cacheRead,
-            ),
+            'hypothetical_usd' => $hypothetical,
         ]);
 
         return [
