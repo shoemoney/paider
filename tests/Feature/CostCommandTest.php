@@ -546,3 +546,18 @@ it('prints money at ONE precision, so the same figure never appears two ways', f
     // the user compares must all be 3. Assert the SET is {3} for the ledger's own lines.
     expect($precisions)->toBe(['3'], 'money must print at one precision everywhere: found '.implode(',', $precisions));
 });
+
+it('prints an exact-zero saving as $0.00, not $0.000', function () {
+    // A blind visual review read "you saved $0.000" as an unformatted raw float leaking into
+    // prose. It is: three decimals on a whole number says "floating point", where $0.00 says
+    // "nothing saved". The table keeps three decimals because sub-cent spend is real there and
+    // the column has to reconcile — the prose does not have to.
+    $source = (string) file_get_contents(base_path('app/Commands/CostCommand.php'));
+
+    // abs() matters as much as the zero case: the "cost more" branch prints -$saved as a
+    // POSITIVE amount, so formatting $saved directly rendered "$-5.600 more". Asserting the
+    // shape rather than one literal keeps both facts pinned.
+    expect($source)->toContain('$savedAmount = abs($saved);')
+        ->and($source)->toContain("\$savedAmount == 0.0 ? '\$0.00'")
+        ->and($source)->toContain('you saved %s');
+});

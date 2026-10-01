@@ -172,9 +172,20 @@ class CostCommand extends Command
                 // real, reachable negative saving that reads backwards under "you saved".
                 $saved = abs($comparison['saved_usd']) < 0.005 ? 0.0 : $comparison['saved_usd'];
 
+                // An exact zero prints as $0.00, not $0.000. Three decimals on a whole number
+                // reads as a raw float leaking into prose rather than a currency figure — which
+                // is a different problem from the table, where three decimals are load-bearing
+                // because sub-cent spend is real and the column has to reconcile.
+                // abs(), because the negative branch prints "-$saved" as a POSITIVE cost. The
+                // first version of this formatted $saved directly, so that line rendered
+                // "this session cost $-5.600 more" — a sign error introduced while fixing a
+                // different one, and caught by the golden test that already covered it.
+                $savedAmount = abs($saved);
+                $savedText = $savedAmount == 0.0 ? '$0.00' : sprintf('$%.3f', $savedAmount);
+
                 Palette::render('<div class="px-1">'.e($saved >= 0
-                    ? sprintf('Same work on all-Opus 5: $%.3f · you saved $%.3f', $comparison['hypothetical_usd'], $saved)
-                    : sprintf('Same work on all-Opus 5: $%.3f · this session cost $%.3f more', $comparison['hypothetical_usd'], -$saved)
+                    ? sprintf('Same work on all-Opus 5: $%.3f · you saved %s', $comparison['hypothetical_usd'], $savedText)
+                    : sprintf('Same work on all-Opus 5: $%.3f · this session cost %s more', $comparison['hypothetical_usd'], $savedText)
                 ).'</div>');
             }
         }
