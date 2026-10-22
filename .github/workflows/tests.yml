@@ -116,10 +116,21 @@ jobs:
       # wrong within one commit of any change — it was wrong three times in one day (518, 527,
       # 575). bin/sync-test-counts.sh regenerates it from a real run, so CI asserts the docs match
       # the suite instead of trusting them.
+      #
+      # The parser is the one in that script, not a shorter copy. Pest's summary is
+      # "N skipped, M passed". `s/[^0-9]*\([0-9]*\) passed/` matches only the tail, and GNU sed
+      # replaces the match in place, so the prefix stays and the "count" becomes
+      # "  Tests:    NM". Every default run skips the Postgres suites, so that gate was red
+      # from the commit that added it.
       - name: Docs quote the measured test count
         run: |
           set -euo pipefail
-          expected="$(vendor/bin/pest 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E '^ *Tests:' | tail -1 | sed -n 's/[^0-9]*\([0-9]*\) passed.*/\1/p')"
+          line="$(vendor/bin/pest 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E '^ *Tests:' | tail -1)"
+          expected="$(printf '%s' "$line" | sed -n 's/.*[^0-9]\([0-9][0-9]*\) passed.*/\1/p')"
+          if [ -z "$expected" ]; then
+            echo "::error::could not parse a passed count from: ${line}"
+            exit 1
+          fi
           for doc in README.md ROADMAP.md; do
             if ! grep -qE "(tests-${expected}%20passing|\*\*${expected} passing\*\*)" "$doc"; then
               echo "::error::$doc does not quote the measured count (${expected} passing). Run bin/sync-test-counts.sh"

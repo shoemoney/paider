@@ -42,7 +42,7 @@ Built in public from commit one, wrong turns left in. Here is precisely what tha
 | 🧱 v0.1 command surface | ✅ **built** | `paider chat`, `commit`, `cost`, `run`, `config:provider`, `config:show` all register and run |
 | 🔧 nine tools (7 + 2 conditional) | ✅ **built** | `read_file`, `write_file`, `patch_file`, `run_shell`, `fetch_url`, `memory`, `git` + `artisan` (when `artisan` file exists) + `load_skill` (when skills indexed) |
 | 🗄️ SQLite event log + cost ledger | ✅ **built** | append-only, ledger is a pure projection; stored in `.paider/` (gitignored locally) |
-| 🧪 test suite | ✅ **624 passing**, 3524 assertions | hermetic by default. 25 skip without `PAIDER_TEST_PG_URL` (Postgres/pgvector storage, RAG, library index) and 3 live tests run via `vendor/bin/pest --group=live` |
+| 🧪 test suite | ✅ **624 passing**, 2031 assertions | hermetic by default. 25 skip without `PAIDER_TEST_PG_URL` (Postgres/pgvector storage, RAG, library index) and 3 live tests run via `vendor/bin/pest --group=live`. Two `~/.claude/skills` checks run via `--group=corpus` and are not part of this count |
 | 🌐 talking to a real LLM | ✅ **verified live** | OpenRouter, Anthropic, xAI; cost ledger reconciles to provider usage |
 | 🌍 end-to-end edit in a foreign repo | ✅ **3/3 live runs** (2026-08-18) | `vlucas/valitron@fadce39f`, pre-registered rubric ([`m1/bench/RUBRIC.md`](m1/bench/RUBRIC.md)), evidence committed in `m1/runs/` — $1.57 across the three passes; run 0 failed the rubric and is committed too |
 | 📦 published on Packagist | ✅ **published** | `paider/paider` at https://packagist.org/packages/paider/paider |
@@ -350,19 +350,21 @@ vendor/bin/pest --group=live
 <!--
   EDITING THIS SECTION? READ THIS FIRST.
 
-  `vendor/bin/pest` ALREADY EXCLUDES the `live` group (see phpunit.xml.dist). So the number it
-  prints IS the hermetic count — do not subtract the 3 live tests from it to "get" the hermetic
-  number. That subtraction has been made and corrected twice. Live is 3 MORE, on top.
+  `vendor/bin/pest` excludes `live` and `corpus` (see phpunit.xml.dist). The number it prints
+  IS the hermetic count. Do not add the corpus checks back into it: they read ~/.claude/skills,
+  so they pass on a machine that has that directory and skip on CI. That gap is why the badge
+  said 624 while CI measured 622. Live is 3 MORE, on top, and it is not subtracted either.
 
-      vendor/bin/pest              -> hermetic count (this number, and the badge)
-      vendor/bin/pest --group=live -> 3, separately
+      vendor/bin/pest                 -> hermetic count (this number, and the badge)
+      vendor/bin/pest --group=live    -> 3, separately
+      vendor/bin/pest --group=corpus  -> the two ~/.claude/skills checks, separately
 
-  Measure both. Never derive one from the other.
+  Measure each. Never derive one from another.
 -->
 
-**Hermetic suite** (`vendor/bin/pest`, 624 tests, 3524 assertions) — all provider interactions mocked via Guzzle;
-proves self-consistency, zero cost. Excluded group: `live`. This is the number in the badge above;
-the live suite is 3 more on top, **not** part of it.
+**Hermetic suite** (`vendor/bin/pest`, 624 tests, 2031 assertions) — all provider interactions mocked via Guzzle;
+proves self-consistency, zero cost. Excluded groups: `live`, `corpus`. This is the number in the badge above;
+the live suite is 3 more on top, **not** part of it. The corpus checks are 2 more, also not part of it.
 
 **Live suite** (`vendor/bin/pest --group=live`, 3 tests) — real round-trips to `api.openrouter.ai`,
 `api.anthropic.com`, and `api.x.ai` (xAI fallback when `ANTHROPIC_API_KEY` absent). Discovers
