@@ -136,3 +136,62 @@ it('the docs-count gate reads the count rather than asserting a literal', functi
     expect($workflow)->toContain("grep -E '^ *Tests:'")
         ->and($workflow)->not->toMatch('/vendor\/bin\/pest\s+--filter=.*\d{3}/');
 });
+
+it('the docs-count sed returns the passed count when Pest also skipped', function () {
+    // The first gate used `s/[^0-9]*\([0-9]*\) passed.*/\1/`. On
+    // "  Tests:    27 skipped, 622 passed (2020 assertions)" that matches only the
+    // tail, and GNU sed replaces the match in place, so the prefix stays and the
+    // measured "count" is "  Tests:    27622". Every default run skips the Postgres
+    // suites, so the gate was red from the commit that added it. The generator
+    // script already consumed the whole line; the workflow has to use that pattern.
+    $workflow = (string) file_get_contents(base_path('.github/workflows/tests.yml'));
+    $script = (string) file_get_contents(base_path('bin/sync-test-counts.sh'));
+
+    preg_match("/sed -n '([^']*passed[^']*)'/", $workflow, $m);
+    expect($m)->toHaveCount(2, 'the passed-count sed was not found in tests.yml');
+
+    $sed = $m[1];
+
+    expect($sed)->toBe('s/.*[^0-9]\([0-9][0-9]*\) passed.*/\1/p')
+        ->and($script)->toContain($sed);
+
+    $parse = function (string $line) use ($sed): string {
+        $scriptPath = sys_get_temp_dir().'/paider-count-'.bin2hex(random_bytes(4)).'.sh';
+        file_put_contents($scriptPath, 'printf %s '.escapeshellarg($line).' | sed -n '.escapeshellarg($sed)."\n");
+
+        try {
+            $process = proc_open(['/bin/sh', $scriptPath], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+            $out = stream_get_contents($pipes[1]);
+            stream_get_contents($pipes[2]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            proc_close($process);
+
+            return trim($out);
+        } finally {
+            @unlink($scriptPath);
+        }
+    };
+
+    expect($parse('  Tests:    27 skipped, 622 passed (2020 assertions)'))->toBe('622')
+        ->and($parse('  Tests:    622 passed (2020 assertions)'))->toBe('622')
+        ->and($parse('  Tests:    1 failed, 24 skipped, 576 passed (3384 assertions)'))->toBe('576');
+});
+
+it('the home-directory skill corpus is excluded from the default suite', function () {
+    // These two pass where ~/.claude/skills exists and skip on CI. Counted in the
+    // default run, the badge (measured on a laptop that has the directory) can never
+    // equal the number CI prints. Same treatment as the live group.
+    $xml = (string) file_get_contents(base_path('phpunit.xml.dist'));
+    expect($xml)->toContain('<group>corpus</group>');
+
+    foreach ([
+        'tests/Feature/FrontmatterTest.php' => 'parses every SKILL.md under ~/.claude/skills',
+        'tests/Feature/SkillLibraryTest.php' => 'every real skill under ~/.claude/skills',
+    ] as $file => $name) {
+        $source = (string) file_get_contents(base_path($file));
+
+        expect($source)->toContain($name)
+            ->and($source)->toContain("->group('corpus')");
+    }
+});

@@ -220,6 +220,8 @@ test('refuses frontmatter missing its closing delimiter', function () {
 // --- the real proof: every SKILL.md actually on this machine -----------------------------------
 
 test('parses every SKILL.md under ~/.claude/skills with a refusal rate under 5%', function () {
+    // Excluded from the default suite (group: corpus). A pass here depends on this
+    // machine's home directory, and the published count cannot.
     $root = getenv('HOME').'/.claude/skills';
 
     if (! is_dir($root)) {
@@ -273,4 +275,4 @@ test('parses every SKILL.md under ~/.claude/skills with a refusal rate under 5%'
     }
 
     expect($rate)->toBeLessThan(0.05);
-});
+})->group('corpus');

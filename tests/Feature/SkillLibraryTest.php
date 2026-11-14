@@ -386,6 +386,8 @@ test('no project-readable env knob exists in the source — a future one must us
 // --- the real corpus --------------------------------------------------------------------------
 
 test('every real skill under ~/.claude/skills indexes without throwing, symlinked into a fake ~/.paider/skills', function () {
+    // Excluded from the default suite (group: corpus). A pass here depends on this
+    // machine's home directory, and the published count cannot.
     // The previous version of this test pointed at ~/.paider/skills directly and was SKIPPED
     // on every machine that hadn't hand-created that directory — including this one — so the
     // feature's real-corpus assertion had never actually run. The measured 225-skill corpus
@@ -421,4 +423,4 @@ test('every real skill under ~/.claude/skills indexes without throwing, symlinke
             expect(mb_strlen($entry['description']))->toBeLessThanOrEqual(SkillLibrary::DESCRIPTION_TRUNCATE + 1);
         }
     });
-});
+})->group('corpus');

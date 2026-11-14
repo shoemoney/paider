@@ -19,10 +19,15 @@
         Live tests hit real providers and cost real money. Excluded by default so that
         `vendor/bin/pest` stays hermetic and free. Run them explicitly with the CLI flag
         `group=live` (double dash prefix, which cannot be written inside an XML comment).
+
+        The corpus group is the two checks that read ~/.claude/skills. They pass only on a
+        machine that has that directory and skip everywhere else, which makes the published
+        total a property of the laptop rather than of the suite. Run them with `group=corpus`.
     -->
     <groups>
         <exclude>
             <group>live</group>
+            <group>corpus</group>
         </exclude>
     </groups>
     <source>
