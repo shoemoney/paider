@@ -5,7 +5,7 @@ namespace App\Providers;
 use App\Support\ShellEnv;
 use App\Tools\McpTool;
 use App\Tools\ToolResult;
-use Mcp\Client;
+use Mcp\Client\Client;
 use Mcp\Client\Transport\StdioTransport;
 use Mcp\Schema\Content\TextContent;
 use Throwable;

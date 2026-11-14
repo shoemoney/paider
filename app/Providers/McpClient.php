@@ -4,7 +4,7 @@ namespace App\Providers;
 
 use App\Storage\ProjectEnv;
 use App\Tools\Contracts\Tool;
-use Mcp\Exception\ConnectionException;
+use Mcp\Client\Exception\ConnectionException;
 use RuntimeException;
 
 /**

@@ -10,9 +10,9 @@ use LaravelZero\Framework\Commands\Command;
 use Mcp\Schema\Content\TextContent;
 use Mcp\Schema\Result\CallToolResult;
 use Mcp\Schema\Tool as McpTool;
-use Mcp\Server;
 use Mcp\Server\ClientGateway;
 use Mcp\Server\Handler\ToolHandlerInterface;
+use Mcp\Server\Server;
 use Mcp\Server\Transport\StdioTransport;
 
 final class McpServeCommand extends Command
