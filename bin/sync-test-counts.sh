@@ -12,6 +12,10 @@
 # works this way (CostReadmeGoldenTest seeds a ledger, runs the real command, and asserts the
 # output) — the counts get the same treatment.
 #
+# `vendor/bin/pest` excludes the `corpus` group (phpunit.xml.dist). Those two tests read
+# ~/.claude/skills, so a laptop that has the directory and CI, which does not, would otherwise
+# publish different totals. Run this against the default suite and the badge matches CI.
+#
 # Usage: bash bin/sync-test-counts.sh
 set -euo pipefail
 
